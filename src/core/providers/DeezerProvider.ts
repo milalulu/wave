@@ -1,0 +1,132 @@
+import type { Album, Artist, SearchResults, Track } from "../types";
+import type { AlbumDetail, ArtistDetail } from "../types";
+import type { MusicProvider } from "./MusicProvider";
+import type { HttpJsonGateway } from "./HttpGateway";
+
+const API = "https://api.deezer.com";
+
+interface DzArtist {
+  id?: number;
+  name?: string;
+  picture_medium?: string;
+}
+
+interface DzAlbum {
+  id?: number;
+  title?: string;
+  cover_medium?: string;
+  cover_xl?: string;
+  nb_tracks?: number;
+  release_date?: string;
+  artist?: DzArtist;
+}
+
+interface DzTrack {
+  id: number;
+  title?: string;
+  artist?: DzArtist;
+  album?: DzAlbum;
+  duration?: number;
+  preview?: string;
+}
+
+/**
+ * Провайдер Deezer: официальный публичный API без ключей.
+ * 30-секундные превью реально играют; есть альбомы и артисты.
+ */
+export class DeezerProvider implements MusicProvider {
+  readonly id = "deezer";
+  readonly name = "Deezer";
+
+  constructor(private http: HttpJsonGateway) {}
+
+  async search(query: string): Promise<SearchResults> {
+    const q = encodeURIComponent(query);
+    const [tracks, albums, artists] = await Promise.all([
+      this.fetchList<DzTrack>(`${API}/search?q=${q}&limit=20`),
+      this.fetchList<DzAlbum>(`${API}/search/album?q=${q}&limit=12`),
+      this.fetchList<DzArtist>(`${API}/search/artist?q=${q}&limit=12`),
+    ]);
+    return {
+      provider: this.id,
+      tracks: tracks.map((t) => this.track(t)).filter((t): t is Track => t !== null),
+      albums: albums.map((a) => this.album(a)).filter((a): a is Album => a !== null),
+      artists: artists.map((a) => this.artist(a)).filter((a): a is Artist => a !== null),
+    };
+  }
+
+  async resolveUri(track: Track): Promise<string> {
+    return track.uri;
+  }
+
+  async getAlbum(albumIdValue: string): Promise<AlbumDetail> {
+    const id = Number(albumIdValue.split(":").pop());
+    const { body } = await this.http.json("GET", `${API}/album/${id}`, undefined, {
+      "Content-Type": "application/json",
+    });
+    const a = body as DzAlbum & { tracks?: { data?: DzTrack[] } };
+    const album = this.album(a);
+    if (!album) throw new Error(`deezer album not found: ${albumIdValue}`);
+    const tracks = (a.tracks?.data ?? [])
+      .map((t) => this.track(t))
+      .filter((t): t is Track => t !== null);
+    return { album, tracks };
+  }
+
+  async getArtist(artistIdValue: string): Promise<ArtistDetail> {
+    const id = Number(artistIdValue.split(":").pop());
+    const { body } = await this.http.json("GET", `${API}/artist/${id}`, undefined, {
+      "Content-Type": "application/json",
+    });
+    const a = body as DzArtist & { nb_album?: number };
+    const artist = this.artist(a);
+    if (!artist) throw new Error(`deezer artist not found: ${artistIdValue}`);
+    return { artist, topTracks: [], albums: [] };
+  }
+
+  private track(t: DzTrack): Track | null {
+    if (!t.id || !t.title || !t.preview) return null;
+    return {
+      id: `deezer:track:${t.id}`,
+      provider: this.id,
+      uri: t.preview,
+      title: t.title,
+      artist: t.artist?.name,
+      album: t.album?.title,
+      albumArtist: t.album?.artist?.name,
+      coverUrl: t.album?.cover_medium,
+      duration: t.duration,
+    };
+  }
+
+  private album(a: DzAlbum): Album | null {
+    if (!a.id || !a.title) return null;
+    return {
+      id: `deezer:album:${a.id}`,
+      provider: this.id,
+      title: a.title,
+      artist: a.artist?.name,
+      coverUrl: a.cover_xl ?? a.cover_medium,
+      year: a.release_date ? new Date(a.release_date).getFullYear() : undefined,
+      trackCount: a.nb_tracks,
+    };
+  }
+
+  private artist(a: DzArtist): Artist | null {
+    if (!a.id || !a.name) return null;
+    return {
+      id: `deezer:artist:${a.id}`,
+      provider: this.id,
+      name: a.name,
+      coverUrl: a.picture_medium,
+    };
+  }
+
+  private async fetchList<T>(url: string): Promise<T[]> {
+    const { status, body } = await this.http.json("GET", url, undefined, {
+      "Content-Type": "application/json",
+    });
+    if (status !== 200) throw new Error(`deezer failed: ${status}`);
+    return (body as { data?: T[] }).data ?? [];
+  }
+}

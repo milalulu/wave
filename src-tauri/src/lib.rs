@@ -1,0 +1,595 @@
+mod http;
+pub mod lastfm;
+
+use lofty::file::{AudioFile, TaggedFileExt};
+use lofty::tag::Accessor;
+use serde::Serialize;
+use tauri::Manager;
+use tauri_plugin_sql::{Migration, MigrationKind};
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppConfig {
+    ytdlp_path: Option<String>,
+    soundcloud_client_id: Option<String>,
+    spotify_client_id: Option<String>,
+    spotify_client_secret: Option<String>,
+    vk_token: Option<String>,
+    lastfm_api_key: Option<String>,
+    lastfm_api_secret: Option<String>,
+    lastfm_session_key: Option<String>,
+    lastfm_scrobble_enabled: bool,
+    genius_token: Option<String>,
+}
+
+fn env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+}
+
+fn config() -> AppConfig {
+    AppConfig {
+        ytdlp_path: env("WAVE_YTDLP_PATH").or_else(|| {
+            std::process::Command::new("yt-dlp")
+                .arg("--version")
+                .output()
+                .ok()
+                .map(|o| if o.status.success() { "yt-dlp" } else { "" }.to_string())
+                .filter(|s| !s.is_empty())
+        }),
+        soundcloud_client_id: env("WAVE_SOUNDCLOUD_CLIENT_ID"),
+        spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID"),
+        spotify_client_secret: env("WAVE_SPOTIFY_CLIENT_SECRET"),
+        vk_token: env("WAVE_VK_TOKEN"),
+        lastfm_api_key: env("WAVE_LASTFM_API_KEY"),
+        lastfm_api_secret: env("WAVE_LASTFM_API_SECRET"),
+        lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY"),
+        lastfm_scrobble_enabled: lastfm::scrobble_enabled(),
+        genius_token: env("WAVE_GENIUS_TOKEN"),
+    }
+}
+
+fn resolve_api_token(app: &tauri::AppHandle) -> String {
+    if let Some(t) = env("WAVE_API_TOKEN") {
+        return t;
+    }
+    let dir = app
+        .path()
+        .app_config_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let file = dir.join("api-token");
+    if let Ok(existing) = std::fs::read_to_string(&file) {
+        let t = existing.trim().to_string();
+        if !t.is_empty() {
+            return t;
+        }
+    }
+    let token = random_token();
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(&file, &token);
+    token
+}
+
+fn random_token() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = RandomState::new().build_hasher();
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| h.write_u64(d.as_nanos() as u64))
+        .ok();
+    h.write_u64(std::process::id() as u64);
+    let a = h.finish();
+    let mut h2 = RandomState::new().build_hasher();
+    h2.write_u64(a);
+    format!("{:016x}{:016x}", a, h2.finish())
+}
+
+#[tauri::command]
+fn app_config() -> AppConfig {
+    config()
+}
+
+async fn run_ytdlp(args: Vec<&str>, timeout_secs: u64) -> Result<Option<String>, String> {
+    let binary = config()
+        .ytdlp_path
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "yt-dlp".to_string());
+    let Ok(cmd) = tokio::process::Command::new(&binary)
+        .args(&args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    else {
+        return Err(format!("cannot spawn {binary}"));
+    };
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        cmd.wait_with_output(),
+    )
+    .await
+    .map_err(|_| "yt-dlp timeout".to_string())?
+    .map_err(|e| format!("yt-dlp wait: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "{binary} failed: {}",
+            stderr.trim().lines().last().unwrap_or("unknown error")
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    Ok(if stdout.trim().is_empty() {
+        None
+    } else {
+        Some(stdout)
+    })
+}
+
+#[tauri::command]
+async fn yt_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
+    let limit = limit.clamp(1, 50);
+    let search = format!("ytsearch{limit}:{query}");
+    let Some(stdout) = run_ytdlp(
+        vec![
+            &search,
+            "--no-playlist",
+            "--flat-playlist",
+            "--dump-single-json",
+            "-J",
+        ],
+        60,
+    )
+    .await?
+    else {
+        return Ok(vec![]);
+    };
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).map_err(|e| format!("yt-dlp JSON: {e}"))?;
+    let entries = parsed
+        .get("entries")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let out: Vec<serde_json::Value> = entries
+        .into_iter()
+        .filter_map(|e| {
+            let id = e.get("id")?.as_str()?;
+            let title = e
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let thumbnail = e
+                .get("thumbnails")
+                .and_then(|t| t.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|t| t.get("url"))
+                .and_then(|u| u.as_str());
+            Some(serde_json::json!({
+                "id": id,
+                "title": title,
+                "uploader": e.get("uploader").and_then(|v| v.as_str()),
+                "duration": e.get("duration").and_then(|v| v.as_i64()),
+                "thumbnail": thumbnail,
+            }))
+        })
+        .collect();
+    Ok(out)
+}
+
+#[tauri::command]
+async fn yt_stream(id: String) -> Result<String, String> {
+    let url = format!("https://www.youtube.com/watch?v={id}");
+    let Some(stdout) = run_ytdlp(vec![&url, "--no-playlist", "-f", "ba/b", "-g"], 90).await? else {
+        return Err("yt-dlp: no stream".into());
+    };
+    stdout
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
+        .ok_or_else(|| "yt-dlp: no stream url".into())
+}
+
+#[tauri::command]
+async fn http_fetch_json(
+    method: String,
+    url: String,
+    body: Option<serde_json::Value>,
+    headers: Vec<(String, String)>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let mut builder = match method.as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(format!("unsupported method {method}")),
+    };
+    let form_content_type = headers.iter().any(|(k, v)| {
+        k.eq_ignore_ascii_case("content-type") && v.contains("x-www-form-urlencoded")
+    });
+    for (k, v) in headers {
+        builder = builder.header(k, v);
+    }
+    if let Some(b) = body {
+        if form_content_type && b.is_object() {
+            let params: Vec<(String, String)> = b
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                .collect();
+            builder = builder.form(&params);
+        } else {
+            builder = builder.json(&b);
+        }
+    }
+    let res = builder
+        .send()
+        .await
+        .map_err(|e| format!("http {method} {url}: {e}"))?;
+    let status = res.status().as_u16();
+    let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
+    let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|_| {
+        format!(
+            "http {status} non-json body: {}",
+            text.chars().take(120).collect::<String>()
+        )
+    })?;
+    Ok(serde_json::json!({ "status": status, "body": parsed }))
+}
+
+#[tauri::command]
+async fn http_fetch_text(
+    method: String,
+    url: String,
+    body: Option<serde_json::Value>,
+    headers: Vec<(String, String)>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let mut builder = match method.as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(format!("unsupported method {method}")),
+    };
+    for (k, v) in headers {
+        builder = builder.header(k, v);
+    }
+    if let Some(b) = body {
+        builder = builder.json(&b);
+    }
+    let res = builder
+        .send()
+        .await
+        .map_err(|e| format!("http {method} {url}: {e}"))?;
+    let status = res.status().as_u16();
+    let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
+    Ok(serde_json::json!({ "status": status, "text": text }))
+}
+
+#[tauri::command]
+async fn vk_search(query: String, count: u32) -> Result<serde_json::Value, String> {
+    let token = env("WAVE_VK_TOKEN").ok_or("WAVE_VK_TOKEN not set")?;
+    let count_str = count.to_string();
+    let form = [
+        ("act", "search"),
+        ("al", "1"),
+        ("access_token", token.as_str()),
+        ("q", query.as_str()),
+        ("count", count_str.as_str()),
+        ("type", "track"),
+        ("v", "5.131"),
+        ("offset", "0"),
+        ("is_regular", "1"),
+        ("need_album_info", "1"),
+    ];
+    let client = reqwest::Client::new();
+    let res = client
+        .post("https://vk.com/al_audio.php")
+        .header("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .form(&form)
+        .send()
+        .await
+        .map_err(|e| format!("vk search: {e}"))?;
+    let text = res.text().await.map_err(|e| format!("vk read: {e}"))?;
+    let cleaned = text.strip_prefix("<!--").unwrap_or(&text);
+    let json: serde_json::Value = serde_json::from_str(cleaned).map_err(|e| {
+        format!(
+            "vk json: {e}: {}",
+            cleaned.chars().take(160).collect::<String>()
+        )
+    })?;
+    Ok(json)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let bridge = http::bridge::Bridge::new();
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "liked tracks",
+            sql: "CREATE TABLE IF NOT EXISTS liked_tracks (
+                id TEXT PRIMARY KEY,
+                track_json TEXT NOT NULL,
+                liked_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "saved albums",
+            sql: "CREATE TABLE IF NOT EXISTS saved_albums (
+                id TEXT PRIMARY KEY,
+                album_json TEXT NOT NULL,
+                saved_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "saved artists",
+            sql: "CREATE TABLE IF NOT EXISTS saved_artists (
+                id TEXT PRIMARY KEY,
+                artist_json TEXT NOT NULL,
+                saved_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "play history",
+            sql: "CREATE TABLE IF NOT EXISTS history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track_json TEXT NOT NULL,
+                played_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 5,
+            description: "playlists",
+            sql: "CREATE TABLE IF NOT EXISTS playlists (
+                id TEXT PRIMARY KEY,
+                playlist_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+    ];
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations("sqlite:wave.db", migrations)
+                .build(),
+        )
+        .manage(bridge.clone())
+        .setup(move |app| {
+            let token = resolve_api_token(app.handle());
+            eprintln!("[wave-http] api token: {token}");
+            http::server::start(app.handle().clone(), bridge.clone(), token);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            api_respond,
+            list_music_files,
+            log_frontend,
+            app_config,
+            yt_search,
+            yt_stream,
+            vk_search,
+            http_fetch_json,
+            http_fetch_text,
+            lastfm_update_now_playing,
+            lastfm_scrobble,
+            read_text_file,
+            write_text_file,
+            backup_database,
+            restore_database,
+            yt_update,
+            yt_download
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn api_respond(
+    state: tauri::State<'_, http::bridge::BridgeHandle>,
+    id: u64,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    state.respond(id, value)
+}
+
+#[tauri::command]
+async fn lastfm_update_now_playing(
+    title: String,
+    artist: Option<String>,
+    album: Option<String>,
+    duration: Option<u32>,
+) -> Result<(), String> {
+    lastfm::lfm_post(
+        "track.updateNowPlaying",
+        &lastfm::track_params(title, artist, album, duration),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn lastfm_scrobble(
+    title: String,
+    artist: Option<String>,
+    album: Option<String>,
+    duration: Option<u32>,
+    timestamp: i64,
+) -> Result<(), String> {
+    let mut params = lastfm::track_params(title, artist, album, duration);
+    params.push(("timestamp".to_string(), timestamp.to_string()));
+    lastfm::lfm_post("track.scrobble", &params).await
+}
+
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("read {path}: {e}"))
+}
+
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    if let Some(dir) = std::path::Path::new(&path).parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    std::fs::write(&path, content).map_err(|e| format!("write {path}: {e}"))
+}
+
+fn wave_db_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    let dir = app.path().app_local_data_dir().ok()?;
+    Some(dir.join("wave.db"))
+}
+
+#[tauri::command]
+fn backup_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
+    std::fs::copy(&db, &path)
+        .map_err(|e| format!("backup failed: {e}"))
+        .map(|_| ())
+}
+
+#[tauri::command]
+fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
+    if let Some(dir) = db.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    std::fs::copy(&path, &db)
+        .map_err(|e| format!("restore failed: {e}"))
+        .map(|_| ())
+}
+
+#[tauri::command]
+async fn yt_update() -> Result<String, String> {
+    let Some(stdout) = run_ytdlp(vec!["-U"], 120).await? else {
+        return Ok("yt-dlp is up to date".into());
+    };
+    Ok(stdout.trim().to_string())
+}
+
+#[tauri::command]
+async fn yt_download(url: String, output_path: String) -> Result<(), String> {
+    let binary = config()
+        .ytdlp_path
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "yt-dlp".to_string());
+    let Ok(cmd) = tokio::process::Command::new(&binary)
+        .args([
+            &url,
+            "-f", "ba/b",
+            "-o", &output_path,
+            "--no-playlist",
+            "--no-warnings",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    else {
+        return Err(format!("cannot spawn {binary}"));
+    };
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(300),
+        cmd.wait_with_output(),
+    )
+    .await
+    .map_err(|_| "yt-dlp download timeout".to_string())?
+    .map_err(|e| format!("yt-dlp download wait: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "yt-dlp download failed: {}",
+            stderr.trim().lines().last().unwrap_or("unknown error")
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn log_frontend(message: String) {
+    eprintln!("[web] {message}");
+}
+
+const MUSIC_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "flac", "ogg", "opus", "wav", "aac", "wma"];
+
+/// Рекурсивный обход папки: возвращает музыкальные файлы
+/// с тегами (ID3/FLAC/MP4…) и длительностью, если они есть.
+#[tauri::command]
+fn list_music_files(dir: String) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(&dir)];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+                continue;
+            };
+            if MUSIC_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                out.push(file_meta(&path));
+            }
+        }
+    }
+    out
+}
+
+fn file_meta(path: &std::path::Path) -> serde_json::Value {
+    let fallback = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let mut json = serde_json::json!({
+        "path": path.to_string_lossy().to_string(),
+        "title": fallback,
+    });
+    if let Ok(tagged) = lofty::read_from_path(path) {
+        if let Some(tag) = tagged.primary_tag().or_else(|| tagged.first_tag()) {
+            if let Some(title) = tag.title().map(|t| t.to_string()).filter(|t| !t.is_empty()) {
+                json["title"] = serde_json::Value::String(title);
+            }
+            if let Some(artist) = tag
+                .artist()
+                .map(|a| a.to_string())
+                .filter(|a| !a.is_empty())
+            {
+                json["artist"] = serde_json::Value::String(artist);
+            }
+            if let Some(album) = tag.album().map(|a| a.to_string()).filter(|a| !a.is_empty()) {
+                json["album"] = serde_json::Value::String(album);
+            }
+            if let Some(picture) = tag.pictures().first() {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(picture.data());
+                let mime = picture
+                    .mime_type()
+                    .map(|m| m.to_string())
+                    .unwrap_or_else(|| "image/jpeg".to_string());
+                json["cover"] = serde_json::Value::String(format!("data:{mime};base64,{b64}"));
+            }
+        }
+        let duration = tagged.properties().duration().as_secs();
+        if duration > 0 {
+            json["duration"] = serde_json::json!(duration);
+        }
+    }
+    json
+}

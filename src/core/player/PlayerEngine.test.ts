@@ -1,0 +1,257 @@
+import { describe, expect, it } from "vitest";
+import type { Track } from "../types";
+import { MockAudioAdapter } from "./PlayerAdapter";
+import { PlayerEngine } from "./PlayerEngine";
+
+const tracks: Track[] = [
+  { id: "a", provider: "test", uri: "u://a", title: "A" },
+  { id: "b", provider: "test", uri: "u://b", title: "B" },
+  { id: "c", provider: "test", uri: "u://c", title: "C" },
+];
+
+describe("PlayerEngine", () => {
+  it("plays first track of a list", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    const snap = engine.snapshot;
+    expect(snap.current?.id).toBe("a");
+    expect(snap.state).toBe("playing");
+    expect(snap.queue.length).toBe(3);
+  });
+
+  it("advances on ended", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    adapter.end();
+    expect(engine.snapshot.current?.id).toBe("b");
+  });
+
+  it("stops at end of queue with repeat off", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    adapter.end();
+    adapter.end();
+    adapter.end();
+    expect(engine.snapshot.current).toBeNull();
+    expect(engine.snapshot.queue).toEqual([]);
+  });
+
+  it("wraps around with repeat all", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.setRepeat("all");
+    adapter.end();
+    adapter.end();
+    adapter.end();
+    expect(engine.snapshot.current?.id).toBe("a");
+  });
+
+  it("repeats single track with repeat one", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.setRepeat("one");
+    adapter.end();
+    expect(engine.snapshot.current?.id).toBe("a");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("pauses and resumes", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.pause();
+    expect(engine.snapshot.state).toBe("paused");
+    await engine.play();
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("seek and volume are applied", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.seek(42);
+    engine.setVolume(0.33);
+    const snap = engine.snapshot;
+    expect(snap.position).toBe(42);
+    expect(snap.volume).toBe(0.33);
+    expect(adapter.getPosition()).toBe(42);
+    expect(adapter.volume).toBe(0.33);
+  });
+
+  it("volume is clamped to 0..1", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.setVolume(5);
+    expect(engine.snapshot.volume).toBe(1);
+    engine.setVolume(-3);
+    expect(engine.snapshot.volume).toBe(0);
+  });
+
+  it("adds to queue and plays on demand", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks([tracks[0]]);
+    engine.addToQueue(tracks[1]);
+    expect(engine.snapshot.queue).toHaveLength(2);
+    engine.addToQueue(tracks[2], true);
+    expect(engine.snapshot.current?.id).toBe("c");
+  });
+
+  it("emits time events", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    const times: number[] = [];
+    engine.on("time", ({ position }) => times.push(position));
+    adapter.tick(15);
+    adapter.tick(30);
+    expect(times).toEqual([15, 30]);
+    engine.destroy();
+  });
+
+  it("clears queue", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.clearQueue();
+    expect(engine.snapshot.current).toBeNull();
+    expect(engine.snapshot.queue).toEqual([]);
+    expect(engine.snapshot.state).toBe("idle");
+  });
+
+  it("autoplays more tracks when queue ends", async () => {
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    const adapter = new MockAudioAdapter();
+    const more = [tracks[1], tracks[2]];
+    const engine = new PlayerEngine(adapter, {
+      onQueueEnd: async () => more,
+    });
+    await engine.playTracks([tracks[0]]);
+    adapter.end();
+    await flush();
+    expect(engine.snapshot.current?.id).toBe("b");
+    adapter.end();
+    await flush();
+    expect(engine.snapshot.current?.id).toBe("c");
+  });
+
+  it("stops when autoplay returns empty", async () => {
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      onQueueEnd: async () => [],
+    });
+    await engine.playTracks([tracks[0]]);
+    adapter.end();
+    await flush();
+    expect(engine.snapshot.current).toBeNull();
+    expect(engine.snapshot.queue).toEqual([]);
+  });
+});
+
+describe("PlayerEngine resolveUri", () => {
+  const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+  it("resolves uri lazily before playing", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => "u://resolved",
+    });
+    await engine.playTracks([tracks[0]]);
+    expect(adapter.src).toBe("u://resolved");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("uses track.uri directly when no resolver", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks([tracks[0]]);
+    expect(adapter.src).toBe("u://a");
+  });
+
+  it("retries once when resolve fails then succeeds", async () => {
+    const adapter = new MockAudioAdapter();
+    let attempts = 0;
+    const errors: string[] = [];
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("stream expired");
+        return "u://fresh";
+      },
+    });
+    engine.on("error", (m) => errors.push(m));
+    await engine.playTracks([tracks[0]]);
+    await flush();
+    expect(errors).toEqual([]);
+    expect(attempts).toBe(2);
+    expect(adapter.src).toBe("u://fresh");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("emits error after exhausting retries", async () => {
+    const adapter = new MockAudioAdapter();
+    const errors: string[] = [];
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => {
+        throw new Error("dead");
+      },
+    });
+    engine.on("error", (m) => errors.push(m));
+    await engine.playTracks([tracks[0]]);
+    await flush();
+    await flush();
+    expect(errors).toEqual(["dead"]);
+  });
+
+  it("re-resolves once on adapter load error", async () => {
+    const adapter = new MockAudioAdapter();
+    const resolved: string[] = [];
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        resolved.push(t.id);
+        return `u://${t.id}:${resolved.length}`;
+      },
+    });
+    await engine.playTracks([tracks[0]]);
+    expect(resolved).toEqual(["a"]);
+    adapter.fail("audio error code 4");
+    await flush();
+    expect(resolved).toEqual(["a", "a"]);
+    expect(adapter.src).toBe("u://a:2");
+    adapter.fail("audio error code 4");
+    await flush();
+    const errors: string[] = [];
+    engine.on("error", (m) => errors.push(m));
+    expect(errors).toEqual([]);
+  });
+
+  it("ignores stale async resolution after next()", async () => {
+    const adapter = new MockAudioAdapter();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let calls = 0;
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        calls += 1;
+        if (calls === 1) await gate;
+        return `u://${t.id}:${calls}`;
+      },
+    });
+    const p1 = engine.playTracks([tracks[0], tracks[1]]);
+    const p2 = engine.next();
+    release();
+    await Promise.all([p1, p2]);
+    expect(calls).toBe(2);
+    expect(adapter.src).toBe("u://b:2");
+    expect(engine.snapshot.current?.id).toBe("b");
+  });
+});

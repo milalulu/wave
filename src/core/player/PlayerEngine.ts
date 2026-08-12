@@ -1,0 +1,355 @@
+import { EventEmitter } from "../util/EventEmitter";
+import type { PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
+import type { AudioAdapter } from "./PlayerAdapter";
+import { Queue } from "../queue/Queue";
+
+export interface PlayerEvents {
+  state: PlayerState;
+  track: Track | null;
+  time: { position: number; duration: number };
+  queue: { queue: Track[]; index: number; history: Track[] };
+  volume: number;
+  speed: number;
+  equalizer: number[];
+  shuffle: boolean;
+  repeat: RepeatMode;
+  error: string;
+  ended: void;
+}
+
+interface PlayerEngineOptions {
+  rng?: () => number;
+  /** Ленивое разрешение playable-URL (например, YouTube-поток). */
+  resolveUri?: (track: Track) => Promise<string>;
+  /** Сколько раз пере-резолвить поток при ошибке (по умолчанию 1). */
+  retries?: number;
+  /** Автоплей: вызывается в конце очереди, чтобы дозаполнить её. */
+  onQueueEnd?: () => Promise<Track[]> | Track[];
+}
+
+/**
+ * Стейт-машина плеера: очередь, shuffle/repeat, seek/volume/position,
+ * автопереход по завершении трека. Не зависит от платформы —
+ * аудио инжектируется через AudioAdapter.
+ */
+export class PlayerEngine extends EventEmitter<PlayerEvents> {
+  private adapter: AudioAdapter;
+  private queue: Queue;
+  private state: PlayerState = "idle";
+  private volume = 1;
+  private speed = 1;
+  private equalizer: number[] = [];
+  private repeat: RepeatMode = "off";
+  private duration = 0;
+  private detach: (() => void)[] = [];
+  private resolveUri?: (track: Track) => Promise<string>;
+  private onQueueEnd?: () => Promise<Track[]> | Track[];
+  private retries = 0;
+  private maxRetries: number;
+  private playSeq = 0;
+  private preloadCache = new Map<string, string>();
+  private preloadedId: string | null = null;
+
+  constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
+    super();
+    this.adapter = adapter;
+    this.resolveUri = options.resolveUri;
+    this.onQueueEnd = options.onQueueEnd;
+    this.maxRetries = Math.max(0, options.retries ?? 1);
+    this.queue = new Queue({ rng: options.rng });
+    this.attachAdapter();
+  }
+
+  private attachAdapter(): void {
+    this.detach.push(
+      this.adapter.onStateChange((s) => this.setState(s)),
+      this.adapter.onTimeUpdate((position, duration) => {
+        this.duration = duration;
+        this.emit("time", { position, duration });
+        const remaining = duration - position;
+        if (remaining < 30 && remaining > 0) {
+          void this.preloadNext();
+        }
+      }),
+      this.adapter.onEnded(() => this.onTrackEnded()),
+      this.adapter.onError((message) => this.onLoadError(message, this.playSeq)),
+    );
+  }
+
+  private setState(state: PlayerState): void {
+    if (this.state === state) return;
+    this.state = state;
+    this.emit("state", state);
+  }
+
+  get snapshot(): PlayerSnapshot {
+    const current = this.queue.current();
+    return {
+      state: this.state,
+      current,
+      position: this.adapter.getPosition(),
+      duration: current?.duration ?? this.duration,
+      volume: this.volume,
+      speed: this.speed,
+      equalizer: [...this.equalizer],
+      shuffle: this.queue.isShuffle,
+      repeat: this.repeat,
+      queue: this.queue.tracksList,
+      queueIndex: this.queue.currentIndex(),
+      history: this.queue.historyList,
+    };
+  }
+
+  /** Заменить очередь и играть с указанного индекса. */
+  async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
+    if (tracks.length === 0) return;
+    this.queue.replace(tracks, startIndex);
+    await this.playCurrent();
+  }
+
+  /**
+   * Восстановить очередь после перезапуска: текущий трек подгружается
+   * и позиция восстанавливается, но воспроизведение НЕ начинается.
+   * Прямой uri (local/деезер/itunes) прелоадится сразу, yt-поток резолвится
+   * при первом play(), чтобы не тормозить старт приложения.
+   */
+  async restoreQueue(queue: Track[], index: number, position = 0): Promise<void> {
+    if (queue.length === 0) return;
+    const clamped = Math.min(Math.max(index, 0), queue.length - 1);
+    this.queue.replace(queue, clamped);
+    const track = this.queue.current();
+    if (!track) return;
+    this.setState("paused");
+    this.duration = track.duration ?? 0;
+    const uri = this.directUri(track);
+    if (uri) {
+      try {
+        this.adapter.load(uri);
+        if (position > 0) this.adapter.seek(position);
+      } catch {
+        // пере-резолвится при play()
+      }
+    }
+    this.emitQueue();
+  }
+
+  private directUri(track: Track): string {
+    const u = track.uri;
+    if (!u) return "";
+    return u.startsWith("http://") || u.startsWith("https://") || u.startsWith("asset://") ? u : "";
+  }
+
+  async playTrack(track: Track): Promise<void> {
+    await this.playTracks([track], 0);
+  }
+
+  async play(): Promise<void> {
+    if (!this.queue.current()) return;
+    if (this.state === "paused") {
+      this.setState("loading");
+    }
+    try {
+      await this.adapter.play();
+    } catch (err) {
+      this.emit("error", err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  pause(): void {
+    this.adapter.pause();
+  }
+
+  async togglePlay(): Promise<void> {
+    if (this.state === "playing") {
+      this.pause();
+    } else {
+      await this.play();
+    }
+  }
+
+  async next(): Promise<void> {
+    const nextTrack = this.queue.next();
+    if (nextTrack) {
+      await this.playCurrent();
+    } else if (this.repeat === "all" && this.queue.length > 0) {
+      this.queue.restart();
+      await this.playCurrent();
+    } else if (this.onQueueEnd) {
+      const oldLength = this.queue.length;
+      try {
+        const more = await this.onQueueEnd();
+        if (more.length > 0) {
+          for (const t of more) this.queue.append(t);
+          const orderPos = this.queue.positionOf(oldLength);
+          if (orderPos >= 0) this.queue.jumpToOrderPos(orderPos);
+          await this.playCurrent();
+          return;
+        }
+      } catch {
+        // autoplay источник недоступен — просто останавливаемся
+      }
+      this.stopAtEnd();
+    } else {
+      this.stopAtEnd();
+    }
+  }
+
+  private stopAtEnd(): void {
+    this.adapter.pause();
+    this.queue.clear();
+    this.emit("queue", { queue: [], index: -1, history: [] });
+  }
+
+  async previous(): Promise<void> {
+    const prev = this.queue.previous();
+    if (prev) {
+      await this.playCurrent();
+    } else {
+      this.adapter.seek(0);
+    }
+  }
+
+  seek(seconds: number): void {
+    this.adapter.seek(seconds);
+  }
+
+  setVolume(volume: number): void {
+    this.volume = Math.min(Math.max(volume, 0), 1);
+    this.adapter.setVolume(this.volume);
+    this.emit("volume", this.volume);
+  }
+
+  setPlaybackRate(rate: number): void {
+    this.speed = Math.min(Math.max(rate, 0.5), 2);
+    this.adapter.setPlaybackRate(this.speed);
+    this.emit("speed", this.speed);
+  }
+
+  setEqualizer(gains: number[]): void {
+    this.equalizer = [...gains];
+    this.adapter.setEqualizer(this.equalizer);
+    this.emit("equalizer", this.equalizer);
+  }
+
+  setShuffle(on: boolean): void {
+    this.queue.setShuffle(on);
+    this.emit("shuffle", on);
+    this.emitQueue();
+  }
+
+  setRepeat(mode: RepeatMode): void {
+    this.repeat = mode;
+    this.emit("repeat", mode);
+  }
+
+  addToQueue(track: Track, play = false): void {
+    this.queue.append(track);
+    if (play) {
+      const trackIndex = this.queue.length - 1;
+      const pos = this.queue.positionOf(trackIndex);
+      if (pos >= 0) this.queue.jumpToOrderPos(pos);
+      void this.playCurrent();
+    }
+    this.emitQueue();
+  }
+
+  removeFromQueue(trackIndex: number): void {
+    this.queue.removeAt(trackIndex);
+    this.emitQueue();
+  }
+
+  moveInQueue(fromIndex: number, toIndex: number): void {
+    this.queue.move(fromIndex, toIndex);
+    this.emitQueue();
+  }
+
+  clearQueue(): void {
+    this.queue.clear();
+    this.adapter.pause();
+    this.setState("idle");
+    this.emit("track", null);
+    this.emitQueue();
+  }
+
+  destroy(): void {
+    this.detach.forEach((d) => d());
+    this.detach = [];
+    this.adapter.destroy();
+  }
+
+  private async playCurrent(): Promise<void> {
+    const track = this.queue.current();
+    if (!track) return;
+    this.playSeq += 1;
+    this.retries = 0;
+    await this.startTrack(this.playSeq);
+  }
+
+  /** Ошибка загрузки/стрима: пере-резолв (срок жизни URL истекает), затем error. */
+  private onLoadError(message: string, seq: number): void {
+    if (seq !== this.playSeq || !this.queue.current()) return;
+    if (this.resolveUri && this.retries < this.maxRetries) {
+      this.retries += 1;
+      void this.startTrack(seq);
+      return;
+    }
+    this.emit("error", message);
+  }
+
+  private async startTrack(seq: number): Promise<void> {
+    const track = this.queue.current();
+    if (!track || seq !== this.playSeq) return;
+    this.setState("loading");
+    this.emit("track", track);
+    try {
+      const cached = this.preloadCache.get(track.id);
+      if (cached) {
+        this.preloadCache.delete(track.id);
+      }
+      const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
+      if (seq !== this.playSeq) return;
+      this.adapter.load(uri);
+      this.duration = track.duration ?? 0;
+      await this.adapter.play();
+    } catch (err) {
+      this.onLoadError(err instanceof Error ? err.message : String(err), seq);
+    }
+    this.emitQueue();
+  }
+
+  /** Предзагрузить URI следующего трека для бесперебойного переключения. */
+  private async preloadNext(): Promise<void> {
+    if (!this.resolveUri) return;
+    const next = this.queue.peekNext();
+    if (!next || this.preloadedId === next.id) return;
+    if (next.uri) {
+      this.preloadedId = next.id;
+      try {
+        const uri = await this.resolveUri(next);
+        if (this.preloadedId === next.id) {
+          this.preloadCache.set(next.id, uri);
+        }
+      } catch {
+        // предзагрузка не критична
+      }
+    }
+  }
+
+  private async onTrackEnded(): Promise<void> {
+    this.emit("ended", undefined);
+    if (this.repeat === "one") {
+      this.adapter.seek(0);
+      await this.play();
+      return;
+    }
+    await this.next();
+  }
+
+  private emitQueue(): void {
+    this.emit("queue", {
+      queue: this.queue.tracksList,
+      index: this.queue.currentIndex(),
+      history: this.queue.historyList,
+    });
+  }
+}
