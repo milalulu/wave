@@ -35,6 +35,13 @@ interface AppConfigResult {
   lastfmSessionKey?: string | null;
 }
 
+interface ToolsStatus {
+  ytdlpPath?: string | null;
+  ytdlpReady: boolean;
+  ffmpegPath?: string | null;
+  ffmpegReady: boolean;
+}
+
 const ENV_KEYS = [
   "WAVE_YTDLP_PATH",
   "WAVE_SOUNDCLOUD_CLIENT_ID",
@@ -103,6 +110,19 @@ export function SettingsView() {
   const clearCaches = useApp((s) => s.clearCaches);
   const [testingAll, setTestingAll] = useState(false);
   const [allResults, setAllResults] = useState<Record<string, string>>({});
+  const [tools, setTools] = useState<ToolsStatus | null>(null);
+  const [toolsBusy, setToolsBusy] = useState(false);
+
+  const loadTools = async (): Promise<void> => {
+    try {
+      setTools(await invoke<ToolsStatus>("tools_status"));
+    } catch {
+      setTools(null);
+    }
+  };
+  useEffect(() => {
+    void loadTools();
+  }, []);
 
   const testAllProviders = async (): Promise<void> => {
     if (!services) return;
@@ -473,6 +493,43 @@ export function SettingsView() {
               <RefreshCwIcon size={16} /> {t("settings").updateYtDlp}
             </button>
           </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").tools} desc={t("settings").toolsDesc}>
+          <div className="settings-action-row">
+            <button
+              className="btn"
+              disabled={toolsBusy}
+              onClick={async () => {
+                setToolsBusy(true);
+                try {
+                  setTools(await invoke<ToolsStatus>("ensure_tools"));
+                  notify(t("settings").toolsReady);
+                } catch (e) {
+                  notify(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setToolsBusy(false);
+                }
+              }}
+            >
+              <DownloadIcon size={16} />{" "}
+              {toolsBusy ? t("settings").toolsDownloading : t("settings").toolsInstall}
+            </button>
+          </div>
+          {tools && (
+            <div className="muted tools-status">
+              <div>
+                yt-dlp: {tools.ytdlpReady ? t("settings").toolsReady : t("settings").toolsMissing} —{" "}
+                {tools.ytdlpPath}
+              </div>
+              {tools.ffmpegPath && (
+                <div>
+                  ffmpeg: {tools.ffmpegReady ? t("settings").toolsReady : t("settings").toolsMissing} —{" "}
+                  {tools.ffmpegPath}
+                </div>
+              )}
+            </div>
+          )}
         </SettingsCard>
 
         <SettingsCard title={t("settings").backup} desc={t("settings").backupDesc}>

@@ -2,6 +2,7 @@ pub mod android;
 mod http;
 pub mod lastfm;
 pub mod mpris;
+mod tools;
 
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::tag::Accessor;
@@ -55,6 +56,7 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
     AppConfig {
         ytdlp_path: env("WAVE_YTDLP_PATH")
             .or_else(|| get_string(&persisted, "WAVE_YTDLP_PATH"))
+            .or_else(|| tools::ytdlp_present_path(app))
             .or_else(|| {
                 std::process::Command::new("yt-dlp")
                     .arg("--version")
@@ -446,6 +448,10 @@ pub fn run() {
                 let token = resolve_api_token(app.handle());
                 http::server::start(app.handle().clone(), bridge.clone(), token);
                 mpris::start(app.handle().clone());
+                let handle = app.handle().clone();
+                tokio::spawn(async move {
+                    let _ = tools::ensure(&handle).await;
+                });
             }
             Ok(())
         })
@@ -467,6 +473,8 @@ pub fn run() {
             restore_database,
             yt_update,
             yt_download,
+            tools_status,
+            ensure_tools,
             read_audio_tags,
             write_audio_tags,
             save_app_config,
@@ -565,6 +573,16 @@ async fn yt_update(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn tools_status(app: tauri::AppHandle) -> tools::ToolsStatus {
+    tools::status(&app)
+}
+
+#[tauri::command]
+async fn ensure_tools(app: tauri::AppHandle) -> Result<tools::ToolsStatus, String> {
+    tools::ensure(&app).await
+}
+
+#[tauri::command]
 async fn yt_download(
     app: tauri::AppHandle,
     url: String,
@@ -578,17 +596,27 @@ async fn yt_download(
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
+    let mut args = vec![
+        url.as_str(),
+        "-f",
+        "ba/b",
+        "-o",
+        output_path.as_str(),
+        "--no-playlist",
+        "--no-warnings",
+        "--newline",
+    ];
+    let ffmpeg_location = if tools::ffmpeg_ready(&app) {
+        Some(tools::tools_dir(&app))
+    } else {
+        None
+    };
+    if let Some(loc) = ffmpeg_location.as_ref() {
+        args.push("--ffmpeg-location");
+        args.push(loc.to_str().unwrap_or_default());
+    }
     let mut child = tokio::process::Command::new(&binary)
-        .args([
-            &url,
-            "-f",
-            "ba/b",
-            "-o",
-            &output_path,
-            "--no-playlist",
-            "--no-warnings",
-            "--newline",
-        ])
+        .args(args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()

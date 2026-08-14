@@ -77,6 +77,9 @@ export class WebAudioAdapter implements AudioAdapter {
       if (!this.elements[i]) {
         const el = new Audio();
         el.preload = "auto";
+        // CORS-режим обязателен для кросс-доменного аудио через WebAudio: без него
+        // Chromium (WebView2/Windows) отдаёт тишину, а WebKitGTK играет нормально.
+        el.crossOrigin = "anonymous";
         el.volume = this.masterVolume;
         el.playbackRate = this.playbackRate;
         this.attachHandlers(el);
@@ -106,6 +109,23 @@ export class WebAudioAdapter implements AudioAdapter {
       this.endedCb?.();
     };
     el.onerror = (): void => {
+      // CORS-ошибка (источник без Access-Control-Allow-Origin): разбираем граф —
+      // кросс-доменное аудио внутри него на Chromium глушится. Звук идёт напрямую
+      // из элемента (без EQ), источник пробуем ещё раз без CORS-режима.
+      if (isActive() && !this.graphDisabled && this.ctx && el.crossOrigin) {
+        const src = el.currentSrc || el.src;
+        this.teardownGraph();
+        this.graphDisabled = true;
+        this.elements = [null, null];
+        this.ensureElements();
+        const next = this.activeElement();
+        next.crossOrigin = null;
+        if (src) {
+          next.src = src;
+          next.load();
+        }
+        return;
+      }
       if (isActive()) this.errorCb?.(`audio error code ${el.error?.code ?? "unknown"}`);
     };
     el.ontimeupdate = (): void => {

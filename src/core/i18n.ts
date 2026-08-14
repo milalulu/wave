@@ -171,6 +171,12 @@ export interface Translations {
     providerNotLoaded: string;
     updateYtDlp: string;
     updateYtDlpDesc: string;
+    tools: string;
+    toolsDesc: string;
+    toolsInstall: string;
+    toolsDownloading: string;
+    toolsReady: string;
+    toolsMissing: string;
     ytQuality: string;
     ytQualityDesc: string;
     ytQualityLabels: Record<string, string>;
@@ -439,6 +445,12 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Provider not loaded",
       updateYtDlp: "Update yt-dlp",
       updateYtDlpDesc: "Updates the yt-dlp binary (when installed system-wide or bundled).",
+      tools: "Dependencies",
+      toolsDesc: "yt-dlp and ffmpeg are downloaded automatically on first launch into the app data folder.",
+      toolsInstall: "Download",
+      toolsDownloading: "Downloading…",
+      toolsReady: "Ready",
+      toolsMissing: "Missing",
       ytQuality: "YouTube quality",
       ytQualityDesc: "Audio bitrate cap for streams via yt-dlp.",
       ytQualityLabels: { low: "Low", medium: "Medium", high: "High", best: "Best" },
@@ -705,6 +717,12 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Провайдер не загружен",
       updateYtDlp: "Обновить yt-dlp",
       updateYtDlpDesc: "Обновляет бинарник yt-dlp (если установлен в системе или в комплекте).",
+      tools: "Зависимости",
+      toolsDesc: "yt-dlp и ffmpeg скачиваются автоматически при первом запуске в папку данных приложения.",
+      toolsInstall: "Скачать",
+      toolsDownloading: "Скачивание…",
+      toolsReady: "Установлено",
+      toolsMissing: "Нет",
       ytQuality: "Качество YouTube",
       ytQualityDesc: "Максимальный битрейт аудио для стримов через yt-dlp.",
       ytQualityLabels: { low: "Низкое", medium: "Среднее", high: "Высокое", best: "Максимум" },
