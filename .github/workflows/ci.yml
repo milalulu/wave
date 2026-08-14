@@ -8,7 +8,7 @@ on:
 
 env:
   RUST_VERSION: stable
-  NODE_VERSION: 20
+  NODE_VERSION: 24
 
 jobs:
   test-and-build:
@@ -24,7 +24,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11.3.0
           run_install: false
 
       - name: Setup Node
