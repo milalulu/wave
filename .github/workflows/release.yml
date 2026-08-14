@@ -53,14 +53,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libxdo-dev libssl-dev
 
-      - name: Setup Android SDK
-        if: runner.os == 'Linux' && matrix.args != ''
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 34
-          ndk-version: r27c
-          emulator: false
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
