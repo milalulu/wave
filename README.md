@@ -6,6 +6,22 @@
 
 **Стек:** Tauri 2 (Rust) + React 19 + TypeScript + Zustand + SQLite (tauri-plugin-sql) + axum HTTP API.
 
+[![Release](https://img.shields.io/github/v/release/milalulu/wave?sort=semver&color=blue)](https://github.com/milalulu/wave/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI)](https://github.com/milalulu/wave/actions/workflows/ci.yml)
+
+## Скачать
+
+| Платформа | Установщик |
+|---|---|
+| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.0_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.0_x64-setup.exe) |
+| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.0_amd64.deb) |
+| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.0-1.x86_64.rpm) |
+| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.0_amd64.AppImage) |
+| **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
+
+> Обновления внутри приложения устанавливаются автоматически (Tauri updater). macOS и Android пока не собираются.
+> Ссылки ведут на последний релиз; при выпуске новой версии обновите имя файла в URL (номер версии входит в имя файла).
+
 ---
 
 ## Фичи
