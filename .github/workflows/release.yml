@@ -23,11 +23,13 @@ jobs:
     timeout-minutes: 60
     env:
       # Подпись апдейт-артефактов (ключ — из `tauri signer generate`).
-      # Windows-секреты не выносим в env: пустые строки ломают tauri
-      # (он видит переменную и пытается импортировать сертификат).
-      # macOS пока отключён: добавить матрицу + шаги Apple при покупке сертификата.
+      # Apple-секреты сюда не выносим: пустая APPLE_CERTIFICATE ломает tauri.
+      # WIN_* в env безопасно (tauri их не читает) и нужно для шага импорта
+      # сертификата — в step-if контекст `secrets` недоступен.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE }}
+      WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +57,7 @@ jobs:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Import Windows certificate
-        if: ${{ secrets.WIN_CERTIFICATE != '' }}
+        if: env.WIN_CERTIFICATE != ''
         shell: pwsh
         env:
           WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE }}
