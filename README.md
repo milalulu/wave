@@ -92,8 +92,9 @@ git push origin v0.1.0
 | Секрет | Назначение |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Подпись пакетов автообновления (`tauri signer generate`). Без них `latest.json` не создаётся, приложение просто не видит обновлений. |
-| `APPLE_CERTIFICATE` (p.12 в base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Подпись и нотаризация macOS. Без них на Apple Silicon сборки считаются повреждёнными. |
 | `WIN_CERTIFICATE` (.pfx в base64), `WIN_CERTIFICATE_PASSWORD` | Подпись Windows (убирает предупреждение SmartScreen). Дополнительно укажите `certificateThumbprint` в `bundle.windows` `src-tauri/tauri.conf.json`. |
+
+macOS-сборки пока отключены (нет Developer ID-сертификата). Когда он появится: верните `macos-latest` в матрицу `release.yml` и шаги импорта Apple-сертификата; секреты подписи/нотаризации — `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
 
 **Внимание:** ключ подписи генерируется один раз и хранится только у вас (`TAURI_SIGNING_PRIVATE_KEY`). При его утере автообновление перестанет работать — придётся генерировать новый ключ и менять `pubkey` в `tauri.conf.json`. Не коммитьте приватный ключ в репозиторий.
 

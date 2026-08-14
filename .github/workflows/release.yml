@@ -15,10 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: --target aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
           - platform: ubuntu-22.04
             args: ""
           - platform: windows-latest
@@ -26,19 +22,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 60
     env:
-      # Автообновление: подпись апдейт-артефактов (ключ — из `tauri signer generate`).
+      # Подпись апдейт-артефактов (ключ — из `tauri signer generate`).
+      # Windows-секреты не выносим в env: пустые строки ломают tauri
+      # (он видит переменную и пытается импортировать сертификат).
+      # macOS пока отключён: добавить матрицу + шаги Apple при покупке сертификата.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      # Подпись и нотаризация macOS (p.12 в base64 + пароль).
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      # Подпись Windows (Authenticode), .pfx в base64 + пароль.
-      WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE }}
-      WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,22 +54,8 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Import Apple Developer Certificate
-        if: env.APPLE_CERTIFICATE != ''
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
-          security create-keychain -p "$RUNNER_TEMP/kcpass" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$RUNNER_TEMP/kcpass" build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$RUNNER_TEMP/kcpass" build.keychain
-          echo "::add-mask::$RUNNER_TEMP/kcpass"
-
       - name: Import Windows certificate
-        if: env.WIN_CERTIFICATE != ''
+        if: ${{ secrets.WIN_CERTIFICATE != '' }}
         shell: pwsh
         env:
           WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE }}
