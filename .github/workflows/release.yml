@@ -19,8 +19,6 @@ jobs:
             args: ""
           - platform: windows-latest
             args: ""
-          - platform: ubuntu-22.04
-            args: "--target aarch64-linux-android"
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 60
     env:
@@ -53,26 +51,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libxdo-dev libssl-dev
 
-      - name: Setup Android SDK
-        if: runner.os == 'Linux' && matrix.args != ''
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: "latest"
-          accept-android-sdk-licenses: true
-          packages: platform-tools platforms;android-34 build-tools;34.0.0 ndk;27.0.12077973
-
-      - name: Set Android NDK clang for aarch64
-        if: runner.os == 'Linux' && matrix.args != ''
-        run: |
-          NDK_PATH=$(find $ANDROID_SDK_ROOT/ndk -name "aarch64-linux-android*-clang" -type f | head -1 | xargs dirname)
-          echo "CC_aarch64_linux_android=$NDK_PATH/aarch64-linux-android34-clang" >> $GITHUB_ENV
-          echo "AR_aarch64_linux_android=$NDK_PATH/llvm-ar" >> $GITHUB_ENV
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK_PATH/aarch64-linux-android34-clang" >> $GITHUB_ENV
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || (matrix.args != '' && 'aarch64-linux-android') || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Import Windows certificate
         if: env.WIN_CERTIFICATE != ''
