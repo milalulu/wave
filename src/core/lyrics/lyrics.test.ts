@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractGeniusLyrics, parseSyncedLyrics } from "./LyricsService";
+import { parseSyncedLyrics } from "./LyricsService";
 
 describe("parseSyncedLyrics", () => {
   it("парсит тайминги mm:ss.xx", () => {
@@ -28,21 +28,5 @@ describe("parseSyncedLyrics", () => {
   it("сортирует по времени", () => {
     const lrc = "[00:05.00]B\n[00:02.00]A";
     expect(parseSyncedLyrics(lrc).map((l) => l.text)).toEqual(["A", "B"]);
-  });
-});
-
-describe("extractGeniusLyrics", () => {
-  it("извлекает текст из data-lyrics-container и декодирует сущности", () => {
-    const html = `
-      <div data-lyrics-container="true" class="Lyrics__Container">
-        <a href="/x">First line</a><br/>
-        It&apos;s a <b>second</b> line
-      </div>
-    `;
-    expect(extractGeniusLyrics(html)).toBe("First line\nIt's a second line");
-  });
-
-  it("возвращает пустую строку без контейнера", () => {
-    expect(extractGeniusLyrics("<html><body>no lyrics</body></html>")).toBe("");
   });
 });

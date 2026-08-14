@@ -17,6 +17,14 @@ export interface PlayerEvents {
   ended: void;
 }
 
+/** Сколько ждать данных в состоянии "loading", прежде чем пере-резолвить поток. */
+export const STALL_TIMEOUT_MS = 12000;
+
+/** Сколько ждать разрешения adapter.play(), прежде чем двигаться дальше.
+ *  HTML5-адаптер может висеть на play() бесконечно (мёртвый стрим) —
+ *  движок не должен блокироваться на этом навсегда. */
+export const PLAY_START_TIMEOUT_MS = 10000;
+
 interface PlayerEngineOptions {
   rng?: () => number;
   /** Ленивое разрешение playable-URL (например, YouTube-поток). */
@@ -44,17 +52,23 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private detach: (() => void)[] = [];
   private resolveUri?: (track: Track) => Promise<string>;
   private onQueueEnd?: () => Promise<Track[]> | Track[];
+  private defaultFiller?: () => Promise<Track[]> | Track[];
   private retries = 0;
   private maxRetries: number;
   private playSeq = 0;
   private preloadCache = new Map<string, string>();
   private preloadedId: string | null = null;
+  private stallTimer: number | undefined;
+  /** Авто-фолбэк на вариант (другой источник) при ошибке воспроизведения. */
+  private fallback?: () => Track | null;
+  private fallbackUsed = false;
 
   constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
     super();
     this.adapter = adapter;
     this.resolveUri = options.resolveUri;
     this.onQueueEnd = options.onQueueEnd;
+    this.defaultFiller = options.onQueueEnd;
     this.maxRetries = Math.max(0, options.retries ?? 1);
     this.queue = new Queue({ rng: options.rng });
     this.attachAdapter();
@@ -79,7 +93,27 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private setState(state: PlayerState): void {
     if (this.state === state) return;
     this.state = state;
+    if (state === "loading") {
+      this.startStallTimer();
+    } else {
+      this.clearStallTimer();
+    }
     this.emit("state", state);
+  }
+
+  /** Если в "loading" долго нет данных (URL протух, стрим замёрз) — пере-резолвим. */
+  private startStallTimer(): void {
+    this.clearStallTimer();
+    this.stallTimer = globalThis.setTimeout(() => {
+      this.onLoadError("stream stalled", this.playSeq);
+    }, STALL_TIMEOUT_MS);
+  }
+
+  private clearStallTimer(): void {
+    if (this.stallTimer !== undefined) {
+      globalThis.clearTimeout(this.stallTimer);
+      this.stallTimer = undefined;
+    }
   }
 
   get snapshot(): PlayerSnapshot {
@@ -104,6 +138,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
     if (tracks.length === 0) return;
     this.queue.replace(tracks, startIndex);
+    this.fallbackUsed = false;
     await this.playCurrent();
   }
 
@@ -117,6 +152,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (queue.length === 0) return;
     const clamped = Math.min(Math.max(index, 0), queue.length - 1);
     this.queue.replace(queue, clamped);
+    this.fallbackUsed = false;
     const track = this.queue.current();
     if (!track) return;
     this.setState("paused");
@@ -143,13 +179,20 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await this.playTracks([track], 0);
   }
 
+  /** Переключить текущий трек на вариант (другая площадка) без потери истории. */
+  playVariant(track: Track): void {
+    if (!this.queue.replaceCurrent(track)) return;
+    this.emitQueue();
+    void this.playCurrent();
+  }
+
   async play(): Promise<void> {
     if (!this.queue.current()) return;
     if (this.state === "paused") {
       this.setState("loading");
     }
     try {
-      await this.adapter.play();
+      await this.playWithGuard();
     } catch (err) {
       this.emit("error", err instanceof Error ? err.message : String(err));
     }
@@ -231,6 +274,15 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emit("equalizer", this.equalizer);
   }
 
+  setCrossfadeMs(ms: number): void {
+    this.adapter.setCrossfadeMs(ms);
+  }
+
+  /** Данные спектра для визуализатора. */
+  getSpectrum(data: Uint8Array): void {
+    this.adapter.getSpectrum(data);
+  }
+
   setShuffle(on: boolean): void {
     this.queue.setShuffle(on);
     this.emit("shuffle", on);
@@ -240,6 +292,17 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   setRepeat(mode: RepeatMode): void {
     this.repeat = mode;
     this.emit("repeat", mode);
+  }
+
+  /** Подменить источник дозаполнения очереди (радио) или вернуть дефолт (null). */
+  setAutoFill(fn: (() => Promise<Track[]> | Track[]) | null): void {
+    this.onQueueEnd = fn ?? this.defaultFiller;
+  }
+
+  /** Установить функцию авто-фолбэка на вариант при ошибке воспроизведения. */
+  setFallback(fn: (() => Track | null) | null): void {
+    this.fallback = fn ?? undefined;
+    this.fallbackUsed = false;
   }
 
   addToQueue(track: Track, play = false): void {
@@ -272,6 +335,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   destroy(): void {
+    this.clearStallTimer();
     this.detach.forEach((d) => d());
     this.detach = [];
     this.adapter.destroy();
@@ -293,13 +357,29 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       void this.startTrack(seq);
       return;
     }
+    // Источник недоступен — пробуем вариант на другой площадке (один раз за трек).
+    if (this.fallback && !this.fallbackUsed) {
+      this.fallbackUsed = true;
+      const fb = this.fallback();
+      if (fb && this.queue.replaceCurrent(fb)) {
+        this.emitQueue();
+        void this.playCurrent();
+        return;
+      }
+    }
+    this.fallbackUsed = false;
+    this.clearStallTimer();
     this.emit("error", message);
+    // Трек не воспроизводим (URL протух, файл удалён) — пропускаем его,
+    // чтобы плейлист не зависал в "loading" навсегда.
+    void this.next();
   }
 
   private async startTrack(seq: number): Promise<void> {
     const track = this.queue.current();
     if (!track || seq !== this.playSeq) return;
     this.setState("loading");
+    this.startStallTimer();
     this.emit("track", track);
     try {
       const cached = this.preloadCache.get(track.id);
@@ -310,11 +390,33 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (seq !== this.playSeq) return;
       this.adapter.load(uri);
       this.duration = track.duration ?? 0;
-      await this.adapter.play();
+      await this.playWithGuard();
     } catch (err) {
       this.onLoadError(err instanceof Error ? err.message : String(err), seq);
     }
     this.emitQueue();
+  }
+
+  /**
+   * Обёртка над adapter.play(): зависший play() (мёртвый стрим в webkit)
+   * не должен блокировать движок. Быстрый reject пробрасывается наверх
+   * (движок пере-резолвит поток), а таймаут просто пропускаем —
+   * фактическое состояние приходит через onStateChange, восстановление
+   * берёт на себя stall-таймер.
+   */
+  private async playWithGuard(): Promise<void> {
+    let settled = false;
+    const play = this.adapter.play().catch((err: unknown) => {
+      if (settled) return;
+      throw err;
+    });
+    const timeout = new Promise<void>((resolve) => {
+      globalThis.setTimeout(() => {
+        settled = true;
+        resolve();
+      }, PLAY_START_TIMEOUT_MS);
+    });
+    await Promise.race([play, timeout]);
   }
 
   /** Предзагрузить URI следующего трека для бесперебойного переключения. */
@@ -328,6 +430,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         const uri = await this.resolveUri(next);
         if (this.preloadedId === next.id) {
           this.preloadCache.set(next.id, uri);
+          this.adapter.preload(uri);
         }
       } catch {
         // предзагрузка не критична

@@ -1,9 +1,9 @@
 import type { ReactElement } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { FolderIcon, HomeIcon, ListIcon, SearchIcon, WaveIcon, PlaylistIcon, SettingsIcon } from "./icons";
+import { FolderIcon, HomeIcon, ListIcon, SearchIcon, WaveIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon } from "./icons";
 
-export type ViewKey = "home" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings";
+export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
 
 function QueueIcon2(p: { size?: number }) {
   return (
@@ -33,10 +33,12 @@ export function Sidebar({ view, onView }: SidebarProps) {
 
   const items: { key: ViewKey; label: string; icon: (p: { size?: number }) => ReactElement }[] = [
     { key: "home", label: t("nav").home, icon: HomeIcon },
+    { key: "nowPlaying", label: t("nav").nowPlaying, icon: PlayIcon },
     { key: "search", label: t("nav").search, icon: SearchIcon },
     { key: "library", label: t("nav").library, icon: ListIcon },
     { key: "wave", label: t("nav").wave, icon: WaveIcon },
     { key: "playlist", label: t("nav").playlist, icon: PlaylistIcon },
+    { key: "downloads", label: t("nav").downloads, icon: DownloadIcon },
     { key: "settings", label: t("nav").settings, icon: SettingsIcon },
     { key: "queue", label: t("nav").queue, icon: QueueIcon2 },
   ];
@@ -44,7 +46,9 @@ export function Sidebar({ view, onView }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <span className="logo-mark">W</span>
+        <span className="logo-mark">
+          <WaveIcon size={20} />
+        </span>
         <span className="logo-text">Wave</span>
       </div>
       <nav className="sidebar-nav">

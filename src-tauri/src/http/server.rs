@@ -11,6 +11,19 @@ use tauri::AppHandle;
 
 use super::bridge::BridgeHandle;
 
+/// Постоянно-временное сравнение секретов: не даёт утечки длины/префикса
+/// через тайминги при сверке X-Api-Token.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.as_bytes().iter().zip(b.as_bytes().iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 #[derive(Clone)]
 pub struct ServerState {
     pub app: AppHandle,
@@ -46,9 +59,24 @@ route_handler!(play_search, "search.play");
 route_handler!(like, "library.like");
 route_handler!(history, "history.list");
 route_handler!(wave_start, "wave.start");
+route_handler!(variants, "variants.list");
+route_handler!(sources_list, "sources.list");
+route_handler!(sources_set, "sources.set");
+route_handler!(radio, "player.radio");
+route_handler!(similar, "player.similar");
+route_handler!(lyrics, "lyrics.list");
+route_handler!(download, "download.track");
+route_handler!(blocks_tracks, "blocks.tracks");
+route_handler!(block_track_toggle, "blocks.track.toggle");
+route_handler!(blocks_artists, "blocks.artists");
+route_handler!(block_artist_toggle, "blocks.artist.toggle");
 
 pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
     let state = ServerState { app, bridge, token };
+    let health = Router::new()
+        .route("/health", get(health))
+        .route("/api/v1/health", get(health))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth));
     let v1 = Router::new()
         .route("/api/v1/status", get(status))
         .route("/api/v1/play", post(play))
@@ -68,12 +96,19 @@ pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
         .route("/api/v1/like", post(like))
         .route("/api/v1/history", get(history))
         .route("/api/v1/wave/start", post(wave_start))
+        .route("/api/v1/variants", get(variants))
+        .route("/api/v1/sources", get(sources_list))
+        .route("/api/v1/sources", post(sources_set))
+        .route("/api/v1/radio", post(radio))
+        .route("/api/v1/similar", post(similar))
+        .route("/api/v1/lyrics", get(lyrics))
+        .route("/api/v1/download", post(download))
+        .route("/api/v1/blocks/tracks", get(blocks_tracks))
+        .route("/api/v1/blocks/track", post(block_track_toggle))
+        .route("/api/v1/blocks/artists", get(blocks_artists))
+        .route("/api/v1/blocks/artist", post(block_artist_toggle))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
-    Router::new()
-        .route("/health", get(health))
-        .route("/api/v1/health", get(health))
-        .merge(v1)
-        .with_state(state)
+    Router::new().merge(health).merge(v1).with_state(state)
 }
 
 pub fn start(app: AppHandle, bridge: BridgeHandle, token: String) {
@@ -116,7 +151,7 @@ async fn auth(State(state): State<ServerState>, request: Request, next: Next) ->
         .headers()
         .get("X-Api-Token")
         .and_then(|v| v.to_str().ok())
-        .map(|v| v == token)
+        .map(|v| constant_time_eq(v, token))
         .unwrap_or(false);
     if authorized {
         next.run(request).await

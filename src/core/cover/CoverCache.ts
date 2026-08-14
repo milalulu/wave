@@ -45,9 +45,17 @@ export function getCachedCover(url: string): string | null {
   return e.data;
 }
 
-/** Загрузить обложку в data-URL и положить в кэш (оффлайн). */
-export async function cacheCover(url: string): Promise<string | null> {
+/** Полностью очистить кэш обложек. */
+export function clearCoverCache(): void {
   try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* игнорируем */
+  }
+}
+
+/** Загрузить обложку в data-URL и положить в кэш (оффлайн). */
+export async function cacheCover(url: string): Promise<string | null> {  try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();

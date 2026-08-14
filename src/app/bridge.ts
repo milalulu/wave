@@ -1,7 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { RepeatMode, Track } from "../core/types";
-import { searchAll, type AppServices } from "./compose";
+import { radioTracks, searchAll, type AppServices } from "./compose";
+import { findTrackVariants } from "./trackVariants";
+import {
+  activeProviders,
+  getBlockedArtists,
+  getBlockedProviders,
+  getBlockedTrackIds,
+  getPreferredProviders,
+  KNOWN_PROVIDERS,
+  setBlockedProviders,
+  setPreferredProviders,
+  toggleBlockedArtist,
+  toggleBlockedTrack,
+} from "./platformSettings";
 
 interface BridgeRequest {
   id: number;
@@ -96,6 +109,32 @@ export class ApiBridge {
         return { history: await history.getHistory() };
       case "wave.start":
         return this.waveStart();
+      case "variants.list":
+        return this.variantsList();
+      case "sources.list":
+        return {
+          blocked: getBlockedProviders(),
+          preferred: getPreferredProviders(),
+          known: KNOWN_PROVIDERS,
+        };
+      case "sources.set":
+        return this.sourcesSet(payload);
+      case "player.radio":
+        return this.radio(payload);
+      case "player.similar":
+        return this.similar(payload);
+      case "lyrics.list":
+        return this.lyrics(payload);
+      case "download.track":
+        return this.download(payload);
+      case "blocks.tracks":
+        return { blocked: getBlockedTrackIds() };
+      case "blocks.track.toggle":
+        return this.toggleBlockTrack(payload);
+      case "blocks.artists":
+        return { blocked: getBlockedArtists() };
+      case "blocks.artist.toggle":
+        return this.toggleBlockArtist(payload);
       default:
         throw new Error(`unknown action: ${action}`);
     }
@@ -151,6 +190,91 @@ export class ApiBridge {
     }
     await this.services.engine.playTracks(tracks);
     return { count: tracks.length };
+  }
+
+  private async variantsList(): Promise<unknown> {
+    const current = this.services.engine.snapshot.current;
+    if (!current) return { variants: [] };
+    const found = await findTrackVariants(this.services.providers, current);
+    return { trackId: current.id, variants: found.map((v) => ({ provider: v.providerId, track: v.track })) };
+  }
+
+  private async sourcesSet(payload: Record<string, unknown>): Promise<unknown> {
+    if (Array.isArray(payload.blocked)) {
+      setBlockedProviders(payload.blocked.filter((x): x is string => typeof x === "string"));
+    }
+    if (Array.isArray(payload.preferred)) {
+      setPreferredProviders(payload.preferred.filter((x): x is string => typeof x === "string"));
+    }
+    const providers = this.services.providers;
+    const next = activeProviders(providers);
+    providers.length = 0;
+    providers.push(...next);
+    return {
+      blocked: getBlockedProviders(),
+      preferred: getPreferredProviders(),
+    };
+  }
+
+  private async radio(payload: Record<string, unknown>): Promise<unknown> {
+    const seed = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
+    if (!seed) throw new Error("no track to start radio");
+    const tracks = await radioTracks(this.services, seed);
+    await this.services.engine.playTracks([seed, ...tracks]);
+    return { count: tracks.length, seedId: seed.id };
+  }
+
+  private async similar(payload: Record<string, unknown>): Promise<unknown> {
+    const seed = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
+    if (!seed) throw new Error("no track for similar");
+    const tracks = await radioTracks(this.services, seed);
+    for (const t of tracks) this.services.engine.addToQueue(t);
+    return { added: tracks.length, seedId: seed.id };
+  }
+
+  private async lyrics(payload: Record<string, unknown>): Promise<unknown> {
+    const track = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
+    if (!track) throw new Error("no track for lyrics");
+    const result = await this.services.lyrics.getLyrics(track);
+    return {
+      trackId: track.id,
+      synced: result.synced,
+      instrumental: result.instrumental,
+      source: result.source,
+      lines: result.lines.map((l) => ({
+        time: l.time ?? null,
+        text: l.text,
+      })),
+      plainText: result.lines.map((l) => l.text).join("\n"),
+    };
+  }
+
+  private async download(payload: Record<string, unknown>): Promise<unknown> {
+    const track = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
+    if (!track) throw new Error("no track to download");
+    const dir = typeof payload.dir === "string" ? payload.dir : "";
+    if (!dir) throw new Error("dir required");
+    const ext = track.meta?.audioUrl?.toString().includes(".m4a") ? "m4a" : "mp3";
+    const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
+    const filename = `${safe(track.artist ?? "")} - ${safe(track.title ?? "")}.${ext}`;
+    const url = track.meta?.url ?? track.meta?.audioUrl?.toString() ?? track.uri ?? "";
+    if (!url) throw new Error("no source url");
+    await invoke("yt_download", { url, outputPath: `${dir}/${filename}` });
+    return { ok: true, file: `${dir}/${filename}`, trackId: track.id };
+  }
+
+  private toggleBlockTrack(payload: Record<string, unknown>): unknown {
+    const id = typeof payload.id === "string" ? payload.id : "";
+    if (!id) throw new Error("track id required");
+    const blocked = toggleBlockedTrack(id);
+    return { blocked, list: getBlockedTrackIds() };
+  }
+
+  private toggleBlockArtist(payload: Record<string, unknown>): unknown {
+    const name = typeof payload.name === "string" ? payload.name : "";
+    if (!name) throw new Error("artist name required");
+    const blocked = toggleBlockedArtist(name);
+    return { blocked, list: getBlockedArtists() };
   }
 }
 

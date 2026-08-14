@@ -8,13 +8,23 @@ export interface Translations {
   };
   nav: {
     home: string;
+    nowPlaying: string;
     search: string;
     library: string;
     wave: string;
     playlist: string;
     queue: string;
     settings: string;
+    downloads: string;
     localFiles: string;
+  };
+  downloads: {
+    empty: string;
+    clearFinished: string;
+    dlQueued: string;
+    dlRunning: string;
+    dlDone: string;
+    dlFailed: string;
   };
   player: {
     play: string;
@@ -36,8 +46,15 @@ export interface Translations {
     };
     speed: string;
     equalizer: string;
+    spectrum: string;
     download: string;
     downloading: string;
+    downloadDirRequired: string;
+    radio: string;
+    mini: string;
+    variants: string;
+    variantsEmpty: string;
+    similar: string;
   };
   home: {
     welcomeTitle: string;
@@ -46,14 +63,31 @@ export interface Translations {
     localFilesDesc: string;
     wave: string;
     waveDesc: string;
+    radio: string;
+    radioDesc: string;
+    radioNoTrack: string;
+    browse: string;
+    searchDesc: string;
+    libraryDesc: string;
+    playlistsDesc: string;
+    downloadsDesc: string;
+    settingsDesc: string;
+    recentlyPlayed: string;
+    nothingPlaying: string;
+    pickTrackHint: string;
+    album: string;
+    year: string;
     lyricsNotFound: string;
     lyricsInstrumental: string;
     lyricsLoading: string;
     lyricsSource: (src: string) => string;
+    lyricsRetry: string;
   };
   search: {
     placeholder: string;
     noResults: string;
+    allProviders: string;
+    filterPlaceholder: string;
     artists: string;
     albums: string;
     tracks: string;
@@ -89,10 +123,14 @@ export interface Translations {
     shuffle: string;
     empty: string;
     emptyHint: string;
+    dropHere: string;
     tracksCount: (n: number) => string;
   };
   settings: {
     title: string;
+    language: string;
+    languageDesc: string;
+    behavior: string;
     apiKeys: string;
     apiKeysDesc: string;
     localFiles: string;
@@ -105,12 +143,25 @@ export interface Translations {
     load: string;
     accentFromCover: string;
     accentFromCoverDesc: string;
-    notifications: string;
-    notificationsDesc: string;
     theme: string;
     themeDesc: string;
     themeDark: string;
     themeLight: string;
+    sources: string;
+    sourcesDesc: string;
+    blockedProviders: string;
+    blockedProvidersDesc: string;
+    preferredProviders: string;
+    preferredProvidersDesc: string;
+    moveUp: string;
+    moveDown: string;
+    autoContinue: string;
+    autoContinueDesc: string;
+    offlineMode: string;
+    offlineModeDesc: string;
+    resetCaches: string;
+    resetCachesDesc: string;
+    testAll: string;
     lastfmStatusEnabled: string;
     lastfmStatusDisabled: string;
     test: string;
@@ -120,10 +171,22 @@ export interface Translations {
     providerNotLoaded: string;
     updateYtDlp: string;
     updateYtDlpDesc: string;
+    ytQuality: string;
+    ytQualityDesc: string;
+    ytQualityLabels: Record<string, string>;
     backup: string;
     backupDesc: string;
     restore: string;
     restoreDesc: string;
+    crossfade: string;
+    crossfadeDesc: string;
+    crossfadeOff: string;
+    lyrics: string;
+    lyricsDesc: string;
+    lyricsAutoOpen: string;
+    lyricsAutoOpenDesc: string;
+    lyricsAutoscroll: string;
+    lyricsAutoscrollDesc: string;
   };
   queue: {
     title: string;
@@ -137,6 +200,8 @@ export interface Translations {
   };
   toasts: {
     queueRestored: string;
+    shuffleOn: string;
+    shuffleOff: string;
     sleepTimerPaused: string;
     sleepTimerTrackEnd: string;
     settingsSaved: string;
@@ -149,6 +214,25 @@ export interface Translations {
     exportSuccess: string;
     lyricsNotFound: string;
     error: string;
+    tagsSaved: string;
+    similarAdded: (n: number) => string;
+    similarEmpty: string;
+    fallbackSwitched: (label: string) => string;
+    trackBlocked: string;
+    trackUnblocked: string;
+    artistBlocked: string;
+    artistUnblocked: string;
+    cachesCleared: string;
+    updateAvailable: (version: string) => string;
+  };
+  tagEditor: {
+    title: string;
+    artist: string;
+    album: string;
+    genre: string;
+    year: string;
+    trackNumber: string;
+    cover: string;
   };
   common: {
     save: string;
@@ -169,6 +253,17 @@ export interface Translations {
     seconds: string;
     hours: string;
     unknown: string;
+    noPlaylists: string;
+  };
+  trackMenu: {
+    editTags: string;
+    removeFromPlaylist: string;
+    save: string;
+    cancel: string;
+    blockTrack: string;
+    unblockTrack: string;
+    blockArtist: string;
+    unblockArtist: string;
   };
 }
 
@@ -180,14 +275,24 @@ const translations: Record<Locale, Translations> = {
       nowPlaying: "Now Playing",
     },
     nav: {
-      home: "Now Playing",
+      home: "Home",
+      nowPlaying: "Now Playing",
       search: "Search",
       library: "Library",
       wave: "Wave",
       playlist: "Playlists",
       queue: "Queue",
       settings: "Settings",
+      downloads: "Downloads",
       localFiles: "Local Files",
+    },
+    downloads: {
+      empty: "Nothing here yet. Use the menu on a track to download it.",
+      clearFinished: "Clear finished",
+      dlQueued: "Queued",
+      dlRunning: "Downloading",
+      dlDone: "Done",
+      dlFailed: "Failed",
     },
     player: {
       play: "Play",
@@ -209,8 +314,15 @@ const translations: Record<Locale, Translations> = {
       },
       speed: "Speed",
       equalizer: "Equalizer",
+      spectrum: "Spectrum visualizer",
       download: "Download",
       downloading: "Downloading…",
+      downloadDirRequired: "Choose a download folder first",
+      radio: "Radio",
+      mini: "Mini player",
+      variants: "Variants",
+      variantsEmpty: "No variants on other platforms",
+      similar: "Similar",
     },
     home: {
       welcomeTitle: "Welcome to Wave",
@@ -219,14 +331,31 @@ const translations: Record<Locale, Translations> = {
       localFilesDesc: "Choose a folder with music",
       wave: "Wave",
       waveDesc: "Personal wave based on your taste",
+      radio: "Radio by track",
+      radioDesc: "Similar tracks from external sources",
+      radioNoTrack: "Play a track first",
+      browse: "Browse",
+      searchDesc: "Find music on all platforms",
+      libraryDesc: "Liked, history and statistics",
+      playlistsDesc: "Your playlists and imports",
+      downloadsDesc: "Tracks saved to disk",
+      settingsDesc: "Appearance, sources and keys",
+      recentlyPlayed: "Recently played",
+      nothingPlaying: "Nothing is playing",
+      pickTrackHint: "Open Search, Wave or a local folder and pick a track",
+      album: "Album",
+      year: "Year",
       lyricsNotFound: "Lyrics not found",
       lyricsInstrumental: "Instrumental track",
       lyricsLoading: "Loading lyrics...",
       lyricsSource: (src: string) => `via ${src}`,
+      lyricsRetry: "Retry",
     },
     search: {
       placeholder: "Search...",
       noResults: "Nothing found",
+      allProviders: "All sources",
+      filterPlaceholder: "Filter tracks…",
       artists: "Artists",
       albums: "Albums",
       tracks: "Tracks",
@@ -262,10 +391,14 @@ const translations: Record<Locale, Translations> = {
       shuffle: "Shuffle",
       empty: "No playlists",
       emptyHint: "Create a playlist or import from file",
+      dropHere: "Drop to end of playlist",
       tracksCount: (n: number) => `${n} tracks`,
     },
     settings: {
       title: "Settings",
+      language: "Language",
+      languageDesc: "Interface language.",
+      behavior: "Behavior",
       apiKeys: "API Keys",
       apiKeysDesc: "Changes apply after restart. Test button checks key via search.",
       localFiles: "Local Files",
@@ -278,12 +411,25 @@ const translations: Record<Locale, Translations> = {
       load: "Load from file",
       accentFromCover: "Accent from cover",
       accentFromCoverDesc: "UI accent color adapts to current track cover (works for CORS-free images).",
-      notifications: "System notifications",
-      notificationsDesc: "Show a system notification when a new track starts playing.",
       theme: "Theme",
       themeDesc: "Interface color scheme.",
       themeDark: "Dark",
       themeLight: "Light",
+      sources: "Sources",
+      sourcesDesc: "Choose which music platforms Wave uses. Changes apply on Save.",
+      blockedProviders: "Blocked platforms",
+      blockedProvidersDesc: "Blocked platforms are excluded from search, Wave, Radio and track variants.",
+      preferredProviders: "Preferred platforms",
+      preferredProvidersDesc: "Order matters: the top platform is used first when a track has several variants.",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      autoContinue: "Auto-continue queue",
+      autoContinueDesc: "Fill the queue with the wave or similar tracks when it ends",
+      offlineMode: "Offline mode",
+      offlineModeDesc: "Play from downloaded files instead of streaming",
+      resetCaches: "Reset caches",
+      resetCachesDesc: "Clear search, variants, covers and lyrics caches.",
+      testAll: "Test all platforms",
       lastfmStatusEnabled: "Last.fm scrobbling: enabled (now playing + scrobble)",
       lastfmStatusDisabled: "Last.fm scrobbling: disabled. Set Key, Secret and Session Key.",
       test: "Test",
@@ -293,10 +439,22 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Provider not loaded",
       updateYtDlp: "Update yt-dlp",
       updateYtDlpDesc: "Updates the yt-dlp binary (when installed system-wide or bundled).",
+      ytQuality: "YouTube quality",
+      ytQualityDesc: "Audio bitrate cap for streams via yt-dlp.",
+      ytQualityLabels: { low: "Low", medium: "Medium", high: "High", best: "Best" },
       backup: "Backup Database",
       backupDesc: "Export your library to a file. Copy this file to another device to migrate.",
       restore: "Restore Database",
       restoreDesc: "Import a database backup. Requires app restart to take effect.",
+      crossfade: "Crossfade",
+      crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
+      crossfadeOff: "Off",
+      lyrics: "Lyrics",
+      lyricsDesc: "How the lyrics panel behaves when the track changes.",
+      lyricsAutoOpen: "Auto-open lyrics",
+      lyricsAutoOpenDesc: "Open the lyrics panel automatically when a new track starts.",
+      lyricsAutoscroll: "Auto-scroll lyrics",
+      lyricsAutoscrollDesc: "Follow the current line while the song is playing.",
     },
     queue: {
       title: "Queue",
@@ -310,6 +468,8 @@ const translations: Record<Locale, Translations> = {
     },
     toasts: {
       queueRestored: "Queue restored — press play",
+      shuffleOn: "Shuffle: on",
+      shuffleOff: "Shuffle: off",
       sleepTimerPaused: "Sleep timer: paused",
       sleepTimerTrackEnd: "Sleep timer: end of track",
       settingsSaved: "Settings saved",
@@ -322,6 +482,25 @@ const translations: Record<Locale, Translations> = {
       exportSuccess: "Playlist saved",
       lyricsNotFound: "Lyrics not found",
       error: "Error",
+      tagsSaved: "Tags saved",
+      similarAdded: (n: number) => `Added ${n} similar tracks to the queue`,
+      similarEmpty: "No similar tracks found",
+      fallbackSwitched: (label: string) => `Source failed — switched to ${label}`,
+      trackBlocked: "Track won't appear in Wave anymore",
+      trackUnblocked: "Track restored in Wave",
+      artistBlocked: "Artist won't appear in Wave anymore",
+      artistUnblocked: "Artist restored in Wave",
+      cachesCleared: "Caches cleared",
+      updateAvailable: (v: string) => `Update Wave to ${v}?`,
+    },
+    tagEditor: {
+      title: "Title",
+      artist: "Artist",
+      album: "Album",
+      genre: "Genre",
+      year: "Year",
+      trackNumber: "Track",
+      cover: "Cover",
     },
     common: {
       save: "Save",
@@ -342,6 +521,17 @@ const translations: Record<Locale, Translations> = {
       seconds: "sec",
       hours: "h",
       unknown: "Unknown",
+      noPlaylists: "No playlists",
+    },
+    trackMenu: {
+      editTags: "Edit tags",
+      removeFromPlaylist: "Remove from playlist",
+      save: "Save",
+      cancel: "Cancel",
+      blockTrack: "Don't play in Wave",
+      unblockTrack: "Allow in Wave",
+      blockArtist: "Hide artist from Wave",
+      unblockArtist: "Show artist in Wave",
     },
   },
   ru: {
@@ -351,14 +541,24 @@ const translations: Record<Locale, Translations> = {
       nowPlaying: "Сейчас играет",
     },
     nav: {
-      home: "Сейчас играет",
+      home: "Главная",
+      nowPlaying: "Сейчас играет",
       search: "Поиск",
       library: "Библиотека",
       wave: "Wave",
       playlist: "Плейлисты",
       queue: "Очередь",
       settings: "Настройки",
+      downloads: "Загрузки",
       localFiles: "Локальные файлы",
+    },
+    downloads: {
+      empty: "Пока пусто. Скачивайте треки через меню в списке.",
+      clearFinished: "Очистить завершённые",
+      dlQueued: "В очереди",
+      dlRunning: "Скачивание",
+      dlDone: "Готово",
+      dlFailed: "Ошибка",
     },
     player: {
       play: "Играть",
@@ -380,8 +580,15 @@ const translations: Record<Locale, Translations> = {
       },
       speed: "Скорость",
       equalizer: "Эквалайзер",
+      spectrum: "Спектр-визуализатор",
       download: "Скачать",
       downloading: "Скачивание…",
+      downloadDirRequired: "Сначала выберите папку для загрузок",
+      radio: "Радио",
+      mini: "Мини-плеер",
+      variants: "Варианты",
+      variantsEmpty: "На других площадках не найдено",
+      similar: "Похожие",
     },
     home: {
       welcomeTitle: "Добро пожаловать в Wave",
@@ -390,14 +597,31 @@ const translations: Record<Locale, Translations> = {
       localFilesDesc: "Выбрать папку с музыкой",
       wave: "Wave",
       waveDesc: "Персональная волна по вашему вкусу",
+      radio: "Радио по треку",
+      radioDesc: "Похожие треки из внешних источников",
+      radioNoTrack: "Сначала включите трек",
+      browse: "Обзор",
+      searchDesc: "Музыка со всех площадок",
+      libraryDesc: "Понравившееся, история и статистика",
+      playlistsDesc: "Плейлисты и импорт",
+      downloadsDesc: "Треки, сохранённые на диск",
+      settingsDesc: "Оформление, источники и ключи",
+      recentlyPlayed: "Недавно играли",
+      nothingPlaying: "Ничего не играет",
+      pickTrackHint: "Откройте Поиск, Wave или локальную папку и выберите трек",
+      album: "Альбом",
+      year: "Год",
       lyricsNotFound: "Текст не найден",
       lyricsInstrumental: "Инструментальная композиция",
       lyricsLoading: "Загрузка текста…",
       lyricsSource: (src: string) => `via ${src}`,
+      lyricsRetry: "Найти заново",
     },
     search: {
       placeholder: "Поиск...",
       noResults: "Ничего не найдено",
+      allProviders: "Все источники",
+      filterPlaceholder: "Фильтр треков…",
       artists: "Исполнители",
       albums: "Альбомы",
       tracks: "Треки",
@@ -433,10 +657,14 @@ const translations: Record<Locale, Translations> = {
       shuffle: "Перемешать",
       empty: "Плейлистов нет",
       emptyHint: "Создайте плейлист или импортируйте из файла",
+      dropHere: "Перетащите в конец плейлиста",
       tracksCount: (n: number) => `${n} треков`,
     },
     settings: {
       title: "Настройки",
+      language: "Язык",
+      languageDesc: "Язык интерфейса.",
+      behavior: "Поведение",
       apiKeys: "API ключи провайдеров",
       apiKeysDesc: "Изменения применяются после перезапуска. Кнопка «Тест» проверяет ключ через поиск.",
       localFiles: "Локальные файлы",
@@ -449,12 +677,25 @@ const translations: Record<Locale, Translations> = {
       load: "Загрузить из файла",
       accentFromCover: "Акцент из обложки",
       accentFromCoverDesc: "Цвет интерфейса подстраивается под обложку текущего трека (доступно для обложек без CORS-ограничений).",
-      notifications: "Системные уведомления",
-      notificationsDesc: "Показывать системное уведомление при смене трека.",
       theme: "Тема",
       themeDesc: "Цветовая схема интерфейса.",
       themeDark: "Тёмная",
       themeLight: "Светлая",
+      sources: "Источники",
+      sourcesDesc: "Выберите музыкальные площадки, которые использует Wave. Изменения применяются по кнопке «Сохранить».",
+      blockedProviders: "Заблокированные площадки",
+      blockedProvidersDesc: "Заблокированные площадки исключаются из поиска, Wave, радио и вариантов трека.",
+      preferredProviders: "Предпочтительные площадки",
+      preferredProvidersDesc: "Порядок важен: верхняя площадка используется первой, когда у трека несколько вариантов.",
+      moveUp: "Выше",
+      moveDown: "Ниже",
+      autoContinue: "Автопродолжение очереди",
+      autoContinueDesc: "Дозаполнять очередь волной или похожими треками, когда она закончится",
+      offlineMode: "Оффлайн-режим",
+      offlineModeDesc: "Играть из скачанных файлов вместо стриминга",
+      resetCaches: "Сбросить кеши",
+      resetCachesDesc: "Очищает кеши поиска, вариантов, обложек и текстов.",
+      testAll: "Проверить все площадки",
       lastfmStatusEnabled: "Last.fm скробблинг: включён (now playing + scrobble)",
       lastfmStatusDisabled: "Last.fm скробблинг: выключен. Укажите Key, Secret и Session Key.",
       test: "Тест",
@@ -464,10 +705,22 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Провайдер не загружен",
       updateYtDlp: "Обновить yt-dlp",
       updateYtDlpDesc: "Обновляет бинарник yt-dlp (если установлен в системе или в комплекте).",
+      ytQuality: "Качество YouTube",
+      ytQualityDesc: "Максимальный битрейт аудио для стримов через yt-dlp.",
+      ytQualityLabels: { low: "Низкое", medium: "Среднее", high: "Высокое", best: "Максимум" },
       backup: "Резервная копия БД",
       backupDesc: "Экспорт библиотеки в файл. Скопируйте файл на другое устройство для миграции.",
       restore: "Восстановить БД",
       restoreDesc: "Импорт резервной копии. Требуется перезапуск приложения.",
+      crossfade: "Кроссфейд",
+      crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
+      crossfadeOff: "Выкл",
+      lyrics: "Тексты песен",
+      lyricsDesc: "Поведение панели текстов при смене трека.",
+      lyricsAutoOpen: "Автооткрытие текстов",
+      lyricsAutoOpenDesc: "Открывать панель текстов автоматически при старте нового трека.",
+      lyricsAutoscroll: "Автопрокрутка текстов",
+      lyricsAutoscrollDesc: "Следить за текущей строкой во время воспроизведения.",
     },
     queue: {
       title: "Очередь",
@@ -481,6 +734,8 @@ const translations: Record<Locale, Translations> = {
     },
     toasts: {
       queueRestored: "Очередь восстановлена — нажмите play",
+      shuffleOn: "Перемешивание: вкл",
+      shuffleOff: "Перемешивание: выкл",
       sleepTimerPaused: "Таймер сна: пауза",
       sleepTimerTrackEnd: "Таймер сна: конец трека",
       settingsSaved: "Настройки сохранены",
@@ -493,6 +748,25 @@ const translations: Record<Locale, Translations> = {
       exportSuccess: "Плейлист сохранён",
       lyricsNotFound: "Текст не найден",
       error: "Ошибка",
+      tagsSaved: "Теги сохранены",
+      similarAdded: (n: number) => `Добавлено похожих треков в очередь: ${n}`,
+      similarEmpty: "Похожие треки не найдены",
+      fallbackSwitched: (label: string) => `Источник недоступен — переключено на ${label}`,
+      trackBlocked: "Трек больше не появится в Wave",
+      trackUnblocked: "Трек снова в Wave",
+      artistBlocked: "Артист больше не появится в Wave",
+      artistUnblocked: "Артист снова в Wave",
+      cachesCleared: "Кеши очищены",
+      updateAvailable: (v: string) => `Обновить Wave до ${v}?`,
+    },
+    tagEditor: {
+      title: "Название",
+      artist: "Исполнитель",
+      album: "Альбом",
+      genre: "Жанр",
+      year: "Год",
+      trackNumber: "Трек",
+      cover: "Обложка",
     },
     common: {
       save: "Сохранить",
@@ -513,6 +787,17 @@ const translations: Record<Locale, Translations> = {
       seconds: "сек",
       hours: "ч",
       unknown: "Неизвестно",
+      noPlaylists: "Нет плейлистов",
+    },
+    trackMenu: {
+      editTags: "Редактировать теги",
+      removeFromPlaylist: "Убрать из плейлиста",
+      save: "Сохранить",
+      cancel: "Отмена",
+      blockTrack: "Не играть в Wave",
+      unblockTrack: "Разрешить в Wave",
+      blockArtist: "Скрыть артиста из Wave",
+      unblockArtist: "Показывать артиста в Wave",
     },
   },
 };
@@ -535,7 +820,8 @@ export function initLocale(): void {
   if (saved && (saved === "en" || saved === "ru")) {
     currentLocale = saved;
   } else {
-    currentLocale = "en";
+    const sys = typeof navigator !== "undefined" ? navigator.language ?? "" : "";
+    currentLocale = sys.toLowerCase().startsWith("ru") ? "ru" : "en";
   }
 }
 

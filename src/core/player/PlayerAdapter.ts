@@ -3,12 +3,18 @@ import type { PlayerState } from "../types";
 export interface AudioAdapter {
   /** Load a source; doesn't start playback. */
   load(src: string): void;
+  /** Preload a source into a secondary element (gapless switching). */
+  preload(src: string): void;
+  /** Fill an array with spectrum data from the analyser (zeros if unavailable). */
+  getSpectrum(data: Uint8Array): void;
   play(): Promise<void>;
   pause(): void;
   seek(seconds: number): void;
   setVolume(volume: number): void;
   setPlaybackRate(rate: number): void;
   setEqualizer(gains: number[]): void;
+  /** Длительность кроссфейда между треками в мс (0 — без перехода). */
+  setCrossfadeMs(ms: number): void;
   getPosition(): number;
   getDuration(): number;
   onStateChange(cb: (state: PlayerState) => void): () => void;
@@ -43,6 +49,14 @@ export class MockAudioAdapter implements AudioAdapter {
     this.setState("playing");
   }
 
+  preload(_src: string): void {
+    // no-op в тестах
+  }
+
+  getSpectrum(data: Uint8Array): void {
+    data.fill(0);
+  }
+
   pause(): void {
     this.setState("paused");
   }
@@ -61,6 +75,10 @@ export class MockAudioAdapter implements AudioAdapter {
 
   setEqualizer(gains: number[]): void {
     this.equalizer = [...gains];
+  }
+
+  setCrossfadeMs(_ms: number): void {
+    // no-op в тестах
   }
 
   getPosition(): number {

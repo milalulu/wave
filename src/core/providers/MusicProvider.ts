@@ -12,4 +12,6 @@ export interface MusicProvider {
   getSimilarArtists?(artist: string): Promise<string[]>;
   /** Опционально: треки похожие на указанный (Last.fm). */
   getSimilarTracks?(artist: string, track: string): Promise<Track[]>;
+  /** Опционально: топ-треки артиста (для радио). */
+  getArtistTopTracks?(artist: string): Promise<Track[]>;
 }

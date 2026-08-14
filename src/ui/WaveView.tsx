@@ -11,7 +11,9 @@ export function WaveView() {
   return (
     <div className="view wave-view">
       <div className="wave-hero">
-        <WaveIcon size={64} />
+        <span className="wave-logo-mark">
+          <WaveIcon size={38} />
+        </span>
         <h2>{t("wave").title}</h2>
         <p>{t("wave").empty.replace("пуст", "построенная на ваших лайках, истории и любимых жанрах")}</p>
         <div className="wave-stats">

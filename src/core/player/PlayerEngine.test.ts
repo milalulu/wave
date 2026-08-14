@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Track } from "../types";
 import { MockAudioAdapter } from "./PlayerAdapter";
-import { PlayerEngine } from "./PlayerEngine";
+import { PLAY_START_TIMEOUT_MS, PlayerEngine, STALL_TIMEOUT_MS } from "./PlayerEngine";
 
 const tracks: Track[] = [
   { id: "a", provider: "test", uri: "u://a", title: "A" },
@@ -232,6 +232,47 @@ describe("PlayerEngine resolveUri", () => {
     expect(errors).toEqual([]);
   });
 
+  it("re-resolves and resumes when stream stalls in loading", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = new MockAudioAdapter();
+      const resolved: string[] = [];
+      const engine = new PlayerEngine(adapter, {
+        resolveUri: async (t) => {
+          resolved.push(t.id);
+          return `u://${t.id}:${resolved.length}`;
+        },
+      });
+      await engine.playTracks([tracks[0]]);
+      expect(resolved).toEqual(["a"]);
+      adapter.setState("loading");
+      await vi.advanceTimersByTimeAsync(STALL_TIMEOUT_MS + 1);
+      expect(resolved).toEqual(["a", "a"]);
+      expect(adapter.src).toBe("u://a:2");
+      expect(engine.snapshot.state).toBe("playing");
+      engine.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("emits error when stall cannot be re-resolved", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = new MockAudioAdapter();
+      const errors: string[] = [];
+      const engine = new PlayerEngine(adapter);
+      engine.on("error", (m) => errors.push(m));
+      await engine.playTracks([tracks[0]]);
+      adapter.setState("loading");
+      await vi.advanceTimersByTimeAsync(STALL_TIMEOUT_MS + 1);
+      expect(errors).toEqual(["stream stalled"]);
+      engine.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores stale async resolution after next()", async () => {
     const adapter = new MockAudioAdapter();
     let release!: () => void;
@@ -253,5 +294,60 @@ describe("PlayerEngine resolveUri", () => {
     expect(calls).toBe(2);
     expect(adapter.src).toBe("u://b:2");
     expect(engine.snapshot.current?.id).toBe("b");
+  });
+
+  it("skips a track that cannot be loaded", async () => {
+    const adapter = new MockAudioAdapter();
+    const errors: string[] = [];
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        if (t.id === "b") throw new Error("dead url");
+        return t.uri;
+      },
+    });
+    engine.on("error", (m) => errors.push(m));
+    await engine.playTracks(tracks);
+    adapter.end();
+    await flush();
+    await flush();
+    expect(errors).toEqual(["dead url"]);
+    expect(engine.snapshot.current?.id).toBe("c");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("does not deadlock when play() never resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = new MockAudioAdapter();
+      adapter.play = async () => new Promise<void>(() => {});
+      const engine = new PlayerEngine(adapter);
+      const started = engine.playTracks(tracks);
+      await vi.advanceTimersByTimeAsync(PLAY_START_TIMEOUT_MS + 1);
+      await started;
+      expect(engine.snapshot.state).toBe("loading");
+      engine.addToQueue(tracks[2], true);
+      expect(engine.snapshot.current?.id).toBe("c");
+      expect(engine.snapshot.queue).toHaveLength(4);
+      engine.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-resolves on play() rejection and keeps playing", async () => {
+    const adapter = new MockAudioAdapter();
+    let attempts = 0;
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        attempts += 1;
+        return `u://${t.id}:${attempts}`;
+      },
+    });
+    adapter.play = async () => {
+      if (attempts === 1) throw new Error("autoplay blocked");
+    };
+    await engine.playTracks([tracks[0]]);
+    expect(attempts).toBeGreaterThan(1);
+    expect(engine.snapshot.current?.id).toBe("a");
   });
 });

@@ -40,6 +40,9 @@ export class DeezerProvider implements MusicProvider {
 
   constructor(private http: HttpJsonGateway) {}
 
+  private resolveCache = new Map<string, { url: string; at: number }>();
+  private static readonly CACHE_TTL_MS = 10 * 60 * 1000;
+
   async search(query: string): Promise<SearchResults> {
     const q = encodeURIComponent(query);
     const [tracks, albums, artists] = await Promise.all([
@@ -56,6 +59,25 @@ export class DeezerProvider implements MusicProvider {
   }
 
   async resolveUri(track: Track): Promise<string> {
+    const cached = this.resolveCache.get(track.id);
+    if (cached && Date.now() - cached.at < DeezerProvider.CACHE_TTL_MS) {
+      return cached.url;
+    }
+    try {
+      const id = track.id.split(":").pop() ?? "";
+      const { status, body } = await this.http.json("GET", `${API}/track/${id}`, undefined, {
+        "Content-Type": "application/json",
+      });
+      if (status === 200) {
+        const preview = (body as { preview?: string }).preview;
+        if (preview) {
+          this.resolveCache.set(track.id, { url: preview, at: Date.now() });
+          return preview;
+        }
+      }
+    } catch {
+      // сеть недоступна — отдаём старый URL, движок пере-резолвит позже
+    }
     return track.uri;
   }
 

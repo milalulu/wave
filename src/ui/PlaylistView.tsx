@@ -19,27 +19,20 @@ function parseJSON(text: string): Track[] | null {
 
 export function PlaylistView() {
   const { t, tf } = useI18n();
-  const {
-    playlists,
-    selectedPlaylistId,
-    setSelectedPlaylist,
-    createPlaylist,
-    deletePlaylist,
-    play,
-    notify,
-  } = useApp((s) => ({
-    playlists: s.playlists,
-    selectedPlaylistId: s.selectedPlaylistId,
-    setSelectedPlaylist: s.setSelectedPlaylist,
-    createPlaylist: s.createPlaylist,
-    deletePlaylist: s.deletePlaylist,
-    play: s.play,
-    notify: s.notify,
-  }));
+  const playlists = useApp((s) => s.playlists);
+  const selectedPlaylistId = useApp((s) => s.selectedPlaylistId);
+  const setSelectedPlaylist = useApp((s) => s.setSelectedPlaylist);
+  const createPlaylist = useApp((s) => s.createPlaylist);
+  const deletePlaylist = useApp((s) => s.deletePlaylist);
+  const reorderPlaylist = useApp((s) => s.reorderPlaylist);
+  const play = useApp((s) => s.play);
+  const notify = useApp((s) => s.notify);
 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (selectedPlaylistId) {
@@ -132,6 +125,18 @@ export function PlaylistView() {
 
   const selected = playlists.find((p) => p.id === selectedPlaylistId);
 
+  const clearDrag = (): void => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (targetIndex: number): void => {
+    if (dragIndex !== null && dragIndex !== targetIndex) {
+      reorderPlaylist(selected?.id ?? "", dragIndex, targetIndex);
+    }
+    clearDrag();
+  };
+
   return (
     <div className="view playlist-view">
       <header className="view-header">
@@ -217,8 +222,41 @@ export function PlaylistView() {
             </header>
             <div className="track-list">
               {selectedTracks.map((track, i) => (
-                <TrackRow key={track.id} track={track} index={i + 1} />
+                <div
+                  key={track.id}
+                  className={`playlist-dropzone ${dragOverIndex === i ? "drag-over" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(i);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDrop(i);
+                  }}
+                >
+                  <TrackRow
+                    track={track}
+                    index={i + 1}
+                    onDragStart={() => setDragIndex(i)}
+                    onDragEnd={clearDrag}
+                  />
+                </div>
               ))}
+              {selectedTracks.length > 0 && (
+                <div
+                  className={`playlist-dropzone playlist-dropzone-end ${dragOverIndex === selectedTracks.length ? "drag-over" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(selectedTracks.length);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDrop(selectedTracks.length);
+                  }}
+                >
+                  <span className="muted">{t("playlist").dropHere}</span>
+                </div>
+              )}
               {selectedTracks.length === 0 && <p className="muted">{t("playlist").emptyHint}</p>}
             </div>
           </section>

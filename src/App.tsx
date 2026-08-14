@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "./app/stores";
-import { Sidebar, type ViewKey } from "./ui/Sidebar";
+import { Sidebar } from "./ui/Sidebar";
 import { PlayerBar } from "./ui/PlayerBar";
 import { HomeView } from "./ui/HomeView";
+import { NowPlayingView } from "./ui/NowPlayingView";
 import { SearchView } from "./ui/SearchView";
 import { LibraryView } from "./ui/LibraryView";
 import { QueueView } from "./ui/QueueView";
@@ -10,14 +12,17 @@ import { WaveView } from "./ui/WaveView";
 import { AlbumDetailView } from "./ui/AlbumDetailView";
 import { ArtistDetailView } from "./ui/ArtistDetailView";
 import { PlaylistView } from "./ui/PlaylistView";
+import { DownloadsView } from "./ui/DownloadsView";
 import { SettingsView } from "./ui/SettingsView";
 import { Toasts } from "./ui/Toasts";
 
 function App() {
   const ready = useApp((s) => s.ready);
   const init = useApp((s) => s.init);
-  const [view, setView] = useState<ViewKey>("home");
+  const view = useApp((s) => s.view);
+  const setView = useApp((s) => s.setView);
   const [query, setQuery] = useState("");
+  const [focusToken, setFocusToken] = useState(0);
 
   useEffect(() => {
     void init();
@@ -28,6 +33,20 @@ function App() {
       const inInput =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
+
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyK") {
+        e.preventDefault();
+        setView("search");
+        setFocusToken((n) => n + 1);
+        return;
+      }
+
+      if (e.key === "/" && !inInput) {
+        e.preventDefault();
+        setView("search");
+        setFocusToken((n) => n + 1);
+        return;
+      }
 
       if (e.code === "Space" && !inInput) {
         e.preventDefault();
@@ -49,9 +68,9 @@ function App() {
         } else if (e.code === "ArrowDown") {
           e.preventDefault();
           state.setVolume(Math.max(0, Math.round(state.snapshot.volume * 100) - 10));
-        } else if (e.code === "KeyS") {
+        } else if (!inInput && (e.code === "KeyQ" || e.code === "KeyW")) {
           e.preventDefault();
-          state.toggleShuffle();
+          void getCurrentWindow().close();
         }
         return;
       }
@@ -62,6 +81,14 @@ function App() {
           state.setVolume(state.snapshot.volume === 0 ? 100 : 0);
         } else if (e.code === "KeyL") {
           void state.toggleLike();
+        } else if (e.code === "KeyS") {
+          state.toggleShuffle();
+        } else if (e.code === "ArrowRight") {
+          e.preventDefault();
+          void state.next();
+        } else if (e.code === "ArrowLeft") {
+          e.preventDefault();
+          void state.previous();
         }
       }
     };
@@ -77,14 +104,16 @@ function App() {
     <div className="app">
       <Sidebar view={view} onView={setView} />
       <main className="content">
-        {view === "home" && <HomeView />}
-        {view === "search" && <SearchView query={query} onQuery={setQuery} />}
+        {view === "home" && <HomeView onNavigate={setView} />}
+        {view === "nowPlaying" && <NowPlayingView onNavigate={setView} />}
+        {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
         {view === "library" && <LibraryView />}
         {view === "queue" && <QueueView />}
         {view === "wave" && <WaveView />}
         {view === "album" && <AlbumDetailView />}
         {view === "artist" && <ArtistDetailView />}
         {view === "playlist" && <PlaylistView />}
+        {view === "downloads" && <DownloadsView />}
         {view === "settings" && <SettingsView />}
       </main>
       <PlayerBar onOpenQueue={() => setView("queue")} />

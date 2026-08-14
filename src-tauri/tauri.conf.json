@@ -20,16 +20,25 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https:; media-src 'self' asset: blob: https:; font-src 'self' data:; connect-src 'self' asset: blob: https:; object-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDREM0NDRBODFFRDQzQTAKUldTZ1ErMkJTa1RjN0FyR0Z3dk1jMmtpSXBlbWFWa0xEN3UvWHJVbWZkbFdUY0YwQWp1T251MjMK",
+      "endpoints": [
+        "https://github.com/milalulu/wave/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

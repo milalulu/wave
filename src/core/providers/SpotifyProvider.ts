@@ -6,6 +6,8 @@ import type { HttpJsonGateway } from "./HttpGateway";
 export interface SpotifyConfig {
   clientId: string;
   clientSecret: string;
+  /** Ленивый поиск playable-трека на YouTube (для полноценного воспроизведения без preview). */
+  ytFallback?: (artist: string, title: string) => Promise<string>;
 }
 
 interface SpotifyImage {
@@ -46,14 +48,15 @@ function cover(images?: SpotifyImage[]): string | undefined {
 
 /**
  * Провайдер Spotify (официальный Web API, client credentials).
- * Поиск по метаданным; воспроизведение — 30-секундные preview там, где есть.
- * Треки без preview отбрасываются (аудио не стримится публичным API).
+ * Поиск по метаданным; воспроизведение — 30-секундные preview там, где есть,
+ * иначе — полный трек через YouTube-fallback (если настроен).
  */
 export class SpotifyProvider implements MusicProvider {
   readonly id = "spotify";
   readonly name = "Spotify";
 
   private token: string | null = null;
+  private fallbackCache = new Map<string, string>();
 
   constructor(
     private http: HttpJsonGateway,
@@ -74,11 +77,11 @@ export class SpotifyProvider implements MusicProvider {
     };
     const tracks: Track[] = [];
     for (const t of data.tracks?.items ?? []) {
-      if (!t.id || !t.name || !t.preview_url) continue;
+      if (!t.id || !t.name) continue;
       tracks.push({
         id: `spotify:track:${t.id}`,
         provider: this.id,
-        uri: t.preview_url,
+        uri: t.preview_url ?? "",
         title: t.name,
         artist: t.artists?.[0]?.name,
         album: t.album?.name,
@@ -110,7 +113,16 @@ export class SpotifyProvider implements MusicProvider {
   }
 
   async resolveUri(track: Track): Promise<string> {
-    return track.uri;
+    if (track.uri) return track.uri;
+    if (!this.config.ytFallback) throw new Error("spotify: no playable source");
+    const artist = track.artist ?? "";
+    const title = track.title ?? "";
+    const cacheKey = `${artist}|${title}`;
+    const cached = this.fallbackCache.get(cacheKey);
+    if (cached) return cached;
+    const uri = await this.config.ytFallback(artist, title);
+    this.fallbackCache.set(cacheKey, uri);
+    return uri;
   }
 
   async getAlbum(_albumId: string): Promise<AlbumDetail> {

@@ -16,6 +16,8 @@ export interface LocalSource {
   pickDirectory(): Promise<string | null>;
   listMusicFiles(dir: string): Promise<LocalFileMeta[]>;
   toUri(path: string): string;
+  /** SAF-выбор аудиофайлов (Android): возвращает playable asset-URLs. */
+  pickAudioFiles?(): Promise<string[]>;
 }
 
 /**
@@ -36,6 +38,13 @@ export class LocalProvider implements MusicProvider {
   }
 
   async openDirectory(): Promise<Track[]> {
+    if (this.source.pickAudioFiles) {
+      const urls = await this.source.pickAudioFiles();
+      if (urls.length === 0) return [];
+      this.dir = "__saf__";
+      this.tracks = urls.map((url, i) => this.toTrackFromUrl(url, i));
+      return [...this.tracks];
+    }
     const dir = await this.source.pickDirectory();
     if (!dir) return [];
     this.dir = dir;
@@ -77,6 +86,18 @@ export class LocalProvider implements MusicProvider {
       duration: file.duration,
       coverUrl: file.cover,
       meta: { path: file.path },
+    };
+  }
+
+  private toTrackFromUrl(url: string, index: number): Track {
+    const filename = decodeURIComponent(url.split("/").pop() ?? "track");
+    const fallbackTitle = filename.replace(/\.[^.]+$/, "") || filename;
+    return {
+      id: `local:${index}:${url}`,
+      provider: this.id,
+      uri: url,
+      title: fallbackTitle,
+      meta: { path: url },
     };
   }
 }

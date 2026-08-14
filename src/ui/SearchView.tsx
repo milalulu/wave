@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { searchAll } from "../app/compose";
@@ -6,25 +6,49 @@ import { getCachedResults, setCachedResults } from "../app/searchCache";
 import type { Album, Artist, SearchResults } from "../core/types";
 import { TrackRow } from "./TrackRow";
 import { Cover } from "./Cover";
+import { providerLabel } from "./providers";
 import { SearchIcon } from "./icons";
 
 interface SearchViewProps {
   query: string;
   onQuery: (q: string) => void;
+  focusToken?: number;
 }
 
-export function SearchView({ query, onQuery }: SearchViewProps) {
+const FILTER_KEY = "wave-search-providers";
+
+function loadFilter(): string[] | null {
+  try {
+    const raw = localStorage.getItem(FILTER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const { t } = useI18n();
+  const providers = useApp((s) => s.services?.providers ?? []);
   const [input, setInput] = useState(query);
   const [results, setResults] = useState<SearchResults[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[] | null>(loadFilter());
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     setInput(query);
   }, [query]);
+
+  useEffect(() => {
+    if (focusToken !== undefined && focusToken > 0) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [focusToken]);
 
   useEffect(() => {
     window.clearTimeout(debounceRef.current);
@@ -38,24 +62,33 @@ export function SearchView({ query, onQuery }: SearchViewProps) {
     return () => window.clearTimeout(debounceRef.current);
   }, [input, onQuery]);
 
+  const enabledProviders = useMemo(
+    () => (selected && selected.length > 0 ? providers.filter((p) => selected.includes(p.id)) : providers),
+    [providers, selected],
+  );
+
   useEffect(() => {
     if (!query.trim()) {
       setResults(null);
       return;
     }
-    const cached = getCachedResults(query);
+    const cacheKey = `${query}:${(selected ?? []).sort().join(",")}`;
+    const cached = getCachedResults(cacheKey);
     if (cached) {
       setResults(cached);
+      return;
+    }
+    if (enabledProviders.length === 0) {
+      setResults([]);
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const providers = useApp.getState().services?.providers ?? [];
-    searchAll(providers, query)
+    searchAll(enabledProviders, query)
       .then((r) => {
         if (cancelled) return;
-        setCachedResults(query, r);
+        setCachedResults(cacheKey, r);
         setResults(r);
       })
       .catch((e) => {
@@ -68,13 +101,24 @@ export function SearchView({ query, onQuery }: SearchViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, enabledProviders]);
+
+  const toggleProvider = (id: string): void => {
+    setSelected((prev) => {
+      const base = prev ?? providers.map((p) => p.id);
+      const next = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+      localStorage.setItem(FILTER_KEY, JSON.stringify(next));
+      return next.length === providers.length ? null : next;
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     window.clearTimeout(debounceRef.current);
     onQuery(input.trim());
   };
+
+  const allSelected = selected === null || selected.length === providers.length;
 
   return (
     <div className="view search-view">
@@ -91,6 +135,28 @@ export function SearchView({ query, onQuery }: SearchViewProps) {
           {loading ? t("common").loading : t("search").placeholder}
         </button>
       </form>
+
+      <div className="provider-filters">
+        <button
+          className={`chip ${allSelected ? "active" : ""}`}
+          onClick={() => {
+            setSelected(null);
+            localStorage.setItem(FILTER_KEY, JSON.stringify(providers.map((p) => p.id)));
+          }}
+        >
+          {t("search").allProviders}
+        </button>
+        {providers.map((p) => (
+          <button
+            key={p.id}
+            className={`chip ${!allSelected && selected?.includes(p.id) ? "active" : ""}`}
+            onClick={() => toggleProvider(p.id)}
+            title={p.name}
+          >
+            {providerLabel(p.id)}
+          </button>
+        ))}
+      </div>
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="muted">{t("common").loading}</p>}

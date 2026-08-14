@@ -1,21 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
+import { providerLabel } from "./providers";
+import { Spectrum } from "./Spectrum";
 import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ChartIcon,
+  ExpandIcon,
   HeartIcon,
+  MiniPlayerIcon,
   MoonIcon,
   NextIcon,
   PauseIcon,
   PlayIcon,
   PreviousIcon,
   QueueIcon,
+  RadioIcon,
   RepeatIcon,
   RepeatOneIcon,
   ShuffleIcon,
   SliderIcon,
   SpeedIcon,
+  SpinnerIcon,
   VolumeIcon,
   VolumeMuteIcon,
 } from "./icons";
@@ -46,6 +55,8 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
   const sleepUntil = useApp((s) => s.sleepUntil);
   const sleepRemaining = useApp((s) => s.sleepRemaining);
   const pauseAfterTrack = useApp((s) => s.pauseAfterTrack);
+  const compactPlayer = useApp((s) => s.compactPlayer);
+  const setCompactPlayer = useApp((s) => s.setCompactPlayer);
   const togglePlay = useApp((s) => s.togglePlay);
   const next = useApp((s) => s.next);
   const previous = useApp((s) => s.previous);
@@ -56,24 +67,97 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
   const toggleShuffle = useApp((s) => s.toggleShuffle);
   const cycleRepeat = useApp((s) => s.cycleRepeat);
   const toggleLike = useApp((s) => s.toggleLike);
+  const startRadio = useApp((s) => s.startRadio);
+  const variants = useApp((s) => s.variants);
+  const variantsLoading = useApp((s) => s.variantsLoading);
+  const playVariant = useApp((s) => s.playVariant);
+  const addSimilar = useApp((s) => s.addSimilar);
   const setSleepMinutes = useApp((s) => s.setSleepMinutes);
   const setSleepAfterTrack = useApp((s) => s.setSleepAfterTrack);
   const clearSleep = useApp((s) => s.clearSleep);
+  const services = useApp((s) => s.services);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const [spectrumOpen, setSpectrumOpen] = useState(false);
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
   const eqActive = snapshot.equalizer.some((g) => g !== 0);
 
   const track = snapshot.current;
   const duration = track?.duration ?? snapshot.duration;
   const liked = track ? likedIds.includes(track.id) : false;
+  const buffering = snapshot.state === "loading";
   const sleepActive = sleepUntil !== null || pauseAfterTrack;
   const sleepLabel = pauseAfterTrack
     ? t("player").sleepTimerOptions.afterTrack
     : sleepRemaining > 0
       ? formatRemaining(sleepRemaining)
       : "";
+
+  useEffect(() => {
+    setVariantsOpen(false);
+  }, [track?.id]);
+
+  const playButton = (
+    <button
+      className="play-btn"
+      onClick={() => void togglePlay()}
+      disabled={buffering && snapshot.state !== "playing"}
+      title={buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
+    >
+      {buffering ? (
+        <SpinnerIcon size={26} />
+      ) : snapshot.state === "playing" ? (
+        <PauseIcon size={24} />
+      ) : (
+        <PlayIcon size={24} />
+      )}
+    </button>
+  );
+
+  if (compactPlayer) {
+    return (
+      <footer className="player-bar mini">
+        {track?.coverUrl ? (
+          <Cover className="player-mini-cover" src={track.coverUrl} alt="" />
+        ) : (
+          <div className="player-mini-cover-empty" />
+        )}
+        <div className="player-mini-info">
+          <span className="player-mini-title">{track?.title ?? t("common").unknown}</span>
+          <span className="player-mini-artist">{track?.artist ?? ""}</span>
+        </div>
+        <div className="player-progress">
+          <span className="time">{formatTime(snapshot.position)}</span>
+          <input
+            type="range"
+            className="seek"
+            min={0}
+            max={duration || 100}
+            step={1}
+            value={Math.min(snapshot.position, duration || 0)}
+            disabled={!track}
+            onChange={(e) => seek(Number(e.target.value))}
+          />
+          <span className="time">{formatTime(duration)}</span>
+        </div>
+        <div className="player-buttons">
+          {playButton}
+          <button className="icon-btn" onClick={() => void next()} title={t("player").next}>
+            <NextIcon size={20} />
+          </button>
+          <button
+            className="icon-btn"
+            onClick={() => setCompactPlayer(false)}
+            title={t("player").queue}
+          >
+            <ExpandIcon size={18} />
+          </button>
+        </div>
+      </footer>
+    );
+  }
 
   return (
     <footer className="player-bar">
@@ -84,6 +168,64 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
           <div className="player-cover player-cover-empty" />
         )}
         <div className="player-track-info">
+          {track && (
+            <div className="player-variants-wrap">
+              <button
+                className={`variants-toggle ${variantsOpen ? "active" : ""}`}
+                onClick={() => setVariantsOpen((o) => !o)}
+                title={t("player").variants}
+              >
+                {variantsLoading ? (
+                  <SpinnerIcon size={12} />
+                ) : (
+                  variantsOpen ? <ChevronUpIcon size={12} /> : <ChevronDownIcon size={12} />
+                )}
+                <span>{t("player").variants}</span>
+                {variants.length > 0 && <span className="variants-count">{variants.length}</span>}
+              </button>
+              {variantsOpen && (
+                <div className="variants-menu" onClick={(e) => e.stopPropagation()}>
+                  <div className="sleep-menu-title">{t("player").variants}</div>
+                  {!variantsLoading && variants.length === 0 && (
+                    <div className="variants-empty">{t("player").variantsEmpty}</div>
+                  )}
+                  {variants.map((v) => (
+                    <button
+                      key={v.track.id}
+                      className="variants-item"
+                      onClick={() => {
+                        setVariantsOpen(false);
+                        playVariant(v);
+                      }}
+                    >
+                      <span className="variants-provider">{providerLabel(v.providerId)}</span>
+                      <span className="variants-track">
+                        <span className="variants-title">{v.track.title}</span>
+                        {v.track.artist && (
+                          <span className="variants-artist">{v.track.artist}</span>
+                        )}
+                      </span>
+                      {v.track.duration ? (
+                        <span className="variants-duration">{formatTime(v.track.duration)}</span>
+                      ) : null}
+                      <PlayIcon size={14} />
+                    </button>
+                  ))}
+                  <div className="variants-actions">
+                    <button
+                      className="variants-similar"
+                      onClick={() => {
+                        setVariantsOpen(false);
+                        void addSimilar();
+                      }}
+                    >
+                      <RadioIcon size={14} /> {t("player").similar}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <span className="player-title">{track?.title ?? t("common").unknown}</span>
           <span className="player-artist">{track?.artist ?? t("player").queue}</span>
         </div>
@@ -109,13 +251,7 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
           <button className="icon-btn" onClick={() => void previous()} title={t("player").previous}>
             <PreviousIcon size={22} />
           </button>
-          <button className="play-btn" onClick={() => void togglePlay()} title={snapshot.state === "playing" ? t("player").pause : t("player").play}>
-            {snapshot.state === "playing" ? (
-              <PauseIcon size={24} />
-            ) : (
-              <PlayIcon size={24} />
-            )}
-          </button>
+          {playButton}
           <button className="icon-btn" onClick={() => void next()} title={t("player").next}>
             <NextIcon size={22} />
           </button>
@@ -126,8 +262,21 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
           >
             {snapshot.repeat === "one" ? <RepeatOneIcon size={17} /> : <RepeatIcon size={17} />}
           </button>
+          <button
+            className="icon-btn"
+            onClick={() => void startRadio()}
+            disabled={!track}
+            title={t("player").radio}
+          >
+            <RadioIcon size={17} />
+          </button>
         </div>
         <div className="player-progress">
+          {spectrumOpen && services?.engine && (
+            <div className="spectrum-wrap">
+              <Spectrum engine={services.engine} />
+            </div>
+          )}
           <span className="time">{formatTime(snapshot.position)}</span>
           <input
             type="range"
@@ -144,6 +293,13 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
       </div>
 
       <div className="player-side">
+        <button
+          className="icon-btn"
+          onClick={() => setCompactPlayer(true)}
+          title={t("player").mini}
+        >
+          <MiniPlayerIcon size={18} />
+        </button>
         <button
           className={`icon-btn ${snapshot.volume === 0 ? "muted" : ""}`}
           onClick={() => setVolume(snapshot.volume === 0 ? 100 : 0)}
@@ -190,6 +346,13 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
           )}
         </div>
         <div className="sleep-menu-wrap">
+          <button
+            className={`icon-btn ${spectrumOpen ? "active" : ""}`}
+            onClick={() => setSpectrumOpen((o) => !o)}
+            title={t("player").spectrum}
+          >
+            <ChartIcon size={18} />
+          </button>
           <button
             className={`icon-btn ${eqActive ? "active" : ""}`}
             onClick={() => setEqOpen((o) => !o)}

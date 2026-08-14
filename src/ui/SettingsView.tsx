@@ -1,23 +1,140 @@
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { notificationsEnabled, setNotificationsEnabled } from "../app/notifications";
-import { FolderIcon, SaveIcon, RefreshCwIcon, DownloadIcon, UploadIcon } from "./icons";
+import {
+  FolderIcon,
+  SaveIcon,
+  RefreshCwIcon,
+  DownloadIcon,
+  UploadIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+} from "./icons";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { loadYtQuality, saveYtQuality, type YtQuality } from "../app/ytQuality";
+import { CROSSFADE_OPTIONS } from "../app/crossfade";
+import {
+  KNOWN_PROVIDERS,
+  getBlockedProviders,
+  getPreferredProviders,
+  setBlockedProviders,
+  setPreferredProviders,
+} from "../app/platformSettings";
+import { providerLabel } from "./providers";
+
+interface AppConfigResult {
+  ytdlpPath?: string | null;
+  soundcloudClientId?: string | null;
+  spotifyClientId?: string | null;
+  spotifyClientSecret?: string | null;
+  vkToken?: string | null;
+  lastfmApiKey?: string | null;
+  lastfmApiSecret?: string | null;
+  lastfmSessionKey?: string | null;
+}
+
+const ENV_KEYS = [
+  "WAVE_YTDLP_PATH",
+  "WAVE_SOUNDCLOUD_CLIENT_ID",
+  "WAVE_SPOTIFY_CLIENT_ID",
+  "WAVE_SPOTIFY_CLIENT_SECRET",
+  "WAVE_VK_TOKEN",
+  "WAVE_LASTFM_API_KEY",
+  "WAVE_LASTFM_API_SECRET",
+  "WAVE_LASTFM_SESSION_KEY",
+] as const;
+
+function fromRust(cfg: AppConfigResult): Record<string, string> {
+  const map: Record<string, string> = {
+    WAVE_YTDLP_PATH: cfg.ytdlpPath ?? "",
+    WAVE_SOUNDCLOUD_CLIENT_ID: cfg.soundcloudClientId ?? "",
+    WAVE_SPOTIFY_CLIENT_ID: cfg.spotifyClientId ?? "",
+    WAVE_SPOTIFY_CLIENT_SECRET: cfg.spotifyClientSecret ?? "",
+    WAVE_VK_TOKEN: cfg.vkToken ?? "",
+    WAVE_LASTFM_API_KEY: cfg.lastfmApiKey ?? "",
+    WAVE_LASTFM_API_SECRET: cfg.lastfmApiSecret ?? "",
+    WAVE_LASTFM_SESSION_KEY: cfg.lastfmSessionKey ?? "",
+  };
+  return map;
+}
+
+function SettingsCard({ title, desc, children, wide }: { title: string; desc?: string; children: ReactNode; wide?: boolean }) {
+  return (
+    <section className={`settings-card ${wide ? "settings-card-wide" : ""}`}>
+      <h2>{title}</h2>
+      {desc && <p className="muted">{desc}</p>}
+      {children}
+    </section>
+  );
+}
 
 export function SettingsView() {
-  const { t } = useI18n();
-  const { services, notify } = useApp((s) => ({ services: s.services, notify: s.notify }));
+  const { t, locale, setLocale } = useI18n();
+  const services = useApp((s) => s.services);
+  const notify = useApp((s) => s.notify);
   const accentEnabled = useApp((s) => s.accentEnabled);
   const setAccentEnabled = useApp((s) => s.setAccentEnabled);
-  const [notificationsOn, setNotificationsOn] = useState(notificationsEnabled());
+  const autoContinue = useApp((s) => s.autoContinue);
+  const setAutoContinue = useApp((s) => s.setAutoContinue);
+  const offlineMode = useApp((s) => s.offlineMode);
+  const setOfflineMode = useApp((s) => s.setOfflineMode);
   const theme = useApp((s) => s.theme);
   const setTheme = useApp((s) => s.setTheme);
+  const lyricsAutoOpen = useApp((s) => s.lyricsAutoOpen);
+  const setLyricsAutoOpen = useApp((s) => s.setLyricsAutoOpen);
+  const lyricsAutoscroll = useApp((s) => s.lyricsAutoscroll);
+  const setLyricsAutoscroll = useApp((s) => s.setLyricsAutoscroll);
+  const crossfadeMs = useApp((s) => s.crossfadeMs);
+  const setCrossfadeMs = useApp((s) => s.setCrossfadeMs);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [localDir, setLocalDir] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, string>>({});
+  const [ytQuality, setYtQuality] = useState<YtQuality>(loadYtQuality());
+  const [blocked, setBlocked] = useState<string[]>(() => getBlockedProviders());
+  const [preferred, setPreferred] = useState<string[]>(() => {
+    const saved = getPreferredProviders();
+    const all = KNOWN_PROVIDERS.map((p) => p);
+    const merged = [...saved, ...all.filter((id) => !saved.includes(id))];
+    return merged;
+  });
+  const clearCaches = useApp((s) => s.clearCaches);
+  const [testingAll, setTestingAll] = useState(false);
+  const [allResults, setAllResults] = useState<Record<string, string>>({});
+
+  const testAllProviders = async (): Promise<void> => {
+    if (!services) return;
+    setTestingAll(true);
+    setAllResults({});
+    const entries = services.providers.map(async (p) => {
+      try {
+        const res = await p.search("test");
+        const ok = (res.tracks?.length ?? 0) >= 0;
+        return { id: p.id, text: ok ? "✓ OK" : "✗" };
+      } catch (e) {
+        return { id: p.id, text: `✗ ${e instanceof Error ? e.message : String(e)}`.slice(0, 60) };
+      }
+    });
+    const settled = await Promise.allSettled(entries);
+    const next: Record<string, string> = {};
+    for (const r of settled) {
+      if (r.status === "fulfilled") next[r.value.id] = r.value.text;
+    }
+    setAllResults(next);
+    setTestingAll(false);
+  };
+
+  const movePreferred = (index: number, dir: -1 | 1) => {
+    setPreferred((prev) => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadConfig();
@@ -25,19 +142,29 @@ export function SettingsView() {
 
   const loadConfig = async () => {
     try {
-      const saved = localStorage.getItem("wave-config");
-      if (saved) {
-        setConfig(JSON.parse(saved));
-      }
+      const cfg = await invoke<AppConfigResult>("app_config");
+      setConfig(fromRust(cfg));
       const dir = localStorage.getItem("wave-local-dir");
       if (dir) setLocalDir(dir);
     } catch {}
   };
 
-  const saveConfig = () => {
-    localStorage.setItem("wave-config", JSON.stringify(config));
-    localStorage.setItem("wave-local-dir", localDir);
-    notify(t("toasts").settingsSaved);
+  const saveConfig = async () => {
+    const payload: Record<string, string> = {};
+    for (const key of ENV_KEYS) {
+      const v = (config[key] ?? "").trim();
+      if (v) payload[key] = v;
+    }
+    setBlockedProviders(blocked);
+    setPreferredProviders(preferred);
+    try {
+      await invoke("save_app_config", { config: payload });
+      localStorage.setItem("wave-local-dir", localDir);
+      await useApp.getState().reloadServices();
+      notify(t("toasts").settingsSaved);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const handleTest = async (key: string) => {
@@ -50,15 +177,24 @@ export function SettingsView() {
         if (key === "WAVE_SPOTIFY_CLIENT_ID") return p.id === "spotify";
         if (key === "WAVE_VK_TOKEN") return p.id === "vk";
         if (key === "WAVE_LASTFM_API_KEY") return p.id === "lastfm";
-        if (key === "WAVE_GENIUS_TOKEN") return p.id === "genius";
         return false;
       });
-      if (providers.length > 0) {
-        const results = await Promise.allSettled(providers.map((p) => p.search("test")));
-        const ok = results.some((r) => r.status === "fulfilled");
-        setTestResults((prev) => ({ ...prev, [key]: ok ? t("settings").testOK : t("settings").testFailed }));
-      } else {
+      if (providers.length === 0) {
         setTestResults((prev) => ({ ...prev, [key]: t("settings").providerNotLoaded }));
+        return;
+      }
+      const results = await Promise.allSettled(providers.map((p) => p.search("test")));
+      const ok = results.some((r) => r.status === "fulfilled");
+      if (ok) {
+        setTestResults((prev) => ({ ...prev, [key]: t("settings").testOK }));
+      } else {
+        const reasons = results
+          .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+          .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+        setTestResults((prev) => ({
+          ...prev,
+          [key]: `${t("settings").testFailed} ${reasons[0] ?? ""}`.trim(),
+        }));
       }
     } catch (e) {
       setTestResults((prev) => ({ ...prev, [key]: `${t("settings").testFailed} ${e instanceof Error ? e.message : String(e)}` }));
@@ -83,188 +219,303 @@ export function SettingsView() {
     { key: "WAVE_LASTFM_API_KEY", label: "Last.fm API Key", placeholder: "...", type: "text", test: true },
     { key: "WAVE_LASTFM_API_SECRET", label: "Last.fm API Secret", placeholder: "...", type: "password", test: false },
     { key: "WAVE_LASTFM_SESSION_KEY", label: "Last.fm Session Key", placeholder: "...", type: "password", test: false },
-    { key: "WAVE_GENIUS_TOKEN", label: "Genius Access Token", placeholder: "...", type: "password", test: false },
     { key: "WAVE_API_TOKEN", label: "HTTP API Token (empty = auto)", placeholder: "auto-generated", type: "text", test: false },
   ];
 
   return (
     <div className="view settings-view">
-      <h1>{t("settings").title}</h1>
-
-      <section className="settings-section">
-        <h2>{t("settings").apiKeys}</h2>
-        <p className="muted">{t("settings").apiKeysDesc}</p>
-        <div className="settings-grid">
-          {envKeys.map(({ key, label, placeholder, type, test }) => (
-            <div key={key} className="setting-row">
-              <label htmlFor={key}>{label}</label>
-              <div className="input-group">
-                <input
-                  id={key}
-                  type={type}
-                  placeholder={placeholder}
-                  value={config[key] || ""}
-                  onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.value }))}
-                />
-                {test && (
-                  <button
-                    className="btn small"
-                    onClick={() => handleTest(key)}
-                    disabled={testing === key}
-                  >
-                    {testing === key ? "..." : t("settings").test}
-                  </button>
-                )}
-              </div>
-              {testResults[key] && <span className={`test-result ${testResults[key].startsWith("✓") ? "ok" : "err"}`}>{testResults[key]}</span>}
-            </div>
-          ))}
-          <div className={`scrobble-status ${services?.scrobbler ? "ok" : ""}`}>
-            {services?.scrobbler
-              ? t("settings").lastfmStatusEnabled
-              : t("settings").lastfmStatusDisabled}
-          </div>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h2>{t("settings").localFiles}</h2>
-        <div className="setting-row">
-          <label htmlFor="local-dir">{t("settings").selectFolder}</label>
-          <div className="input-group">
-            <input
-              id="local-dir"
-              type="text"
-              placeholder={t("settings").folderPlaceholder}
-              value={localDir}
-              readOnly
-            />
-            <button className="btn" onClick={pickLocalDir}>
-              <FolderIcon size={18} /> {t("settings").choose}
+      <div className="settings-topbar">
+        <h1>{t("settings").title}</h1>
+        <div className="settings-topbar-actions">
+          <div className="settings-seg" role="group" aria-label={t("settings").language}>
+            <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} title={t("settings").language}>
+              English
+            </button>
+            <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} title={t("settings").language}>
+              Русский
             </button>
           </div>
-        </div>
-        <p className="muted">{t("settings").localFilesDesc}</p>
-      </section>
-
-      <section className="settings-section">
-        <h2>{t("settings").actions}</h2>
-        <div className="actions-row">
+          <div className="settings-seg" role="group" aria-label={t("settings").theme}>
+            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
+              {t("settings").themeLight}
+            </button>
+            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
+              {t("settings").themeDark}
+            </button>
+          </div>
           <button className="btn btn-primary" onClick={saveConfig}>
-            <SaveIcon size={18} /> {t("settings").save}
+            <SaveIcon size={16} /> {t("settings").save}
           </button>
           <button className="btn" onClick={loadConfig}>
-            <RefreshCwIcon size={18} /> {t("settings").load}
+            <RefreshCwIcon size={16} /> {t("settings").load}
           </button>
         </div>
-      </section>
+      </div>
 
-      <section className="settings-section">
-        <h2>{t("settings").accentFromCover}</h2>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
-            checked={accentEnabled}
-            onChange={(e) => setAccentEnabled(e.target.checked)}
-          />
-          <span>{t("settings").accentFromCover}</span>
-        </label>
-        <p className="muted">{t("settings").accentFromCoverDesc}</p>
-      </section>
+      <div className="settings-cards">
+        <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
+          <div className="settings-grid">
+            {envKeys.map(({ key, label, placeholder, type, test }) => (
+              <div key={key} className="setting-row">
+                <label htmlFor={key}>{label}</label>
+                <div className="input-group">
+                  <input
+                    id={key}
+                    type={type}
+                    placeholder={placeholder}
+                    value={config[key] || ""}
+                    onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.value }))}
+                  />
+                  {test && (
+                    <button
+                      className="btn small"
+                      onClick={() => handleTest(key)}
+                      disabled={testing === key}
+                    >
+                      {testing === key ? "..." : t("settings").test}
+                    </button>
+                  )}
+                </div>
+                {testResults[key] && <span className={`test-result ${testResults[key].startsWith("✓") ? "ok" : "err"}`}>{testResults[key]}</span>}
+              </div>
+            ))}
+            <div className={`scrobble-status ${services?.scrobbler ? "ok" : ""}`}>
+              {services?.scrobbler
+                ? t("settings").lastfmStatusEnabled
+                : t("settings").lastfmStatusDisabled}
+            </div>
+          </div>
+        </SettingsCard>
 
-      <section className="settings-section">
-        <h2>{t("settings").notifications}</h2>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
-            checked={notificationsOn}
-            onChange={(e) => {
-              const on = e.target.checked;
-              setNotificationsEnabled(on);
-              setNotificationsOn(on);
-            }}
-          />
-          <span>{t("settings").notifications}</span>
-        </label>
-        <p className="muted">{t("settings").notificationsDesc}</p>
-      </section>
+        <SettingsCard title={t("settings").sources} desc={t("settings").sourcesDesc} wide>
+          <div className="source-block">
+            <h3>{t("settings").blockedProviders}</h3>
+            <p className="muted">{t("settings").blockedProvidersDesc}</p>
+            <div className="provider-chips">
+              {KNOWN_PROVIDERS.map((id) => {
+                const isBlocked = blocked.includes(id);
+                return (
+                  <button
+                    key={id}
+                    className={`chip ${isBlocked ? "blocked" : ""}`}
+                    onClick={() =>
+                      setBlocked((prev) =>
+                        isBlocked ? prev.filter((x) => x !== id) : [...prev, id],
+                      )
+                    }
+                  >
+                    {providerLabel(id)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      <section className="settings-section">
-        <h2>{t("settings").theme}</h2>
-        <div className="actions-row">
-          <button
-            className={`btn ${theme === "light" ? "btn-primary" : ""}`}
-            onClick={() => setTheme("light")}
-          >
-            {t("settings").themeLight}
-          </button>
-          <button
-            className={`btn ${theme === "dark" ? "btn-primary" : ""}`}
-            onClick={() => setTheme("dark")}
-          >
-            {t("settings").themeDark}
-          </button>
-        </div>
-        <p className="muted">{t("settings").themeDesc}</p>
-      </section>
+          <div className="source-block">
+            <h3>{t("settings").preferredProviders}</h3>
+            <p className="muted">{t("settings").preferredProvidersDesc}</p>
+            <div className="preferred-list">
+              {preferred.map((id, i) => (
+                <div key={id} className={`preferred-item ${blocked.includes(id) ? "dim" : ""}`}>
+                  <span className="preferred-label">{providerLabel(id)}</span>
+                  <div className="preferred-actions">
+                    <button
+                      className="icon-btn"
+                      disabled={i === 0}
+                      onClick={() => movePreferred(i, -1)}
+                      title={t("settings").moveUp}
+                    >
+                      <ChevronUpIcon size={14} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      disabled={i === preferred.length - 1}
+                      onClick={() => movePreferred(i, 1)}
+                      title={t("settings").moveDown}
+                    >
+                      <ChevronDownIcon size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-      <section className="settings-section">
-        <h2>{t("settings").updateYtDlp}</h2>
-        <div className="actions-row">
-          <button
-            className="btn"
-            onClick={async () => {
-              const result = await invoke("yt_update");
-              notify(typeof result === "string" ? result : t("settings").updateYtDlpDesc);
-            }}
-          >
-            <RefreshCwIcon size={18} /> {t("settings").updateYtDlp}
-          </button>
-        </div>
-        <p className="muted">{t("settings").updateYtDlpDesc}</p>
-      </section>
+          <div className="source-actions">
+            <button className="btn" onClick={clearCaches}>
+              {t("settings").resetCaches}
+            </button>
+            <button className="btn" onClick={() => void testAllProviders()} disabled={testingAll}>
+              {testingAll ? t("settings").testing : t("settings").testAll}
+            </button>
+          </div>
+          {Object.keys(allResults).length > 0 && (
+            <div className="provider-test-results">
+              {Object.entries(allResults).map(([id, text]) => (
+                <span key={id} className="provider-test-row">
+                  <b>{providerLabel(id)}</b> {text}
+                </span>
+              ))}
+            </div>
+          )}
+        </SettingsCard>
 
-      <section className="settings-section">
-        <h2>{t("settings").backup}</h2>
-        <div className="actions-row">
-          <button
-            className="btn"
-            onClick={async () => {
-              const path = await save({
-                defaultPath: "wave-backup.db",
-                filters: [{ name: "SQLite", extensions: ["db"] }],
-              });
-              if (!path) return;
-              try {
-                await invoke("backup_database", { path });
-                notify(t("toasts").exportSuccess);
-              } catch (e) {
-                notify(e instanceof Error ? e.message : String(e));
-              }
-            }}
-          >
-            <DownloadIcon size={18} /> {t("settings").backup}
-          </button>
-          <button
-            className="btn"
-            onClick={async () => {
-              const path = await open({
-                filters: [{ name: "SQLite", extensions: ["db"] }],
-                multiple: false,
-              });
-              if (!path || typeof path !== "string") return;
-              try {
-                await invoke("restore_database", { path });
-                notify(t("settings").restoreDesc);
-              } catch (e) {
-                notify(e instanceof Error ? e.message : String(e));
-              }
-            }}
-          >
-            <UploadIcon size={18} /> {t("settings").restore}
-          </button>
-        </div>
-      </section>
+        <SettingsCard title={t("settings").behavior}>
+          <div className="settings-toggles">
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={accentEnabled}
+                onChange={(e) => setAccentEnabled(e.target.checked)}
+              />
+              <span>{t("settings").accentFromCover}</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={autoContinue}
+                onChange={(e) => setAutoContinue(e.target.checked)}
+              />
+              <span>{t("settings").autoContinue}</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={offlineMode}
+                onChange={(e) => setOfflineMode(e.target.checked)}
+              />
+              <span>{t("settings").offlineMode}</span>
+            </label>
+          </div>
+          <p className="muted">{t("settings").accentFromCoverDesc}</p>
+          <p className="muted">{t("settings").autoContinueDesc}</p>
+          <p className="muted">{t("settings").offlineModeDesc}</p>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").lyrics} desc={t("settings").lyricsDesc}>
+          <div className="settings-toggles">
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={lyricsAutoOpen}
+                onChange={(e) => setLyricsAutoOpen(e.target.checked)}
+              />
+              <span>{t("settings").lyricsAutoOpen}</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={lyricsAutoscroll}
+                onChange={(e) => setLyricsAutoscroll(e.target.checked)}
+              />
+              <span>{t("settings").lyricsAutoscroll}</span>
+            </label>
+          </div>
+          <p className="muted">{t("settings").lyricsAutoOpenDesc}</p>
+          <p className="muted">{t("settings").lyricsAutoscrollDesc}</p>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").crossfade} desc={t("settings").crossfadeDesc}>
+          <div className="actions-row">
+            {CROSSFADE_OPTIONS.map((ms) => (
+              <button
+                key={ms}
+                className={`btn ${crossfadeMs === ms ? "btn-primary" : ""}`}
+                onClick={() => setCrossfadeMs(ms)}
+              >
+                {ms === 0 ? t("settings").crossfadeOff : `${ms} ms`}
+              </button>
+            ))}
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").localFiles} desc={t("settings").localFilesDesc}>
+          <div className="setting-row">
+            <label htmlFor="local-dir">{t("settings").selectFolder}</label>
+            <div className="input-group">
+              <input
+                id="local-dir"
+                type="text"
+                placeholder={t("settings").folderPlaceholder}
+                value={localDir}
+                readOnly
+              />
+              <button className="btn" onClick={pickLocalDir}>
+                <FolderIcon size={18} /> {t("settings").choose}
+              </button>
+            </div>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").ytQuality} desc={t("settings").ytQualityDesc}>
+          <div className="actions-row">
+            {(["low", "medium", "high", "best"] as YtQuality[]).map((q) => (
+              <button
+                key={q}
+                className={`btn ${ytQuality === q ? "btn-primary" : ""}`}
+                onClick={() => {
+                  setYtQuality(q);
+                  saveYtQuality(q);
+                }}
+              >
+                {t("settings").ytQualityLabels[q]}
+              </button>
+            ))}
+          </div>
+          <div className="settings-action-row">
+            <button
+              className="btn"
+              onClick={async () => {
+                const result = await invoke("yt_update");
+                notify(typeof result === "string" ? result : t("settings").updateYtDlpDesc);
+              }}
+            >
+              <RefreshCwIcon size={16} /> {t("settings").updateYtDlp}
+            </button>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").backup} desc={t("settings").backupDesc}>
+          <div className="actions-row">
+            <button
+              className="btn"
+              onClick={async () => {
+                const path = await save({
+                  defaultPath: "wave-backup.db",
+                  filters: [{ name: "SQLite", extensions: ["db"] }],
+                });
+                if (!path) return;
+                try {
+                  await invoke("backup_database", { path });
+                  notify(t("toasts").exportSuccess);
+                } catch (e) {
+                  notify(e instanceof Error ? e.message : String(e));
+                }
+              }}
+            >
+              <DownloadIcon size={18} /> {t("settings").backup}
+            </button>
+            <button
+              className="btn"
+              onClick={async () => {
+                const path = await open({
+                  filters: [{ name: "SQLite", extensions: ["db"] }],
+                  multiple: false,
+                });
+                if (!path || typeof path !== "string") return;
+                try {
+                  await invoke("restore_database", { path });
+                  notify(t("settings").restoreDesc);
+                } catch (e) {
+                  notify(e instanceof Error ? e.message : String(e));
+                }
+              }}
+            >
+              <UploadIcon size={18} /> {t("settings").restore}
+            </button>
+          </div>
+        </SettingsCard>
+      </div>
     </div>
   );
 }

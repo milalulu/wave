@@ -13,13 +13,14 @@
 | Категория | Детали |
 |---|---|
 | **Поиск** | iTunes, YouTube Music (через yt-dlp), SoundCloud, Deezer, MusicBrainz, Last.fm, Spotify (preview), VK, локальные файлы |
-| **Воспроизведение** | Очередь, shuffle/repeat, громкость, сик, переключение треков, медиаклавиши (MPRIS) |
-| **Моя волна** | Персональный микс на основе лайков, истории, топ-жанров; кандидаты со всех провайдеров |
+| **Воспроизведение** | Очередь, shuffle/repeat, громкость, сик, переключение треков, медиаклавиши (MPRIS); авто-фолбэк на другой источник при ошибке загрузки |
+| **Моя волна** | Персональный микс на основе лайков, истории, топ-жанров; кандидаты со всех провайдеров; блокировка отдельных треков и артистов |
+| **Варианты трека** | Musixmatch-стиль: тот же трек на других площадках (сортировка по предпочтениям), «Похожие треки» в очередь |
 | **Лайки / История** | SQLite-персистентность, синхронизация между запусками |
 | **Локальные файлы** | Рекурсивное сканирование папки, чтение ID3/FLAC/MP4 тегов (lofty), длительность |
-| **HTTP API** | REST endpoints для управления плеером, поиска, волны, лайков — для Jarvis / внешних скриптов |
-| **Тексты песен** | LRCLIB (синхронизированные LRC + обычные), опционально Genius API |
-| **Настройки (UI)** | Ввод токенов провайдеров, выбор папки локальных файлов, тема, язык |
+| **HTTP API** | REST endpoints для управления плеером, поиска, волны, вариантов, источников, «похожих», лайков — для Jarvis / внешних скриптов |
+| **Тексты песен** | LRCLIB (синхронизированные LRC + обычные) |
+| **Настройки (UI)** | Ввод токенов провайдеров, выбор папки локальных файлов, тема, язык; блокировка/порядок источников, сброс кешей, проверка всех площадок |
 | **Интернационализация** | English (default) / Русский |
 
 ---
@@ -77,6 +78,27 @@ pnpm tauri dev          # разработка
 pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
 ```
 
+### Релиз (GitHub Actions)
+
+CI собирает установщики автоматически при пуше git-тега `v*`:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Релиз создаётся как **черновик** — проверьте артефакты и опубликуйте вручную. Для подписи сборок задайте в настройках репозитория (Settings → Secrets and variables → Actions) секреты:
+
+| Секрет | Назначение |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Подпись пакетов автообновления (`tauri signer generate`). Без них `latest.json` не создаётся, приложение просто не видит обновлений. |
+| `APPLE_CERTIFICATE` (p.12 в base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Подпись и нотаризация macOS. Без них на Apple Silicon сборки считаются повреждёнными. |
+| `WIN_CERTIFICATE` (.pfx в base64), `WIN_CERTIFICATE_PASSWORD` | Подпись Windows (убирает предупреждение SmartScreen). Дополнительно укажите `certificateThumbprint` в `bundle.windows` `src-tauri/tauri.conf.json`. |
+
+**Внимание:** ключ подписи генерируется один раз и хранится только у вас (`TAURI_SIGNING_PRIVATE_KEY`). При его утере автообновление перестанет работать — придётся генерировать новый ключ и менять `pubkey` в `tauri.conf.json`. Не коммитьте приватный ключ в репозиторий.
+
+Endpoint автообновлений в `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`) замените на `https://github.com/<owner>/<repo>/releases/latest/download/latest.json`.
+
 ---
 
 ## Конфигурация (переменные окружения)
@@ -91,7 +113,6 @@ pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
 | `WAVE_SPOTIFY_CLIENT_SECRET` | Spotify Client Secret | Для Spotify |
 | `WAVE_VK_TOKEN` | VK user token с правами `audio` | Для VK |
 | `WAVE_LASTFM_API_KEY` | Last.fm API key (last.fm/api/account/create) | Для Last.fm / скробблинга |
-| `WAVE_GENIUS_TOKEN` | Genius Client Access Token (genius.com/api-clients) | Для текстов Genius |
 | `WAVE_API_TOKEN` | Токен для HTTP API (если не задан — генерируется случайный, пишется в `~/.config/com.wave.desktop/api-token`) | Для Jarvis |
 
 **Токен HTTP API:** при первом запуске генерируется случайный 32-символьный токен, сохраняется в конфиг и логируется в консоль (`[wave-http] api token: ...`). Передайте его в заголовке `X-Api-Token`.
@@ -167,13 +188,15 @@ MIT License — см. [LICENSE](LICENSE).
 - [x] HTTP API + auth
 - [x] yt-dlp / SoundCloud / Deezer / MusicBrainz / Last.fm / Spotify / VK providers
 - [x] Re-resolve expired streams, error toasts, local file metadata, random API token
+- [x] i18n (en/ru) + Settings UI (tokens, providers, local dir, source blocking/preferences, reset caches, test all)
+- [x] Lyrics (LRCLIB)
+- [x] Track variants (Musixmatch-style) + «Similar» to queue
+- [x] My Wave blocking (tracks/artists), auto-fallback on load errors
 - [ ] **Albums/Artists UI** (view tracks, bio)
 - [ ] **User playlists** (create, M3U import/export, drag-to-queue)
 - [ ] **MPRIS / media keys** + system notifications
-- [ ] **i18n** (en/ru) + Settings UI (tokens, providers, local dir)
 - [ ] **Last.fm scrobbling** (now playing + scrobble)
-- [ ] **Lyrics** (LRCLIB + optional Genius)
-- [ ] **Similar/Radio** for My Wave
+- [ ] **Radio by track** from external sources (not just library wave)
 - [ ] Cross-platform (Windows/macOS asset paths, yt-dlp discovery)
 - [ ] Android (Capacitor / Tauri mobile)
 

@@ -163,6 +163,29 @@ export class LastFmProvider implements MusicProvider {
     }
   }
 
+  /** Топ-треки артиста (для радио, когда похожих треков мало). */
+  async getArtistTopTracks(artist: string): Promise<Track[]> {
+    try {
+      const res = await this.callWithParams<{ toptracks?: { track?: LfmTrack[] } }>(
+        "artist.gettoptracks",
+        { artist },
+      );
+      return (res.toptracks?.track ?? [])
+        .map((r): Track => ({
+          id: r.mbid ? `lastfm:artist:${r.mbid}` : `lastfm:artist:${r.artist}:${r.name}`,
+          provider: this.id,
+          uri: "",
+          title: r.name ?? "",
+          artist: r.artist,
+          duration: r.duration ? Math.round(Number(r.duration) / 1000) : undefined,
+          coverUrl: bigImage(r.image),
+          meta: { noPlay: true, url: r.url },
+        })).filter((t) => Boolean(t.title));
+    } catch {
+      return [];
+    }
+  }
+
   private async call<T>(method: string, query: string): Promise<T> {
     const url = `${API}/?method=${method}&${method.split(".")[0]}=${encodeURIComponent(
       query,

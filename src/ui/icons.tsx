@@ -6,14 +6,14 @@ interface IconProps {
   filled?: boolean;
 }
 
-function Svg({ size = 18, className, children }: IconProps & { children: ReactNode }) {
+function Svg({ size = 18, className, stroke = "currentColor", children }: IconProps & { children: ReactNode; stroke?: string }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
+      stroke={stroke}
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -178,8 +178,14 @@ export const FolderIcon = (p: IconProps) => (
 );
 
 export const WaveIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M2 12h2M6 8v8M10 5v14M14 8v8M18 5v14M22 12h-2" strokeWidth={2} />
+  <Svg {...p} stroke="none">
+    <rect x="3.1" y="16" width="1.7" height="5" rx="0.85" fill="currentColor" />
+    <rect x="5.9" y="12" width="1.7" height="9" rx="0.85" fill="currentColor" />
+    <rect x="8.7" y="7" width="1.7" height="14" rx="0.85" fill="currentColor" />
+    <rect x="11.5" y="2" width="1.7" height="19" rx="0.85" fill="currentColor" />
+    <rect x="14.3" y="7" width="1.7" height="14" rx="0.85" fill="currentColor" />
+    <rect x="17.1" y="12" width="1.7" height="9" rx="0.85" fill="currentColor" />
+    <rect x="19.9" y="16" width="1.7" height="5" rx="0.85" fill="currentColor" />
   </Svg>
 );
 
@@ -247,5 +253,75 @@ export const SliderIcon = (p: IconProps) => (
     <circle cx="16" cy="6" r="2" />
     <circle cx="8" cy="12" r="2" />
     <circle cx="14" cy="18" r="2" />
+  </Svg>
+);
+
+export const MiniPlayerIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 9l6 6 6-6" />
+    <path d="M6 15l6 6 6-6" />
+  </Svg>
+);
+
+export const ExpandIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 15l6-6 6 6" />
+  </Svg>
+);
+
+export const RadioIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+    <path d="M8.5 8.5a5 5 0 0 0 0 7" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+    <path d="M5.5 5.5a9 9 0 0 0 0 13" />
+    <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+  </Svg>
+);
+
+export const ChartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Svg>
+);
+
+export const TagIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 13l-7 7-9-9V4h7z" />
+    <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
+export const SpinnerIcon = ({ size = 18, className }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    className={`spinner ${className ?? ""}`}
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+    <path d="M21 12a9 9 0 0 0-9-9" />
+  </svg>
+);
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 9l6 6 6-6" />
+  </Svg>
+);
+
+export const ChevronUpIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 15l6-6 6 6" />
+  </Svg>
+);
+
+export const ChevronRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 6l6 6-6 6" />
   </Svg>
 );

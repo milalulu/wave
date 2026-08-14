@@ -3,6 +3,7 @@ import type { HttpJsonGateway } from "./HttpGateway";
 import type { YtDlpGateway } from "./YouTubeMusicProvider";
 import type { VkGateway } from "./VkProvider";
 import { DeezerProvider } from "./DeezerProvider";
+import { iTunesProvider } from "./iTunesProvider";
 import { SoundCloudProvider } from "./SoundCloudProvider";
 import { YouTubeMusicProvider } from "./YouTubeMusicProvider";
 import { VkProvider } from "./VkProvider";
@@ -47,6 +48,60 @@ describe("DeezerProvider", () => {
     const r = await new DeezerProvider(http).search("test");
     expect(r.tracks).toHaveLength(1);
     expect(r.tracks[0]).toMatchObject({ uri: "https://preview.mp3", provider: "deezer" });
+  });
+
+  it("пере-резолвит свежее превью и кэширует его в пределах TTL", async () => {
+    let hits = 0;
+    const http = routeHttp({
+      "/track/1": () => {
+        hits += 1;
+        return { preview: `https://fresh-preview.mp3?exp=${hits}` };
+      },
+    });
+    const p = new DeezerProvider(http);
+    const track = { id: "deezer:track:1", provider: "deezer", title: "A", uri: "https://old.mp3" } as const;
+    const first = await p.resolveUri(track as never);
+    const second = await p.resolveUri(track as never);
+    expect(first).toBe("https://fresh-preview.mp3?exp=1");
+    expect(second).toBe(first);
+    expect(hits).toBe(1);
+  });
+
+  it("откатывается на старый URL, если свежий не получить", async () => {
+    const http: HttpJsonGateway = {
+      json: async () => {
+        throw new Error("network down");
+      },
+      text: async () => {
+        throw new Error("no text route");
+      },
+    };
+    const p = new DeezerProvider(http);
+    const track = { id: "deezer:track:1", provider: "deezer", title: "A", uri: "https://old.mp3" } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://old.mp3");
+  });
+});
+
+describe("iTunesProvider", () => {
+  it("пере-резолвит свежее превью через lookup", async () => {
+    const http = routeHttp({
+      "/lookup?id=7&entity=track": () => ({
+        results: [
+          { wrapperType: "track", trackId: 7, previewUrl: "https://fresh-itunes-preview.m4a" },
+          { wrapperType: "track", trackId: 7, previewUrl: "https://fresh-itunes-preview.m4a" },
+        ],
+      }),
+    });
+    const p = new iTunesProvider(http);
+    const track = { id: "itunes:track:7", provider: "itunes", title: "A", uri: "https://old.m4a" } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://fresh-itunes-preview.m4a");
+  });
+
+  it("откатывается на старый URL при ошибке lookup", async () => {
+    const http = routeHttp({});
+    const p = new iTunesProvider(http);
+    const track = { id: "itunes:track:7", provider: "itunes", title: "A", uri: "https://old.m4a" } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://old.m4a");
   });
 });
 
@@ -102,6 +157,45 @@ describe("YouTubeMusicProvider", () => {
       meta: { ytId: "abc123" },
     });
     expect(await p.resolveUri(r.tracks[0])).toBe("https://stream/abc123");
+  });
+
+  it("передаёт выбранное качество и кэширует поток-URL", async () => {
+    const calls: Array<{ id: string; quality?: string }> = [];
+    const gateway: YtDlpGateway = {
+      search: async () => [],
+      stream: async (id: string, quality?: string) => {
+        calls.push({ id, quality });
+        return `https://stream/${id}?q=${quality ?? "best"}`;
+      },
+    };
+    const p = new YouTubeMusicProvider(gateway);
+    const track = {
+      id: "youtube:track:vid1",
+      provider: "youtube",
+      title: "T",
+      meta: { ytId: "vid1" },
+    } as const;
+    const first = await p.resolveUri(track as never);
+    const second = await p.resolveUri(track as never);
+    expect(first).toBe("https://stream/vid1?q=best");
+    expect(second).toBe(first);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ id: "vid1", quality: "best" });
+  });
+
+  it("кэширует результаты поиска в пределах TTL", async () => {
+    let hits = 0;
+    const gateway: YtDlpGateway = {
+      search: async () => {
+        hits += 1;
+        return [{ id: "x", title: "X" }];
+      },
+      stream: async (id: string) => `https://stream/${id}`,
+    };
+    const p = new YouTubeMusicProvider(gateway);
+    await p.search("q1");
+    await p.search("q1");
+    expect(hits).toBe(1);
   });
 });
 

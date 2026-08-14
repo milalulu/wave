@@ -1,5 +1,7 @@
+pub mod android;
 mod http;
 pub mod lastfm;
+pub mod mpris;
 
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::tag::Accessor;
@@ -19,33 +21,73 @@ struct AppConfig {
     lastfm_api_secret: Option<String>,
     lastfm_session_key: Option<String>,
     lastfm_scrobble_enabled: bool,
-    genius_token: Option<String>,
 }
 
 fn env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.trim().is_empty())
 }
 
-fn config() -> AppConfig {
+/// Файл персистентного конфига (настройки API без env-переменных).
+/// Кросс-платформенно: app_config_dir есть на Windows/Linux/Android.
+fn persisted_config_path(app: &tauri::AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_config_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("wave-config.json")
+}
+
+fn read_persisted_config(app: &tauri::AppHandle) -> serde_json::Value {
+    std::fs::read_to_string(persisted_config_path(app))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+fn get_string(json: &serde_json::Value, key: &str) -> Option<String> {
+    json.get(key)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
+
+fn config(app: &tauri::AppHandle) -> AppConfig {
+    let persisted = read_persisted_config(app);
     AppConfig {
-        ytdlp_path: env("WAVE_YTDLP_PATH").or_else(|| {
-            std::process::Command::new("yt-dlp")
-                .arg("--version")
-                .output()
-                .ok()
-                .map(|o| if o.status.success() { "yt-dlp" } else { "" }.to_string())
-                .filter(|s| !s.is_empty())
-        }),
-        soundcloud_client_id: env("WAVE_SOUNDCLOUD_CLIENT_ID"),
-        spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID"),
-        spotify_client_secret: env("WAVE_SPOTIFY_CLIENT_SECRET"),
-        vk_token: env("WAVE_VK_TOKEN"),
-        lastfm_api_key: env("WAVE_LASTFM_API_KEY"),
-        lastfm_api_secret: env("WAVE_LASTFM_API_SECRET"),
-        lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY"),
+        ytdlp_path: env("WAVE_YTDLP_PATH")
+            .or_else(|| get_string(&persisted, "WAVE_YTDLP_PATH"))
+            .or_else(|| {
+                std::process::Command::new("yt-dlp")
+                    .arg("--version")
+                    .output()
+                    .ok()
+                    .map(|o| if o.status.success() { "yt-dlp" } else { "" }.to_string())
+                    .filter(|s| !s.is_empty())
+            }),
+        soundcloud_client_id: env("WAVE_SOUNDCLOUD_CLIENT_ID")
+            .or_else(|| get_string(&persisted, "WAVE_SOUNDCLOUD_CLIENT_ID")),
+        spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID")
+            .or_else(|| get_string(&persisted, "WAVE_SPOTIFY_CLIENT_ID")),
+        spotify_client_secret: env("WAVE_SPOTIFY_CLIENT_SECRET")
+            .or_else(|| get_string(&persisted, "WAVE_SPOTIFY_CLIENT_SECRET")),
+        vk_token: env("WAVE_VK_TOKEN").or_else(|| get_string(&persisted, "WAVE_VK_TOKEN")),
+        lastfm_api_key: env("WAVE_LASTFM_API_KEY")
+            .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_KEY")),
+        lastfm_api_secret: env("WAVE_LASTFM_API_SECRET")
+            .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_SECRET")),
+        lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY")
+            .or_else(|| get_string(&persisted, "WAVE_LASTFM_SESSION_KEY")),
         lastfm_scrobble_enabled: lastfm::scrobble_enabled(),
-        genius_token: env("WAVE_GENIUS_TOKEN"),
     }
+}
+
+/// Сохранить ключи API в персистентный конфиг (без env). Перезапись полным объектом.
+#[tauri::command]
+fn save_app_config(app: tauri::AppHandle, config: serde_json::Value) -> Result<(), String> {
+    let path = persisted_config_path(&app);
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    std::fs::write(&path, config.to_string()).map_err(|e| format!("save config: {e}"))
 }
 
 fn resolve_api_token(app: &tauri::AppHandle) -> String {
@@ -85,12 +127,16 @@ fn random_token() -> String {
 }
 
 #[tauri::command]
-fn app_config() -> AppConfig {
-    config()
+fn app_config(app: tauri::AppHandle) -> AppConfig {
+    config(&app)
 }
 
-async fn run_ytdlp(args: Vec<&str>, timeout_secs: u64) -> Result<Option<String>, String> {
-    let binary = config()
+async fn run_ytdlp(
+    app: &tauri::AppHandle,
+    args: Vec<&str>,
+    timeout_secs: u64,
+) -> Result<Option<String>, String> {
+    let binary = config(app)
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
@@ -125,10 +171,15 @@ async fn run_ytdlp(args: Vec<&str>, timeout_secs: u64) -> Result<Option<String>,
 }
 
 #[tauri::command]
-async fn yt_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
+async fn yt_search(
+    app: tauri::AppHandle,
+    query: String,
+    limit: u32,
+) -> Result<Vec<serde_json::Value>, String> {
     let limit = limit.clamp(1, 50);
     let search = format!("ytsearch{limit}:{query}");
     let Some(stdout) = run_ytdlp(
+        &app,
         vec![
             &search,
             "--no-playlist",
@@ -177,9 +228,20 @@ async fn yt_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, 
 }
 
 #[tauri::command]
-async fn yt_stream(id: String) -> Result<String, String> {
+async fn yt_stream(
+    app: tauri::AppHandle,
+    id: String,
+    quality: Option<String>,
+) -> Result<String, String> {
     let url = format!("https://www.youtube.com/watch?v={id}");
-    let Some(stdout) = run_ytdlp(vec![&url, "--no-playlist", "-f", "ba/b", "-g"], 90).await? else {
+    let fmt = match quality.as_deref().unwrap_or("best") {
+        "low" => "ba[abr<=48]/ba",
+        "medium" => "ba[abr<=128]/ba",
+        "high" => "ba[abr<=256]/ba",
+        _ => "ba/b",
+    };
+    let Some(stdout) = run_ytdlp(&app, vec![&url, "--no-playlist", "-f", fmt, "-g"], 90).await?
+    else {
         return Err("yt-dlp: no stream".into());
     };
     stdout
@@ -270,8 +332,14 @@ async fn http_fetch_text(
 }
 
 #[tauri::command]
-async fn vk_search(query: String, count: u32) -> Result<serde_json::Value, String> {
-    let token = env("WAVE_VK_TOKEN").ok_or("WAVE_VK_TOKEN not set")?;
+async fn vk_search(
+    app: tauri::AppHandle,
+    query: String,
+    count: u32,
+) -> Result<serde_json::Value, String> {
+    let token = config(&app)
+        .vk_token
+        .ok_or("VK token not set: вставьте его в Настройках")?;
     let count_str = count.to_string();
     let form = [
         ("act", "search"),
@@ -363,7 +431,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(android::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:wave.db", migrations)
@@ -371,9 +441,12 @@ pub fn run() {
         )
         .manage(bridge.clone())
         .setup(move |app| {
-            let token = resolve_api_token(app.handle());
-            eprintln!("[wave-http] api token: {token}");
-            http::server::start(app.handle().clone(), bridge.clone(), token);
+            #[cfg(not(target_os = "android"))]
+            {
+                let token = resolve_api_token(app.handle());
+                http::server::start(app.handle().clone(), bridge.clone(), token);
+                mpris::start(app.handle().clone());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -393,10 +466,21 @@ pub fn run() {
             backup_database,
             restore_database,
             yt_update,
-            yt_download
+            yt_download,
+            read_audio_tags,
+            write_audio_tags,
+            save_app_config,
+            relaunch,
+            mpris::mpris_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Перезапустить приложение (после установки обновления).
+#[tauri::command]
+fn relaunch(app: tauri::AppHandle) {
+    app.restart();
 }
 
 #[tauri::command]
@@ -473,48 +557,144 @@ fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn yt_update() -> Result<String, String> {
-    let Some(stdout) = run_ytdlp(vec!["-U"], 120).await? else {
+async fn yt_update(app: tauri::AppHandle) -> Result<String, String> {
+    let Some(stdout) = run_ytdlp(&app, vec!["-U"], 120).await? else {
         return Ok("yt-dlp is up to date".into());
     };
     Ok(stdout.trim().to_string())
 }
 
 #[tauri::command]
-async fn yt_download(url: String, output_path: String) -> Result<(), String> {
-    let binary = config()
+async fn yt_download(
+    app: tauri::AppHandle,
+    url: String,
+    output_path: String,
+    job_id: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let binary = config(&app)
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
-    let Ok(cmd) = tokio::process::Command::new(&binary)
+    let mut child = tokio::process::Command::new(&binary)
         .args([
             &url,
-            "-f", "ba/b",
-            "-o", &output_path,
+            "-f",
+            "ba/b",
+            "-o",
+            &output_path,
             "--no-playlist",
             "--no-warnings",
+            "--newline",
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-    else {
-        return Err(format!("cannot spawn {binary}"));
+        .map_err(|e| format!("cannot spawn {binary}: {e}"))?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let handle = app.clone();
+    let job = job_id.clone();
+    let progress = async move {
+        let mut lines = String::new();
+        if let Some(out) = stdout {
+            let mut reader = BufReader::new(out).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Some(percent) = parse_ytdlp_percent(&line) {
+                    let _ = handle.emit(
+                        "download-progress",
+                        serde_json::json!({ "jobId": job, "percent": percent }),
+                    );
+                }
+                lines.push_str(&line);
+                lines.push('\n');
+            }
+        }
+        if let Some(err) = stderr {
+            let mut reader = BufReader::new(err).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Some(percent) = parse_ytdlp_percent(&line) {
+                    let _ = handle.emit(
+                        "download-progress",
+                        serde_json::json!({ "jobId": job, "percent": percent }),
+                    );
+                }
+                lines.push_str(&line);
+                lines.push('\n');
+            }
+        }
+        lines
     };
+
+    let progress = tokio::time::timeout(std::time::Duration::from_secs(300), progress);
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(300),
-        cmd.wait_with_output(),
-    )
-    .await
-    .map_err(|_| "yt-dlp download timeout".to_string())?
-    .map_err(|e| format!("yt-dlp download wait: {e}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "yt-dlp download failed: {}",
-            stderr.trim().lines().last().unwrap_or("unknown error")
-        ));
+        child.wait_with_output(),
+    );
+    let (log, output) = tokio::join!(progress, output);
+
+    if output
+        .as_ref()
+        .ok()
+        .and_then(|o| o.as_ref().ok())
+        .map(|o| !o.status.success())
+        .unwrap_or(false)
+    {
+        let msg = log.unwrap_or_default();
+        let tail = msg
+            .trim()
+            .lines()
+            .last()
+            .unwrap_or("unknown error")
+            .to_string();
+        return Err(format!("{binary} failed: {tail}"));
     }
-    Ok(())
+    match output {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(e)) => Err(format!("yt-dlp wait: {e}")),
+        Err(_) => Err("yt-dlp download timeout".to_string()),
+    }
+}
+
+/// Вытащить процент из строки прогресса yt-dlp: `[download]   5.2% of 10.5MiB ...`.
+fn parse_ytdlp_percent(line: &str) -> Option<u32> {
+    let line = line.trim_start();
+    if !line.starts_with("[download]") {
+        return None;
+    }
+    let after = line.trim_start_matches("[download]").trim_start();
+    let bytes = after.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && !bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
+    let start = i;
+    let mut seen_dot = false;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b.is_ascii_digit() {
+            i += 1;
+        } else if b == b'.' && !seen_dot {
+            seen_dot = true;
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if i < bytes.len() && bytes[i] == b'%' && i > start {
+        after[start..i]
+            .parse::<f32>()
+            .ok()
+            .map(|p| p.min(100.0) as u32)
+    } else {
+        None
+    }
 }
 
 #[tauri::command]
@@ -592,4 +772,117 @@ fn file_meta(path: &std::path::Path) -> serde_json::Value {
         }
     }
     json
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioTags {
+    title: String,
+    artist: String,
+    album: String,
+    genre: String,
+    year: Option<u32>,
+    track_number: Option<u32>,
+    cover: Option<String>,
+}
+
+/// Прочитать текущие теги файла (для окна редактирования тегов).
+#[tauri::command]
+fn read_audio_tags(path: String) -> Result<AudioTags, String> {
+    let tagged = lofty::read_from_path(&path).map_err(|e| format!("read {path}: {e}"))?;
+    let mut tags = AudioTags {
+        title: String::new(),
+        artist: String::new(),
+        album: String::new(),
+        genre: String::new(),
+        year: None,
+        track_number: None,
+        cover: None,
+    };
+    if let Some(tag) = tagged.primary_tag().or_else(|| tagged.first_tag()) {
+        if let Some(title) = tag.title().filter(|t| !t.is_empty()) {
+            tags.title = title.to_string();
+        }
+        if let Some(artist) = tag.artist().filter(|a| !a.is_empty()) {
+            tags.artist = artist.to_string();
+        }
+        if let Some(album) = tag.album().filter(|a| !a.is_empty()) {
+            tags.album = album.to_string();
+        }
+        if let Some(genre) = tag.genre().filter(|g| !g.is_empty()) {
+            tags.genre = genre.to_string();
+        }
+        if let Some(year) = tag.date().map(|d| u32::from(d.year)).filter(|y| *y > 0) {
+            tags.year = Some(year);
+        }
+        if let Some(track) = tag.track().filter(|t| *t > 0) {
+            tags.track_number = Some(track);
+        }
+        if let Some(picture) = tag.pictures().first() {
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(picture.data());
+            let mime = picture
+                .mime_type()
+                .map(|m| m.to_string())
+                .unwrap_or_else(|| "image/jpeg".to_string());
+            tags.cover = Some(format!("data:{mime};base64,{b64}"));
+        }
+    }
+    Ok(tags)
+}
+
+/// Записать теги в аудиофайл.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn write_audio_tags(
+    path: String,
+    title: String,
+    artist: String,
+    album: String,
+    genre: String,
+    year: Option<u32>,
+    track_number: Option<u32>,
+) -> Result<(), String> {
+    use lofty::tag::items::Timestamp;
+    use lofty::tag::Accessor;
+    let mut tagged = lofty::read_from_path(&path).map_err(|e| format!("read {path}: {e}"))?;
+    let mut owned_new_tag: Option<lofty::tag::Tag>;
+    let tag = if let Some(t) = tagged.primary_tag_mut() {
+        t
+    } else if let Some(t) = tagged.first_tag_mut() {
+        t
+    } else {
+        let new_tag = lofty::tag::Tag::new(lofty::tag::TagType::Id3v2);
+        owned_new_tag = Some(
+            tagged
+                .insert_tag(new_tag)
+                .ok_or_else(|| format!("cannot create tags for {path}"))?,
+        );
+        owned_new_tag.as_mut().expect("tag just inserted")
+    };
+    if !title.is_empty() {
+        tag.set_title(title);
+    }
+    if !artist.is_empty() {
+        tag.set_artist(artist);
+    }
+    if !album.is_empty() {
+        tag.set_album(album);
+    }
+    if !genre.is_empty() {
+        tag.set_genre(genre);
+    }
+    if let Some(y) = year.filter(|y| *y > 0) {
+        tag.set_date(Timestamp {
+            year: y as u16,
+            ..Default::default()
+        });
+    }
+    if let Some(t) = track_number.filter(|t| *t > 0) {
+        tag.set_track(t);
+    }
+    tagged
+        .save_to_path(&path, lofty::config::WriteOptions::default())
+        .map_err(|e| format!("write {path}: {e}"))?;
+    Ok(())
 }

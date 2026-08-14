@@ -1,6 +1,19 @@
 import type { Album, Artist, SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
+import type { HttpJsonGateway } from "./HttpGateway";
 import type { MusicProvider } from "./MusicProvider";
+
+/** Фолбэк на голый fetch, если шлюз не инжектирован (webview-окружение). */
+const defaultFetchGateway: HttpJsonGateway = {
+  json: async (_method, url) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`iTunes API failed: ${res.status}`);
+    return { status: res.status, body: (await res.json()) as unknown };
+  },
+  text: async () => {
+    throw new Error("text route not supported");
+  },
+};
 
 const API = "https://itunes.apple.com";
 
@@ -45,6 +58,14 @@ export class iTunesProvider implements MusicProvider {
   readonly id = "itunes";
   readonly name = "iTunes";
 
+  private http: HttpJsonGateway;
+  private resolveCache = new Map<string, { url: string; at: number }>();
+  private static readonly CACHE_TTL_MS = 10 * 60 * 1000;
+
+  constructor(http?: HttpJsonGateway) {
+    this.http = http ?? defaultFetchGateway;
+  }
+
   async search(query: string): Promise<SearchResults> {
     const url = `${API}/search?term=${encodeURIComponent(query)}&media=music&entity=musicTrack,album,musicArtist&limit=50`;
     const data = await this.fetchJson(url);
@@ -67,6 +88,21 @@ export class iTunesProvider implements MusicProvider {
   }
 
   async resolveUri(track: Track): Promise<string> {
+    const cached = this.resolveCache.get(track.id);
+    if (cached && Date.now() - cached.at < iTunesProvider.CACHE_TTL_MS) {
+      return cached.url;
+    }
+    try {
+      const id = track.id.split(":").pop() ?? "";
+      const data = await this.fetchJson(`${API}/lookup?id=${id}&entity=track`);
+      const result = data.results.find((r) => r.wrapperType === "track" && r.previewUrl);
+      if (result?.previewUrl) {
+        this.resolveCache.set(track.id, { url: result.previewUrl, at: Date.now() });
+        return result.previewUrl;
+      }
+    } catch {
+      // сеть недоступна — отдаём старый URL, движок пере-резолвит позже
+    }
     return track.uri;
   }
 
@@ -151,9 +187,11 @@ export class iTunesProvider implements MusicProvider {
   }
 
   private async fetchJson(url: string): Promise<{ results: ITunesResult[] }> {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`iTunes API failed: ${res.status}`);
-    return (await res.json()) as { results: ITunesResult[] };
+    const { status, body } = await this.http.json("GET", url, undefined, {
+      "Content-Type": "application/json",
+    });
+    if (status !== 200) throw new Error(`iTunes API failed: ${status}`);
+    return body as { results: ITunesResult[] };
   }
 }
 

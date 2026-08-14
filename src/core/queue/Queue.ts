@@ -127,6 +127,14 @@ export class Queue {
     this.pos = -1;
   }
 
+  /** Заменить текущий трек (по индексу исходного списка), сохранив позицию и историю. */
+  replaceCurrent(track: Track): Track | null {
+    const curIndex = this.currentIndex();
+    if (curIndex < 0 || curIndex >= this.tracks.length) return null;
+    this.tracks[curIndex] = track;
+    return this.current();
+  }
+
   setShuffle(on: boolean): void {
     const cur = this.current();
     this.shuffle = on;

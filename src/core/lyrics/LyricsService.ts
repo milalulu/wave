@@ -27,17 +27,6 @@ interface LrclibHit {
   syncedLyrics?: string;
 }
 
-interface GeniusHitResult {
-  id?: number;
-  title?: string;
-  url?: string;
-  primary_artist?: { name?: string };
-}
-
-interface GeniusSearchResponse {
-  response?: { hits?: { result?: GeniusHitResult }[] };
-}
-
 const API = "https://lrclib.net";
 const UA = "Wave/0.1 (music client; https://github.com/velvett/wave)";
 
@@ -63,31 +52,22 @@ export function parseSyncedLyrics(lrc: string): LyricsLine[] {
   return lines.sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
 }
 
-/** Клиент LRCLIB + Genius fallback: тексты песен, кэш на сессию. */
+/** Клиент LRCLIB: тексты песен, кэш на сессию. */
 export class LyricsService {
   private cache = new Map<string, LyricsResult>();
   private readonly cacheLimit = 40;
 
   constructor(
     private http: HttpJsonGateway,
-    private geniusToken?: string,
   ) {}
 
   async getLyrics(track: Track): Promise<LyricsResult> {
     const cached = this.cache.get(track.id);
-    if (cached) return cached;
-    let result: LyricsResult | null = null;
+    if (cached) return cached;    let result: LyricsResult | null = null;
     try {
       result = await this.fetch(track);
     } catch {
       result = null;
-    }
-    if (!result && this.geniusToken) {
-      try {
-        result = await this.fetchGenius(track);
-      } catch {
-        result = null;
-      }
     }
     result ??= this.empty(track);
     this.cache.set(track.id, result);
@@ -96,6 +76,16 @@ export class LyricsService {
       if (first) this.cache.delete(first);
     }
     return result;
+  }
+
+  /** Сбросить кэш для трека (повторный поиск текста). */
+  invalidate(trackId: string): void {
+    this.cache.delete(trackId);
+  }
+
+  /** Полностью очистить кэш текстов. */
+  clearCache(): void {
+    this.cache.clear();
   }
 
   private empty(track: Track): LyricsResult {
@@ -167,64 +157,6 @@ export class LyricsService {
     };
   }
 
-  private async fetchGenius(track: Track): Promise<LyricsResult | null> {
-    const query = [track.artist, track.title].filter(Boolean).join(" ");
-    if (!query) return null;
-    const token = this.geniusToken;
-    if (!token) return null;
-    const { status, body } = await this.http.json(
-      "GET",
-      `https://api.genius.com/search?q=${encodeURIComponent(query)}`,
-      undefined,
-      { Authorization: `Bearer ${token}` },
-    );
-    if (status !== 200) return null;
-    const hits = (body as GeniusSearchResponse)?.response?.hits ?? [];
-    const best = pickBestGenius(hits, track);
-    if (!best?.url || best.id === undefined) return null;
-    const page = await this.http.text("GET", best.url);
-    if (page.status !== 200) return null;
-    const plain = extractGeniusLyrics(page.text);
-    if (!plain) return null;
-    return {
-      trackId: track.id,
-      title: best.title ?? track.title,
-      artist: best.primary_artist?.name ?? track.artist,
-      synced: false,
-      instrumental: false,
-      source: "genius",
-      lines: plain.split(/\r?\n/).map((text) => ({ text })),
-    };
-  }
-}
-
-/** Извлечение текста из Genius-страницы (data-lyrics-container). */
-export function extractGeniusLyrics(html: string): string {
-  const parts: string[] = [];
-  const re = /data-lyrics-container="true"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html))) {
-    const start = html.indexOf(">", m.index);
-    if (start < 0) continue;
-    const end = html.indexOf("</div>", start);
-    if (end < 0) continue;
-    let seg = html.slice(start + 1, end);
-    seg = seg.replace(/<br\s*\/?>/gi, "\n");
-    seg = seg.replace(/<[^>]+>/g, "");
-    seg = seg
-      .replace(/&#39;|&apos;|&#x27;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">");
-    const text = seg
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .join("\n");
-    if (text) parts.push(text);
-  }
-  return parts.join("\n\n");
 }
 
 function norm(s?: string): string {
@@ -257,28 +189,4 @@ function pickBest(hits: LrclibHit[], track: Track): LrclibHit | null {
     }
   }
   return best;
-}
-
-function pickBestGenius(hits: { result?: GeniusHitResult }[], track: Track): GeniusHitResult | null {
-  let best: GeniusHitResult | null = null;
-  let bestScore = -1;
-  for (const h of hits) {
-    const r = h.result;
-    if (!r?.title) continue;
-    let score = 0;
-    const hitTitle = norm(r.title);
-    const hitArtist = norm(r.primary_artist?.name);
-    const title = norm(track.title);
-    const artist = norm(track.artist);
-    if (hitTitle && title) {
-      if (hitTitle === title) score += 3;
-      else if (title.includes(hitTitle) || hitTitle.includes(title)) score += 1;
-    }
-    if (hitArtist && artist && hitArtist === artist) score += 2;
-    if (score > bestScore) {
-      bestScore = score;
-      best = r;
-    }
-  }
-  return bestScore > 0 ? best : null;
 }

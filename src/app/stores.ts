@@ -1,17 +1,33 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
+
 import type { AlbumDetail, ArtistDetail, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
 import type { LyricsResult } from "../core/lyrics/LyricsService";
-import { composeServices, type AppServices } from "./compose";
+import { composeServices, radioTracks, reconfigureServices, type AppServices } from "./compose";
 import { ApiBridge } from "./bridge";
 import { bindMediaSession } from "./mediaSession";
+import { bindMpris } from "./mpris";
+import { bindGlobalHotkeys } from "./hotkeys";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
+import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
 import { loadTheme, saveTheme, applyTheme, type Theme } from "./themeStore";
-import { sendNowPlayingNotification } from "./notifications";
 import { getCachedCover } from "../core/cover/CoverCache";
+import { clearCoverCache } from "../core/cover/CoverCache";
+import { clearSearchCache } from "./searchCache";
+import { clearVariantsCache } from "./trackVariants";
+import { findTrackVariants, type TrackVariant } from "./trackVariants";
+import { registerDownload, unregisterDownload, offlineEnabled, setOfflineEnabled } from "./offline";
+import {
+  isArtistBlocked,
+  isTrackBlocked,
+  toggleBlockedArtist,
+  toggleBlockedTrack,
+} from "./platformSettings";
+import { providerLabel } from "../ui/providers";
 import { t } from "../core/i18n";
 import {
   accentFromImage,
@@ -24,6 +40,18 @@ import {
 
 let initPromise: Promise<void> | null = null;
 
+const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+export interface DownloadItem {
+  id: string;
+  track: Track;
+  status: "queued" | "running" | "done" | "error";
+  error?: string;
+  percent?: number;
+  dir: string;
+  filePath?: string;
+}
+
 interface AppState {
   services: AppServices | null;
   ready: boolean;
@@ -33,7 +61,8 @@ interface AppState {
   notices: { id: number; message: string }[];
   notify: (message: string) => void;
   dismissNotice: (id: number) => void;
-  view: "home" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist";
+  reloadServices: () => Promise<void>;
+  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
   setView: (v: AppState["view"]) => void;
   albumDetail: AlbumDetail | null;
   artistDetail: ArtistDetail | null;
@@ -48,7 +77,7 @@ interface AppState {
   deletePlaylist: (id: string) => Promise<void>;
   addToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
-  init: () => Promise<void>;
+  reorderPlaylist: (playlistId: string, from: number, to: number) => void;  init: () => Promise<void>;
   refreshLibrary: () => Promise<void>;
   play: (tracks: Track[], index?: number) => Promise<void>;
   togglePlay: () => Promise<void>;
@@ -64,13 +93,23 @@ interface AppState {
   clearQueue: () => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   toggleLike: (track?: Track) => Promise<void>;
+  updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
   openLocalDirectory: () => Promise<void>;
+  variants: TrackVariant[];
+  variantsLoading: boolean;
+  loadVariants: (track: Track | null) => Promise<void>;
+  playVariant: (variant: TrackVariant) => void;
+  addSimilar: () => Promise<void>;
+  toggleBlockTrack: (track: Track) => void;
+  toggleBlockArtist: (artist: string) => void;
+  clearCaches: () => void;
   lyrics: LyricsResult | null;
   lyricsLoading: boolean;
   lyricsOpen: boolean;
   toggleLyrics: () => void;
   loadLyrics: (track: Track | null) => Promise<void>;
+  reloadLyrics: () => Promise<void>;
   sleepUntil: number | null;
   sleepRemaining: number;
   pauseAfterTrack: boolean;
@@ -78,10 +117,28 @@ interface AppState {
   setSleepAfterTrack: () => void;
   clearSleep: () => void;
   downloadTrack: (track: Track) => Promise<void>;
+  downloads: DownloadItem[];
+  downloading: boolean;
+  clearDownloads: () => void;
+  pumpDownloads: () => Promise<void>;
+  radioActive: boolean;
+  startRadio: (track?: Track) => Promise<void>;
+  autoContinue: boolean;
+  setAutoContinue: (enabled: boolean) => void;
+  offlineMode: boolean;
+  setOfflineMode: (enabled: boolean) => void;
   accentEnabled: boolean;
   setAccentEnabled: (enabled: boolean) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  compactPlayer: boolean;
+  setCompactPlayer: (compact: boolean) => void;
+  lyricsAutoOpen: boolean;
+  setLyricsAutoOpen: (enabled: boolean) => void;
+  lyricsAutoscroll: boolean;
+  setLyricsAutoscroll: (enabled: boolean) => void;
+  crossfadeMs: number;
+  setCrossfadeMs: (ms: number) => void;
 }
 
 const emptySnapshot: PlayerSnapshot = {
@@ -199,12 +256,43 @@ export const useApp = create<AppState>()((set, get) => ({
     await services.storage.updatePlaylist(pl);
     await get().loadPlaylists();
   },
+  reorderPlaylist: (playlistId, from, to) => {
+    const { services } = get();
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+    const tracks = pl.tracks ?? [];
+    if (from === to || from < 0 || to < 0 || from >= tracks.length || to >= tracks.length) {
+      return;
+    }
+    const copy = [...tracks];
+    const [moved] = copy.splice(from, 1);
+    copy.splice(to, 0, moved);
+    const trackIds = copy.map((t) => t.id);
+    set((s) => ({
+      ...s,
+      playlists: s.playlists.map((p) =>
+        p.id === playlistId ? { ...p, tracks: copy, trackIds } : p,
+      ),
+    }));
+    if (services) {
+      void services.storage
+        .updatePlaylist({ ...pl, tracks: copy, trackIds, updatedAt: Date.now() })
+        .catch(() => {});
+    }
+  },
 
   init: () => {
     if (!initPromise) {
       initPromise = doInit(set, get);
     }
     return initPromise;
+  },
+
+  reloadServices: async () => {
+    const { services } = get();
+    if (!services) return;
+    const rebuilt = await reconfigureServices(services);
+    set({ services: rebuilt });
   },
 
   refreshLibrary: async () => {
@@ -217,6 +305,10 @@ export const useApp = create<AppState>()((set, get) => ({
   play: async (tracks, index = 0) => {
     const { services } = get();
     if (!services) return;
+    if (get().radioActive) {
+      services.engine.setAutoFill(null);
+      set({ radioActive: false });
+    }
     await services.engine.playTracks(tracks, index);
   },
 
@@ -256,7 +348,9 @@ export const useApp = create<AppState>()((set, get) => ({
 
   toggleShuffle: () => {
     const { services, snapshot } = get();
-    services?.engine.setShuffle(!snapshot.shuffle);
+    const next = !snapshot.shuffle;
+    services?.engine.setShuffle(next);
+    get().notify(next ? t("toasts").shuffleOn : t("toasts").shuffleOff);
   },
 
   cycleRepeat: () => {
@@ -286,6 +380,13 @@ export const useApp = create<AppState>()((set, get) => ({
     await get().refreshLibrary();
   },
 
+  updateLocalTrack: (trackId, meta) => {
+    set((s) => ({
+      ...s,
+      localTracks: s.localTracks.map((tr) => (tr.id === trackId ? { ...tr, ...meta } : tr)),
+    }));
+  },
+
   openLocalDirectory: async () => {
     const { services } = get();
     if (!services) return;
@@ -312,26 +413,199 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   downloadTrack: async (track) => {
+    let dir = "";
     try {
-      const ext = track.meta?.audioUrl?.toString().includes(".m4a") ? "m4a" : "mp3";
-      const safe = (s: string) =>
-        s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
-      const filename = `${safe(track.artist ?? "")} - ${safe(track.title ?? "")}.${ext}`;
-      let defaultPath = filename;
+      dir = localStorage.getItem("wave-download-dir") ?? "";
+    } catch {
+      dir = "";
+    }
+    if (!dir) {
       try {
-        const dir = await open({ directory: true, multiple: false });
-        if (dir && typeof dir === "string") defaultPath = `${dir}/${filename}`;
+        const picked = await open({ directory: true, multiple: false });
+        if (typeof picked === "string") {
+          dir = picked;
+          try {
+            localStorage.setItem("wave-download-dir", dir);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
-        // dialog unavailable, use default path
+        // dialog unavailable
       }
-      get().notify(`${t("player").downloading} ${track.title}`);
-      const url = track.meta?.url ?? track.meta?.audioUrl?.toString() ?? "";
+    }
+    if (!dir) {
+      get().notify(t("player").downloadDirRequired);
+      return;
+    }
+    const id = `dl:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    set((s) => ({ downloads: [...s.downloads, { id, track, status: "queued", dir }] }));
+    void get().pumpDownloads();
+  },
+
+  downloads: [],
+  downloading: false,
+  clearDownloads: () =>
+    set((s) => {
+      for (const d of s.downloads) {
+        if (d.status === "done" && d.filePath) unregisterDownload(d.filePath);
+      }
+      return {
+        downloads: s.downloads.filter((d) => d.status === "queued" || d.status === "running"),
+      };
+    }),
+
+  pumpDownloads: async () => {
+    const s = get();
+    if (!s.services || s.downloading) return;
+    const next = s.downloads.find((d) => d.status === "queued");
+    if (!next) return;
+    set((prev) => ({
+      downloading: true,
+      downloads: prev.downloads.map((d) =>
+        d.id === next.id ? { ...d, status: "running", percent: 0 } : d,
+      ),
+    }));
+    const finish = (patch: Partial<DownloadItem>): void => {
+      set((prev) => ({
+        downloading: false,
+        downloads: prev.downloads.map((d) =>
+          d.id === next.id ? { ...d, ...patch } : d,
+        ),
+      }));
+    };
+    try {
+      const url =
+        String(next.track.meta?.url ?? "") ||
+        String(next.track.meta?.audioUrl ?? "") ||
+        (next.track.uri ?? "");
       if (!url) throw new Error("no source url");
-      await invoke("yt_download", { url, outputPath: defaultPath });
-      get().notify(`${t("player").download} ✓ ${track.title}`);
+      const ext = url.includes(".m4a") ? "m4a" : "mp3";
+      const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
+      const filename = `${safe(next.track.artist ?? "")} - ${safe(next.track.title ?? "")}.${ext}`;
+      const outputPath = `${next.dir}/${filename}`;
+      await invoke("yt_download", {
+        url,
+        outputPath,
+        jobId: next.id,
+      });
+      registerDownload(outputPath, next.track.artist, next.track.title);
+      finish({ status: "done", percent: 100, filePath: outputPath });
+    } catch (e) {
+      finish({ status: "error", error: e instanceof Error ? e.message : String(e) });
+    }
+    void get().pumpDownloads();
+  },
+
+  radioActive: false,
+  autoContinue: (() => {    try {
+      return localStorage.getItem("wave-autocontinue") !== "0";
+    } catch {
+      return true;
+    }
+  })(),
+  setAutoContinue: (enabled) => {
+    try {
+      localStorage.setItem("wave-autocontinue", enabled ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+    set({ autoContinue: enabled });
+    const { services } = get();
+    if (!services || get().radioActive) return;
+    services.engine.setAutoFill(enabled ? null : async () => []);
+  },
+  offlineMode: (() => {
+    try {
+      return offlineEnabled();
+    } catch {
+      return false;
+    }
+  })(),
+  setOfflineMode: (enabled) => {
+    setOfflineEnabled(enabled);
+    set({ offlineMode: enabled });
+  },
+  startRadio: async (seedTrack) => {
+    const { services, snapshot } = get();
+    const track = seedTrack ?? snapshot.current;
+    if (!services || !track) return;
+    try {
+      set({ radioActive: true });
+      services.engine.setAutoFill(async () => {
+        const last = services.engine.snapshot.current;
+        if (!last) return [];
+        return radioTracks(services, last);
+      });
+      const seed = await radioTracks(services, track);
+      await services.engine.playTracks([track, ...seed]);
+      get().notify(t("player").radio);
+    } catch (e) {
+      set({ radioActive: false });
+      services.engine.setAutoFill(null);
+      get().notify(e instanceof Error ? e.message : String(e));
+    }
+  },
+
+  variants: [],
+  variantsLoading: false,
+  loadVariants: async (track) => {
+    const { services } = get();
+    if (!track || !services) {
+      set({ variants: [], variantsLoading: false });
+      return;
+    }
+    set({ variants: [], variantsLoading: true });
+    try {
+      const found = await findTrackVariants(services.providers, track);
+      if (get().snapshot.current?.id === track.id) {
+        set({ variants: found, variantsLoading: false });
+      } else {
+        set({ variantsLoading: false });
+      }
+    } catch {
+      set({ variants: [], variantsLoading: false });
+    }
+  },
+  playVariant: (variant) => {
+    const { services } = get();
+    if (!services) return;
+    services.engine.playVariant(variant.track);
+  },
+
+  addSimilar: async () => {
+    const { services, snapshot } = get();
+    const track = snapshot.current;
+    if (!services || !track) return;
+    try {
+      const similar = await radioTracks(services, track);
+      if (similar.length === 0) {
+        get().notify(t("toasts").similarEmpty);
+        return;
+      }
+      for (const tr of similar) services.engine.addToQueue(tr);
+      get().notify(t("toasts").similarAdded(similar.length));
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
+  },
+
+  toggleBlockTrack: (track) => {
+    const blocked = toggleBlockedTrack(track.id);
+    get().notify(blocked ? t("toasts").trackBlocked : t("toasts").trackUnblocked);
+  },
+
+  toggleBlockArtist: (artist) => {
+    const blocked = toggleBlockedArtist(artist);
+    get().notify(blocked ? t("toasts").artistBlocked : t("toasts").artistUnblocked);
+  },
+
+  clearCaches: () => {
+    clearSearchCache();
+    clearVariantsCache();
+    clearCoverCache();
+    get().services?.lyrics.clearCache();
+    get().notify(t("toasts").cachesCleared);
   },
 
   lyrics: null,
@@ -348,11 +622,20 @@ export const useApp = create<AppState>()((set, get) => ({
     set({ lyricsLoading: true });
     try {
       const result = await services.lyrics.getLyrics(track);
+      if (get().snapshot.current?.id !== track.id) return;
       set({ lyrics: result, lyricsLoading: false });
     } catch (e) {
       console.warn("[lyrics]", e);
+      if (get().snapshot.current?.id !== track.id) return;
       set({ lyricsLoading: false });
     }
+  },
+  reloadLyrics: async () => {
+    const { services, snapshot } = get();
+    const track = snapshot.current;
+    if (!services || !track) return;
+    services.lyrics.invalidate(track.id);
+    await get().loadLyrics(track);
   },
 
   sleepUntil: null,
@@ -385,6 +668,27 @@ export const useApp = create<AppState>()((set, get) => ({
     applyTheme(theme);
     set({ theme });
   },
+  compactPlayer: localStorage.getItem("wave-compact-player") === "1",
+  setCompactPlayer: (compact) => {
+    localStorage.setItem("wave-compact-player", compact ? "1" : "0");
+    set({ compactPlayer: compact });
+  },
+  lyricsAutoOpen: localStorage.getItem("wave-lyrics-autoopen") === "1",
+  setLyricsAutoOpen: (enabled) => {
+    localStorage.setItem("wave-lyrics-autoopen", enabled ? "1" : "0");
+    set({ lyricsAutoOpen: enabled });
+  },
+  lyricsAutoscroll: localStorage.getItem("wave-lyrics-autoscroll") !== "0",
+  setLyricsAutoscroll: (enabled) => {
+    localStorage.setItem("wave-lyrics-autoscroll", enabled ? "1" : "0");
+    set({ lyricsAutoscroll: enabled });
+  },
+  crossfadeMs: loadCrossfadeMs(),
+  setCrossfadeMs: (ms) => {
+    saveCrossfadeMs(ms);
+    set({ crossfadeMs: ms });
+    get().services?.engine.setCrossfadeMs(ms);
+  },
 }));
 
 async function doInit(
@@ -395,6 +699,16 @@ async function doInit(
   await services.storage.init();
   const bind = (): void => set({ snapshot: services.engine.snapshot });
   services.engine.on("state", bind);
+  if (IS_ANDROID) {
+    let lastPlayback = false;
+    services.engine.on("state", (s) => {
+      const playing = s === "playing";
+      if (playing !== lastPlayback) {
+        lastPlayback = playing;
+        void invoke("set_playback", { playing }).catch(() => {});
+      }
+    });
+  }
   services.engine.on("track", bind);
   services.engine.on("time", bind);
   services.engine.on("queue", bind);
@@ -405,6 +719,43 @@ async function doInit(
   services.engine.on("repeat", bind);
   services.engine.on("error", (message) => get().notify(message));
 
+  // Прогресс загрузок из Rust (yt-dlp).
+  void listen<{ jobId: string; percent: number }>("download-progress", (event) => {
+    const { jobId, percent } = event.payload;
+    const s = get();
+    set({
+      downloads: s.downloads.map((d) =>
+        d.id === jobId && d.status === "running" ? { ...d, percent } : d,
+      ),
+    });
+  });
+
+  // Авто-фолбэк на вариант (другой источник), если текущий не воспроизводится.
+  services.engine.setFallback(() => {
+    const s = get();
+    const cur = s.snapshot.current;
+    if (!cur) return null;
+    const list = s.variants;
+    if (list.length === 0) return null;
+    const candidate =
+      list.find((v) => v.providerId !== cur.provider && v.track.uri && !v.track.meta?.noPlay) ??
+      list.find((v) => v.providerId !== cur.provider) ??
+      list[0];
+    if (!candidate) return null;
+    s.notify(t("toasts").fallbackSwitched(providerLabel(candidate.providerId)));
+    return candidate.track;
+  });
+
+  // «Моя волна» не включает заблокированные треки/артистов.
+  services.wave.setBlockFilter(
+    (track) => !isTrackBlocked(track.id) && !isArtistBlocked(track.artist),
+  );
+
+  // Автопродолжение очереди (волна/похожие), если настройка выключена — стоп.
+  if (!get().autoContinue) {
+    services.engine.setAutoFill(async () => []);
+  }
+
   if (get().accentEnabled) {
     applyAccent(loadSavedAccent());
   }
@@ -413,6 +764,7 @@ async function doInit(
   const restore = loadRestore();
   if (restore) {
     await services.engine.restoreQueue(restore.queue, restore.index, restore.position);
+    void get().loadVariants(services.engine.snapshot.current);
   }
 
   const savedEq = loadSavedEqualizer();
@@ -437,6 +789,11 @@ async function doInit(
     previous: () => void services.engine.previous(),
     seek: (s) => services.engine.seek(s),
   });
+
+  if ((window as { __TAURI__?: unknown }).__TAURI__) {
+    bindMpris(services);
+    bindGlobalHotkeys(services);
+  }
 
   let queueSaveTimer: number | undefined;
   const scheduleQueueSave = (): void => {
@@ -476,9 +833,7 @@ async function doInit(
       s.clearSleep();
       s.notify("Таймер сна: конец трека");
     }
-    if (track) {
-      void sendNowPlayingNotification(track);
-    }
+    void get().loadVariants(track);
   });
 
   let lyricsTimer: number | undefined;
@@ -489,6 +844,7 @@ async function doInit(
       set({ lyrics: null });
       return;
     }
+    if (get().lyricsAutoOpen) set({ lyricsOpen: true });
     lyricsTimer = window.setTimeout(() => void get().loadLyrics(track), 600);
     window.clearTimeout(accentTimer);
     accentTimer = window.setTimeout(() => {
@@ -509,6 +865,7 @@ async function doInit(
   bind();
   set({ ready: true });
   checkYtDlpUpdate();
+  void checkForUpdates();
 }
 
 function checkYtDlpUpdate() {
@@ -518,4 +875,18 @@ function checkYtDlpUpdate() {
   if (last && now - Number(last) < 24 * 60 * 60 * 1000) return;
   localStorage.setItem(key, String(now));
   void invoke("yt_update").catch(() => {});
+}
+
+async function checkForUpdates(): Promise<void> {
+  if ((window as { __TAURI__?: unknown }).__TAURI__ === undefined) return;
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+    if (!update) return;
+    if (!window.confirm(t("toasts").updateAvailable(update.version))) return;
+    await update.downloadAndInstall();
+    await invoke("relaunch");
+  } catch {
+    // updater не настроен (нет подписанных релизов) — молча пропускаем.
+  }
 }

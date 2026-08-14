@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">"Wave"</string>
+    <string name="main_activity_title">"Wave"</string>
+    <string name="playback_notification">"Воспроизведение…"</string>
+    <string name="playback_channel_name">"Воспроизведение"</string>
+</resources>

@@ -6,7 +6,7 @@ import { useI18n } from "./I18nContext";
 import type { HistoryEntry, Track } from "../core/types";
 import { buildM3U } from "../core/library/m3u";
 import { TrackRow } from "./TrackRow";
-import { DownloadIcon } from "./icons";
+import { DownloadIcon, SearchIcon } from "./icons";
 
 type Tab = "liked" | "history" | "local" | "stats";
 
@@ -68,6 +68,7 @@ export function LibraryView() {
         <TrackList
           tracks={localTracks}
           empty={t("library").emptyLocal}
+          filterable
         />
       )}
       {tab === "stats" && <StatsView />}
@@ -75,9 +76,21 @@ export function LibraryView() {
   );
 }
 
-function TrackList({ tracks, empty, exportName }: { tracks: Track[]; empty: string; exportName?: string }) {
+function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[]; empty: string; exportName?: string; filterable?: boolean }) {
   const { t } = useI18n();
   const notify = useApp((s) => s.notify);
+  const [filter, setFilter] = useState("");
+
+  const visible = filterable
+    ? tracks.filter((tr) => {
+        const q = filter.toLowerCase();
+        return (
+          tr.title.toLowerCase().includes(q) ||
+          (tr.artist ?? "").toLowerCase().includes(q) ||
+          (tr.album ?? "").toLowerCase().includes(q)
+        );
+      })
+    : tracks;
 
   const exportTracks = async (format: "m3u" | "json") => {
     const path = await save({
@@ -87,13 +100,13 @@ function TrackList({ tracks, empty, exportName }: { tracks: Track[]; empty: stri
     if (!path) return;
     const content =
       format === "m3u"
-        ? buildM3U(tracks)
+        ? buildM3U(visible)
         : JSON.stringify(
             {
               format: "wave-library",
               version: 1,
               name: exportName,
-              tracks,
+              tracks: visible,
             },
             null,
             2,
@@ -109,6 +122,19 @@ function TrackList({ tracks, empty, exportName }: { tracks: Track[]; empty: stri
   if (tracks.length === 0) return <p className="muted">{empty}</p>;
   return (
     <div className="track-list">
+      {filterable && (
+        <div className="library-filter">
+          <SearchIcon size={14} />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t("search").filterPlaceholder}
+          />
+          <span className="library-count">
+            {visible.length} / {tracks.length}
+          </span>
+        </div>
+      )}
       {exportName && (
         <div className="header-actions library-export">
           <button className="btn small" onClick={() => void exportTracks("m3u")} title={t("playlist").exportM3U}>
@@ -119,9 +145,13 @@ function TrackList({ tracks, empty, exportName }: { tracks: Track[]; empty: stri
           </button>
         </div>
       )}
-      {tracks.map((track, i) => (
-        <TrackRow key={track.id} track={track} index={i + 1} />
-      ))}
+      {visible.length === 0 ? (
+        <p className="muted">{t("search").noResults}</p>
+      ) : (
+        visible.map((track, i) => (
+          <TrackRow key={track.id} track={track} index={i + 1} />
+        ))
+      )}
     </div>
   );
 }
