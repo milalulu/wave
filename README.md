@@ -13,10 +13,10 @@
 
 | Платформа | Установщик |
 |---|---|
-| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.3_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.3_x64-setup.exe) |
-| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.3_amd64.deb) |
-| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.3-1.x86_64.rpm) |
-| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.3_amd64.AppImage) |
+| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.4_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.4_x64-setup.exe) |
+| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.4_amd64.deb) |
+| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.4-1.x86_64.rpm) |
+| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.4_amd64.AppImage) |
 | **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
 
 > Обновления внутри приложения устанавливаются автоматически (Tauri updater). macOS и Android пока не собираются.
@@ -99,8 +99,8 @@ pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
 CI собирает установщики автоматически при пуше git-тега `v*`:
 
 ```bash
-git tag v0.1.3
-git push origin v0.1.3
+git tag v0.1.4
+git push origin v0.1.4
 ```
 
 Релиз создаётся как **черновик** — проверьте артефакты и опубликуйте вручную. Для подписи сборок задайте в настройках репозитория (Settings → Secrets and variables → Actions) секреты:
