@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
 import { I18nProvider } from "./ui/I18nContext";
+import { AuthProvider } from "./ui/AuthContext";
 import { initLocale, t } from "./core/i18n";
 import { useApp } from "./app/stores";
 import "./styles.css";
@@ -57,7 +58,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <I18nProvider>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </I18nProvider>
     </ErrorBoundary>
   </React.StrictMode>,

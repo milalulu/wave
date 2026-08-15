@@ -1,9 +1,18 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { onBackButtonPress } from "@tauri-apps/api/app";
 import { useApp } from "./app/stores";
 import { Sidebar } from "./ui/Sidebar";
 import { PlayerBar } from "./ui/PlayerBar";
 import { Toasts } from "./ui/Toasts";
+import { useEdgeSwipeBack } from "./ui/gestures";
+import {
+  BottomNav,
+  MobilePlayerBar,
+  MobileTopBar,
+  isTabView,
+} from "./ui/MobileNav";
+import type { ViewKey } from "./ui/Sidebar";
 
 const HomeView = lazy(() => import("./ui/HomeView").then((m) => ({ default: m.HomeView })));
 const NowPlayingView = lazy(() =>
@@ -38,10 +47,79 @@ function App() {
   const setView = useApp((s) => s.setView);
   const [query, setQuery] = useState("");
   const [focusToken, setFocusToken] = useState(0);
+  const [stack, setStack] = useState<ViewKey[]>(["home"]);
+  const contentRef = useRef<HTMLElement>(null);
+  const scrollMemory = useRef(new Map<string, number>());
+  const prevViewRef = useRef<ViewKey | null>(null);
+
+  // Память позиции прокрутки по вьюхам: перед переключением сохраняем позицию
+  // текущей вьюхи, при возврате восстанавливаем.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const memory = scrollMemory.current;
+    const prev = prevViewRef.current;
+    if (prev) memory.set(prev, el.scrollTop);
+    prevViewRef.current = view;
+    const saved = memory.get(view);
+    if (saved !== undefined) el.scrollTop = saved;
+  }, [view]);
 
   useEffect(() => {
     void init();
   }, [init]);
+
+  // Стек навигации для под-вьюх на мобильном: табы сбрасывают стек,
+  // детальные вьюхи пушатся, назад возвращает на предыдущий таб.
+  useEffect(() => {
+    setStack((prev) => {
+      const top = prev[prev.length - 1];
+      if (top === view) return prev;
+      return isTabView(view) ? [view] : [...prev, view];
+    });
+  }, [view]);
+
+  const goBack = () => {
+    if (stack.length <= 1) return;
+    const target = stack[stack.length - 2];
+    setView(target);
+  };
+
+  // Стабильные ссылки для обработчиков, зарегистрированных один раз.
+  const goBackRef = useRef(goBack);
+  useEffect(() => {
+    goBackRef.current = goBack;
+  });
+  useEdgeSwipeBack(() => goBackRef.current());
+
+  // Системная кнопка «назад» на Android: сворачиваем nowPlaying / уходим по
+  // стеку, на корневом табе — закрываем приложение.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void onBackButtonPress(() => {
+      const state = useApp.getState();
+      if (isTabView(state.view)) {
+        void getCurrentWindow().close();
+      } else {
+        goBackRef.current();
+      }
+    })
+      .then((listener) => {
+        unlisten = listener.unregister;
+      })
+      .catch(() => {});
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // NowPlayingView зовёт onNavigate("home") для сворачивания (только мобайл) и
+  // onNavigate("search") из пустого состояния. "home" трактуем как «назад»,
+  // остальные вьюхи — обычная навигация.
+  const handleNowPlayingNavigate = (target: ViewKey) => {
+    if (target === "home") goBack();
+    else setView(target);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -115,25 +193,38 @@ function App() {
     return <div className="splash">Wave</div>;
   }
 
+  const renderView = () => (
+    <Suspense fallback={<div className="splash">Wave</div>}>
+      {view === "home" && <HomeView onNavigate={setView} />}
+      {view === "nowPlaying" && <NowPlayingView onNavigate={handleNowPlayingNavigate} />}
+      {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
+      {view === "library" && <LibraryView />}
+      {view === "queue" && <QueueView />}
+      {view === "wave" && <WaveView />}
+      {view === "album" && <AlbumDetailView />}
+      {view === "artist" && <ArtistDetailView />}
+      {view === "playlist" && <PlaylistView />}
+      {view === "downloads" && <DownloadsView />}
+      {view === "settings" && <SettingsView />}
+    </Suspense>
+  );
+
+  const contentClass = `content ${view === "nowPlaying" ? "content-nowplaying" : ""}`;
+
   return (
     <div className="app">
       <Sidebar view={view} onView={setView} />
-      <main className={`content ${view === "nowPlaying" ? "content-nowplaying" : ""}`}>
-        <Suspense fallback={<div className="splash">Wave</div>}>
-          {view === "home" && <HomeView onNavigate={setView} />}
-          {view === "nowPlaying" && <NowPlayingView onNavigate={setView} />}
-          {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
-          {view === "library" && <LibraryView />}
-          {view === "queue" && <QueueView />}
-          {view === "wave" && <WaveView />}
-          {view === "album" && <AlbumDetailView />}
-          {view === "artist" && <ArtistDetailView />}
-          {view === "playlist" && <PlaylistView />}
-          {view === "downloads" && <DownloadsView />}
-          {view === "settings" && <SettingsView />}
-        </Suspense>
-      </main>
-      <PlayerBar onOpenQueue={() => setView("queue")} onOpenPlayer={() => setView("nowPlaying")} />
+      <main ref={contentRef} className={contentClass}>{renderView()}</main>
+      <PlayerBar
+        onOpenQueue={() => setView("queue")}
+        onOpenPlayer={() => setView("nowPlaying")}
+      />
+      <MobileTopBar view={view} canGoBack={stack.length > 1} onBack={goBack} />
+      <MobilePlayerBar
+        onOpenQueue={() => setView("queue")}
+        onOpenPlayer={() => setView("nowPlaying")}
+      />
+      <BottomNav view={view} onView={setView} />
       <Toasts />
     </div>
   );

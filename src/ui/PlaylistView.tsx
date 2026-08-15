@@ -4,6 +4,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
+import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon } from "./icons";
 import { buildM3U, parseM3U } from "../core/library/m3u";
@@ -231,28 +232,33 @@ export function PlaylistView() {
               </div>
             </header>
             <div className="track-list">
-              {selectedTracks.map((track, i) => (
-                <div
-                  key={`${track.id}:${i}`}
-                  className={`playlist-dropzone ${dragOverIndex === i ? "drag-over" : ""}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverIndex(i);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handleDrop(i);
-                  }}
-                >
-                  <TrackRow
-                    track={track}
-                    index={i + 1}
-                    nowPlaying={selectedTracks.findIndex((tr) => tr.id === currentId) === i}
-                    onDragStart={() => setDragIndex(i)}
-                    onDragEnd={clearDrag}
-                  />
-                </div>
-              ))}
+              {selectedTracks.length > 0 && (
+                <VirtualList
+                  items={selectedTracks}
+                  rowKey={(track, i) => `${track.id}:${i}`}
+                  renderRow={(track, i) => (
+                    <div
+                      className={`playlist-dropzone ${dragOverIndex === i ? "drag-over" : ""}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverIndex(i);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDrop(i);
+                      }}
+                    >
+                      <TrackRow
+                        track={track}
+                        index={i + 1}
+                        nowPlaying={selectedTracks.findIndex((tr) => tr.id === currentId) === i}
+                        onDragStart={() => setDragIndex(i)}
+                        onDragEnd={clearDrag}
+                      />
+                    </div>
+                  )}
+                />
+              )}
               {selectedTracks.length > 0 && (
                 <div
                   className={`playlist-dropzone playlist-dropzone-end ${dragOverIndex === selectedTracks.length ? "drag-over" : ""}`}

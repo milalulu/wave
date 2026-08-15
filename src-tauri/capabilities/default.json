@@ -5,7 +5,11 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "opener:default",
+    "oauth:allow-start",
+    "oauth:allow-cancel",
     "dialog:default",
     "global-shortcut:default",
     "sql:default",

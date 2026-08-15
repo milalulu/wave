@@ -5,6 +5,7 @@ import { searchAll } from "../app/compose";
 import { getCachedResults, setCachedResults } from "../app/searchCache";
 import type { Album, Artist, SearchResults } from "../core/types";
 import { TrackRow } from "./TrackRow";
+import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { SearchIcon } from "./icons";
@@ -177,9 +178,11 @@ function Results({ results }: { results: SearchResults[] }) {
         <section>
           <h2>{t("search").tracks}</h2>
           <div className="track-list">
-            {tracks.map((track, i) => (
-              <TrackRow key={track.id} track={track} index={i + 1} />
-            ))}
+            <VirtualList
+              items={tracks}
+              rowKey={(track) => track.id}
+              renderRow={(track, i) => <TrackRow track={track} index={i + 1} />}
+            />
           </div>
         </section>
       )}

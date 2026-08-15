@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useI18n } from "./I18nContext";
 import { useApp } from "../app/stores";
 import { Cover } from "./Cover";
+import { VirtualList } from "./VirtualList";
 import { HeartIcon } from "./icons";
 
 export function QueueView() {
@@ -26,46 +27,49 @@ export function QueueView() {
         <p className="muted">{t("queue").empty}</p>
       ) : (
         <div className="track-list">
-          {queue.map((track, i) => {
-            const isCurrent = queueIndex >= 0 && i === queueIndex;
-            const isUpcoming = queueIndex >= 0 && i > queueIndex;
-            return (
-              <div
-                key={`${track.id}:${i}`}
-                className={`track-row ${isCurrent ? "track-current" : ""} ${dragIndex === i ? "track-dragging" : ""}`}
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragEnd={() => setDragIndex(null)}
-                onDragOver={(e) => {
-                  if (dragIndex === null || dragIndex === i) return;
-                  e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragIndex === null || dragIndex === i) return;
-                  moveQueueItem(dragIndex, i);
-                  setDragIndex(null);
-                }}
-              >
-                <span className="track-index">{isCurrent ? "▶" : isUpcoming ? i + 1 : i + 1}</span>
-                {track.coverUrl ? (
-                  <Cover className="track-cover" src={track.coverUrl} alt="" />
-                ) : (
-                  <div className="track-cover track-cover-placeholder" />
-                )}
-                <div className="track-main">
-                  <span className="track-title">{track.title}</span>
-                  <span className="track-artist">{track.artist}</span>
-                </div>
-                <button
-                  className={`icon-btn ${likedIds.includes(track.id) ? "liked" : ""}`}
-                  onClick={() => void toggleLike(track)}
+          <VirtualList
+            items={queue}
+            rowKey={(track, i) => `${track.id}:${i}`}
+            renderRow={(track, i) => {
+              const isCurrent = queueIndex >= 0 && i === queueIndex;
+              const isUpcoming = queueIndex >= 0 && i > queueIndex;
+              return (
+                <div
+                  className={`track-row ${isCurrent ? "track-current" : ""} ${dragIndex === i ? "track-dragging" : ""}`}
+                  draggable
+                  onDragStart={() => setDragIndex(i)}
+                  onDragEnd={() => setDragIndex(null)}
+                  onDragOver={(e) => {
+                    if (dragIndex === null || dragIndex === i) return;
+                    e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex === null || dragIndex === i) return;
+                    moveQueueItem(dragIndex, i);
+                    setDragIndex(null);
+                  }}
                 >
-                  <HeartIcon size={16} filled={likedIds.includes(track.id)} />
-                </button>
-              </div>
-            );
-          })}
+                  <span className="track-index">{isCurrent ? "▶" : isUpcoming ? i + 1 : i + 1}</span>
+                  {track.coverUrl ? (
+                    <Cover className="track-cover" src={track.coverUrl} alt="" />
+                  ) : (
+                    <div className="track-cover track-cover-placeholder" />
+                  )}
+                  <div className="track-main">
+                    <span className="track-title">{track.title}</span>
+                    <span className="track-artist">{track.artist}</span>
+                  </div>
+                  <button
+                    className={`icon-btn ${likedIds.includes(track.id) ? "liked" : ""}`}
+                    onClick={() => void toggleLike(track)}
+                  >
+                    <HeartIcon size={16} filled={likedIds.includes(track.id)} />
+                  </button>
+                </div>
+              );
+            }}
+          />
         </div>
       )}
     </div>

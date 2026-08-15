@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
+import { useAuth } from "./AuthContext";
 import {
   FolderIcon,
   SaveIcon,
@@ -85,6 +86,7 @@ function SettingsCard({ title, desc, children, wide }: { title: string; desc?: s
 
 export function SettingsView() {
   const { t, locale, setLocale } = useI18n();
+  const { user, loading: authLoading, configured: authConfigured, signOut, signInOAuth, signIn, signUp } = useAuth();
   const services = useApp((s) => s.services);
   const notify = useApp((s) => s.notify);
   const accentEnabled = useApp((s) => s.accentEnabled);
@@ -119,6 +121,43 @@ export function SettingsView() {
   const [tools, setTools] = useState<ToolsStatus | null>(null);
   const [toolsBusy, setToolsBusy] = useState(false);
   const [tab, setTab] = useState<"main" | "diagnostics">("main");
+  const [showEmailAuth, setShowEmailAuth] = useState(false);
+  const [emailAuthMode, setEmailAuthMode] = useState<"signin" | "signup">("signin");
+  const [emailAuthLoading, setEmailAuthLoading] = useState(false);
+  const [emailAuthError, setEmailAuthError] = useState<string | null>(null);
+  const [emailForm, setEmailForm] = useState({ email: "", password: "" });
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+
+  const handleOAuth = async (provider: "google" | "github") => {
+    setOauthLoading(true);
+    setOauthError(null);
+    try {
+      await signInOAuth(provider);
+    } catch (err) {
+      setOauthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setOauthLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: FormEvent) => {
+    e.preventDefault();
+    setEmailAuthLoading(true);
+    setEmailAuthError(null);
+    try {
+      if (emailAuthMode === "signin") {
+        await signIn(emailForm.email, emailForm.password);
+      } else {
+        await signUp(emailForm.email, emailForm.password);
+      }
+      setShowEmailAuth(false);
+    } catch (err) {
+      setEmailAuthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEmailAuthLoading(false);
+    }
+  };
 
   const loadTools = async (): Promise<void> => {
     try {
@@ -305,6 +344,9 @@ export function SettingsView() {
                 </button>
                 <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
                   {t("settings").themeDark}
+                </button>
+                <button className={theme === "system" ? "active" : ""} onClick={() => setTheme("system")}>
+                  {t("settings").themeSystem}
                 </button>
               </div>
               <button className="btn btn-primary" onClick={saveConfig}>
@@ -564,6 +606,101 @@ export function SettingsView() {
               <RefreshCwIcon size={16} /> {t("settings").updateYtDlp}
             </button>
           </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").account} desc={t("settings").accountDesc}>
+          {!authConfigured ? (
+            <p className="muted">{t("settings").accountNotConfigured}</p>
+          ) : authLoading ? (
+            <div className="muted">{t("settings").loading}</div>
+          ) : user ? (
+            <div className="account-info">
+              <div className="account-header">
+                <div className="avatar">{user.email?.charAt(0).toUpperCase() ?? "U"}</div>
+                <div>
+                  <strong>{user.email}</strong>
+                  <div className="muted">{t("settings").accountConnected}</div>
+                </div>
+              </div>
+              <div className="settings-action-row">
+                <button className="btn btn-danger" onClick={async () => { await signOut(); }}>
+                  {t("settings").signOut}
+                </button>
+              </div>
+            </div>
+          ) : showEmailAuth ? (
+            <form className="account-login" onSubmit={handleEmailAuth}>
+              <p className="muted">{emailAuthMode === "signin" ? t("settings").signIn : t("settings").signUp}</p>
+              {emailAuthError && <div className="error-message">{emailAuthError}</div>}
+              <div className="form-group">
+                <label htmlFor="auth-email">{t("settings").email}</label>
+                <input
+                  id="auth-email"
+                  type="email"
+                  value={emailForm.email}
+                  onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="auth-password">{t("settings").password}</label>
+                <input
+                  id="auth-password"
+                  type="password"
+                  value={emailForm.password}
+                  onChange={(e) => setEmailForm((p) => ({ ...p, password: e.target.value }))}
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                  autoComplete={emailAuthMode === "signin" ? "current-password" : "new-password"}
+                />
+              </div>
+              <div className="settings-action-row">
+                <button type="submit" className="btn" disabled={emailAuthLoading}>
+                  {emailAuthLoading ? "…" : emailAuthMode === "signin" ? t("settings").signIn : t("settings").signUp}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setShowEmailAuth(false);
+                  setEmailAuthError(null);
+                }}>
+                  {t("settings").back}
+                </button>
+              </div>
+              <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+                {emailAuthMode === "signin" ? t("settings").noAccount : t("settings").hasAccount}
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => {
+                    setEmailAuthMode((m) => (m === "signin" ? "signup" : "signin"));
+                    setEmailAuthError(null);
+                  }}
+                >
+                  {emailAuthMode === "signin" ? t("settings").createAccount : t("settings").signInInstead}
+                </button>
+              </p>
+            </form>
+          ) : (
+            <div className="account-login">
+              <p className="muted">{t("settings").accountNotConnected}</p>
+              {oauthError && <div className="error-message">{oauthError}</div>}
+              <div className="settings-action-row">
+                <button className="btn" disabled={oauthLoading} onClick={() => handleOAuth("google")}>
+                  <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/></svg>
+                  {oauthLoading ? "…" : "Google"}
+                </button>
+                <button className="btn" disabled={oauthLoading} onClick={() => handleOAuth("github")}>
+                  <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.28-1.56 3.285-1.23 3.285-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.925.435.375.81 1.11.81 2.25 0 1.635-.015 2.955-.015 3.36 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                  {oauthLoading ? "…" : "GitHub"}
+                </button>
+                <button className="btn" onClick={() => { setShowEmailAuth(true); setEmailAuthMode("signin"); setOauthError(null); }}>
+                  {t("settings").emailPassword}
+                </button>
+              </div>
+            </div>
+          )}
         </SettingsCard>
 
         <SettingsCard title={t("settings").tools} desc={t("settings").toolsDesc}>

@@ -6,6 +6,7 @@ import { useI18n } from "./I18nContext";
 import type { HistoryEntry, Track } from "../core/types";
 import { buildM3U } from "../core/library/m3u";
 import { TrackRow } from "./TrackRow";
+import { VirtualList } from "./VirtualList";
 import { DownloadIcon, SearchIcon } from "./icons";
 
 type Tab = "liked" | "history" | "local" | "stats";
@@ -153,14 +154,13 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
       {visible.length === 0 ? (
         <p className="muted">{t("search").noResults}</p>
       ) : (
-        visible.map((track, i) => (
-          <TrackRow
-            key={`${track.id}:${i}`}
-            track={track}
-            index={i + 1}
-            nowPlaying={firstCurrent === i}
-          />
-        ))
+        <VirtualList
+          items={visible}
+          rowKey={(track, i) => `${track.id}:${i}`}
+          renderRow={(track, i) => (
+            <TrackRow track={track} index={i + 1} nowPlaying={firstCurrent === i} />
+          )}
+        />
       )}
     </div>
   );

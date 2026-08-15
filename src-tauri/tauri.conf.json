@@ -16,6 +16,23 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600
+      },
+      {
+        "label": "mini-player",
+        "url": "mini.html",
+        "title": "Wave",
+        "width": 440,
+        "height": 92,
+        "minWidth": 440,
+        "maxWidth": 440,
+        "minHeight": 92,
+        "maxHeight": 92,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": true,
+        "visible": false
       }
     ],
     "security": {

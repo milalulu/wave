@@ -9,12 +9,14 @@ import { composeServices, radioTracks, reconfigureServices, type AppServices } f
 import { ApiBridge } from "./bridge";
 import { bindMediaSession } from "./mediaSession";
 import { bindMpris } from "./mpris";
+import { bindTray } from "./tray";
+import { bindMiniBroadcast, bindMiniRemote } from "./mini";
 import { bindGlobalHotkeys } from "./hotkeys";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
-import { loadTheme, saveTheme, applyTheme, type Theme } from "./themeStore";
+import { loadTheme, saveTheme, applyTheme, onSystemThemeChange, type Theme } from "./themeStore";
 import { getCachedCover } from "../core/cover/CoverCache";
 import { clearCoverCache } from "../core/cover/CoverCache";
 import { clearSearchCache } from "./searchCache";
@@ -837,6 +839,9 @@ async function doInit(
     applyAccent(loadSavedAccent());
   }
   applyTheme(get().theme);
+  onSystemThemeChange(() => {
+    if (get().theme === "system") applyTheme("system");
+  });
 
   const restore = loadRestore();
   if (restore) {
@@ -869,6 +874,9 @@ async function doInit(
 
   if ((window as { __TAURI__?: unknown }).__TAURI__) {
     bindMpris(services);
+    bindTray(services);
+    bindMiniBroadcast(services);
+    bindMiniRemote(services);
     bindGlobalHotkeys(services);
   }
 

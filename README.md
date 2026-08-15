@@ -132,8 +132,22 @@ Endpoint автообновлений в `src-tauri/tauri.conf.json` (`plugins.u
 | `WAVE_VK_TOKEN` | VK user token с правами `audio` | Для VK |
 | `WAVE_LASTFM_API_KEY` | Last.fm API key (last.fm/api/account/create) | Для Last.fm / скробблинга |
 | `WAVE_API_TOKEN` | Токен для HTTP API (если не задан — генерируется случайный, пишется в `~/.config/com.wave.desktop/api-token`) | Для Jarvis |
+| `VITE_SUPABASE_URL` | URL Supabase-проекта (Settings → API) | Для синхронизации |
+| `VITE_SUPABASE_ANON_KEY` | Anon-ключ Supabase | Для синхронизации |
 
 **Токен HTTP API:** при первом запуске генерируется случайный 32-символьный токен, сохраняется в конфиг и логируется в консоль (`[wave-http] api token: ...`). Передайте его в заголовке `X-Api-Token`.
+
+### Облачная синхронизация (Supabase)
+
+1. Создайте проект на [supabase.com](https://supabase.com), скопируйте `URL` и `anon key` из **Project Settings → API** в `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+2. Примените схему — **SQL Editor**, скопируйте содержимое `supabase/migrations/0001_initial_schema.sql` и запустите (таблицы + RLS).
+3. Включите провайдеры — **Authentication → Providers**: Google и/или GitHub. **Ключи (Client ID/Secret) нужно зарегистрировать вручную** в консолях разработчика Google / GitHub и вписать сюда (это нельзя сделать кодом).
+4. Добавьте redirect-URL — **Authentication → URL Configuration → Redirect URLs**:
+   - `http://127.0.0.1:12121` (десктопный OAuth-колбэк; если порт занят — также `http://127.0.0.1:12122` и `http://127.0.0.1:12123`)
+   - `http://localhost:1420` (разработка в браузере через `pnpm dev`)
+5. Для email-подтверждений: **Authentication → Sign In / Up → Confirm email** — на выбор; при включённом подтверждении письма уходят из Supabase.
+
+Ограничения: OAuth (Google/GitHub) работает на десктопе и в браузере; на Android используйте email/пароль. Без `VITE_SUPABASE_*` раздел аккаунта скрыт, всё остальное работает локально.
 
 ---
 

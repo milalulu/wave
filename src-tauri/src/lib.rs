@@ -4,6 +4,8 @@ mod http;
 pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
+#[cfg(not(target_os = "android"))]
+mod tray;
 mod tools;
 
 use crate::diag::diagnostics;
@@ -541,6 +543,7 @@ pub fn run() {
     ];
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(android::init())
@@ -561,6 +564,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     let _ = tools::ensure(&handle).await;
                 });
+                tray::start(app);
             }
             #[cfg(target_os = "android")]
             {

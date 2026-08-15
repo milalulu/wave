@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { resolve } from "node:path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -27,6 +28,28 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        mini: resolve(__dirname, "mini.html"),
+      },
+      output: {
+        // Разбиваем тяжёлые вендоры на отдельные чанки (кэш + маленький main).
+        manualChunks(id: string) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@tauri-apps") || id.includes("@fabianlars/tauri-plugin-oauth")) {
+              return "tauri";
+            }
+            if (id.includes("@supabase")) return "supabase";
+            if (id.includes("zustand")) return "zustand";
+            if (id.includes("react") || id.includes("scheduler")) return "react";
+          }
+          return undefined;
+        },
+      },
     },
   },
 }));

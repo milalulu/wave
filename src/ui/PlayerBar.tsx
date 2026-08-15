@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../app/stores";
+import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
 import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
@@ -304,7 +305,13 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
       <div className="player-side">
         <button
           className="icon-btn"
-          onClick={() => setCompactPlayer(true)}
+          onClick={() => {
+            if ((window as { __TAURI__?: unknown }).__TAURI__ && !/Android/i.test(navigator.userAgent)) {
+              void openMiniPlayerWindow();
+            } else {
+              setCompactPlayer(true);
+            }
+          }}
           title={t("player").mini}
         >
           <MiniPlayerIcon size={18} />

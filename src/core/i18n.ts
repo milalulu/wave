@@ -150,6 +150,7 @@ export interface Translations {
     themeDesc: string;
     themeDark: string;
     themeLight: string;
+    themeSystem: string;
     sources: string;
     sourcesDesc: string;
     blockedProviders: string;
@@ -176,6 +177,23 @@ export interface Translations {
     updateYtDlp: string;
     updateYtDlpDesc: string;
     detectYtDlp: string;
+    account: string;
+    accountDesc: string;
+    accountNotConfigured: string;
+    accountNotConnected: string;
+    accountConnected: string;
+    signIn: string;
+    signUp: string;
+    email: string;
+    password: string;
+    noAccount: string;
+    createAccount: string;
+    hasAccount: string;
+    signInInstead: string;
+    signOut: string;
+    back: string;
+    loading: string;
+    emailPassword: string;
     tools: string;
     toolsDesc: string;
     toolsInstall: string;
@@ -450,6 +468,7 @@ export const translations: Record<Locale, Translations> = {
       themeDesc: "Interface color scheme.",
       themeDark: "Dark",
       themeLight: "Light",
+      themeSystem: "System",
       sources: "Sources",
       sourcesDesc: "Choose which music platforms Wave uses. Changes apply on Save.",
       blockedProviders: "Blocked platforms",
@@ -476,6 +495,23 @@ export const translations: Record<Locale, Translations> = {
       updateYtDlp: "Update yt-dlp",
       updateYtDlpDesc: "Updates the yt-dlp binary (when installed system-wide or bundled).",
       detectYtDlp: "Detect",
+      account: "Account",
+      accountDesc: "Sign in to sync likes, playlists, and settings across devices via Supabase.",
+      accountNotConfigured: "Cloud sync is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY at build time.",
+      accountNotConnected: "Not connected. Sign in to enable cloud sync.",
+      accountConnected: "Connected to Supabase",
+      signIn: "Sign In",
+      signUp: "Create Account",
+      email: "Email",
+      password: "Password",
+      noAccount: "Don't have an account?",
+      createAccount: "Create one",
+      hasAccount: "Already have an account?",
+      signInInstead: "Sign In",
+      signOut: "Sign Out",
+      back: "Back",
+      loading: "Loading…",
+      emailPassword: "Email / Password",
       tools: "Dependencies",
       toolsDesc: "yt-dlp and ffmpeg are downloaded automatically on first launch into the app data folder.",
       toolsInstall: "Download",
@@ -751,6 +787,7 @@ export const translations: Record<Locale, Translations> = {
       themeDesc: "Цветовая схема интерфейса.",
       themeDark: "Тёмная",
       themeLight: "Светлая",
+      themeSystem: "Системная",
       sources: "Источники",
       sourcesDesc: "Выберите музыкальные площадки, которые использует Wave. Изменения применяются по кнопке «Сохранить».",
       blockedProviders: "Заблокированные площадки",
@@ -777,6 +814,23 @@ export const translations: Record<Locale, Translations> = {
       updateYtDlp: "Обновить yt-dlp",
       updateYtDlpDesc: "Обновляет бинарник yt-dlp (если установлен в системе или в комплекте).",
       detectYtDlp: "Найти",
+      account: "Аккаунт",
+      accountDesc: "Войдите, чтобы синхронизировать лайки, плейлисты и настройки через Supabase.",
+      accountNotConfigured: "Облачная синхронизация не настроена. Укажите VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY при сборке.",
+      accountNotConnected: "Не подключено. Войдите для включения облачной синхронизации.",
+      accountConnected: "Подключено к Supabase",
+      signIn: "Войти",
+      signUp: "Создать аккаунт",
+      email: "Email",
+      password: "Пароль",
+      noAccount: "Нет аккаунта?",
+      createAccount: "Создать",
+      hasAccount: "Уже есть аккаунт?",
+      signInInstead: "Войти",
+      signOut: "Выйти",
+      back: "Назад",
+      loading: "Загрузка…",
+      emailPassword: "Email / Пароль",
       tools: "Зависимости",
       toolsDesc: "yt-dlp и ffmpeg скачиваются автоматически при первом запуске в папку данных приложения.",
       toolsInstall: "Скачать",

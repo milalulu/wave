@@ -4,6 +4,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
+import { useSwipeDown } from "./gestures";
 import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon } from "./icons";
 
 function formatTime(seconds?: number): string {
@@ -19,6 +20,7 @@ interface NowPlayingViewProps {
 
 export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const { t, tf } = useI18n();
+  const swipeDownRef = useSwipeDown<HTMLDivElement>(() => onNavigate("home"));
   const snapshot = useApp((s) => s.snapshot);
   const position = useApp((s) => s.position);
   const duration = useApp((s) => s.duration);
@@ -60,7 +62,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   }, [activeIndex, lyricsOpen, lyricsAutoscroll]);
 
   return (
-    <div className="home">
+    <div className="home" ref={swipeDownRef}>
       <div className="np-collapse">
         <button
           className="icon-btn"
