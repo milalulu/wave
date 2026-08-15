@@ -18,7 +18,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   if (max === min) return [0, 0, l];
   const d = max - min;
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  let h = 0;
+  let h: number;
   if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
   else if (max === g) h = ((b - r) / d + 2) / 6;
   else h = ((r - g) / d + 4) / 6;
@@ -29,9 +29,9 @@ function hslToHex(h: number, s: number, l: number): string {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
   const m = l - c / 2;
-  let r = 0;
-  let g = 0;
-  let b = 0;
+  let r: number;
+  let g: number;
+  let b: number;
   if (h < 1 / 6) [r, g, b] = [c, x, 0];
   else if (h < 2 / 6) [r, g, b] = [x, c, 0];
   else if (h < 3 / 6) [r, g, b] = [0, c, x];
@@ -121,7 +121,9 @@ export function saveAccent(colors: AccentColors | null): void {
   try {
     if (colors) localStorage.setItem(ACCENT_KEY, JSON.stringify(colors));
     else localStorage.removeItem(ACCENT_KEY);
-  } catch {}
+  } catch {
+    /* localStorage недоступен — молча игнорируем */
+  }
 }
 
 export function isAccentEnabled(): boolean {
@@ -136,5 +138,7 @@ export function setAccentEnabled(enabled: boolean): void {
   try {
     if (enabled) localStorage.setItem(ACCENT_ENABLED_KEY, "1");
     else localStorage.setItem(ACCENT_ENABLED_KEY, "0");
-  } catch {}
+  } catch {
+    /* localStorage недоступен — молча игнорируем */
+  }
 }

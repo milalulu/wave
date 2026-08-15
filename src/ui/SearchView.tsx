@@ -101,7 +101,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [query, enabledProviders]);
+  }, [query, enabledProviders, selected]);
 
   const toggleProvider = (id: string): void => {
     setSelected((prev) => {

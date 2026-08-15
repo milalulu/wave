@@ -56,11 +56,18 @@ interface AppState {
   services: AppServices | null;
   ready: boolean;
   snapshot: PlayerSnapshot;
+  /** «Горячие» поля прогресса: обновляются каждый time-ивент отдельно от snapshot,
+   *  чтобы перерисовка при тиканье времени не дёргала всё приложение. */
+  position: number;
+  duration: number;
   likedIds: string[];
   localTracks: Track[];
   notices: { id: number; message: string }[];
   notify: (message: string) => void;
   dismissNotice: (id: number) => void;
+  logs: { time: number; message: string }[];
+  pushLog: (message: string) => void;
+  clearLogs: () => void;
   reloadServices: () => Promise<void>;
   view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
   setView: (v: AppState["view"]) => void;
@@ -120,6 +127,7 @@ interface AppState {
   downloads: DownloadItem[];
   downloading: boolean;
   clearDownloads: () => void;
+  retryDownload: (id: string) => void;
   pumpDownloads: () => Promise<void>;
   radioActive: boolean;
   startRadio: (track?: Track) => Promise<void>;
@@ -160,6 +168,8 @@ export const useApp = create<AppState>()((set, get) => ({
   services: null,
   ready: false,
   snapshot: emptySnapshot,
+  position: 0,
+  duration: 0,
   likedIds: [],
   localTracks: [],
   notices: [],
@@ -167,9 +177,17 @@ export const useApp = create<AppState>()((set, get) => ({
     const id = Date.now() + Math.random();
     set((s) => ({ notices: [...s.notices, { id, message }].slice(-5) }));
     window.setTimeout(() => get().dismissNotice(id), 5000);
+    get().pushLog(message);
   },
   dismissNotice: (id) => {
     set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }));
+  },
+  logs: [],
+  pushLog: (message) => {
+    set((s) => ({ logs: [...s.logs, { time: Date.now(), message }].slice(-50) }));
+  },
+  clearLogs: () => {
+    set({ logs: [] });
   },
   view: "home",
   setView: (v) => set({ view: v }),
@@ -219,6 +237,7 @@ export const useApp = create<AppState>()((set, get) => ({
       name,
       trackIds: tracks.map((t) => t.id),
       tracks,
+      coverUrl: tracks[0]?.coverUrl,
       createdAt: now,
       updatedAt: now,
     };
@@ -240,6 +259,7 @@ export const useApp = create<AppState>()((set, get) => ({
     if (!pl.trackIds.includes(track.id)) {
       pl.trackIds.push(track.id);
       pl.tracks = [...(pl.tracks ?? []), track];
+      if (!pl.coverUrl && track.coverUrl) pl.coverUrl = track.coverUrl;
       pl.updatedAt = Date.now();
       await services.storage.updatePlaylist(pl);
       await get().loadPlaylists();
@@ -435,6 +455,14 @@ export const useApp = create<AppState>()((set, get) => ({
       }
     }
     if (!dir) {
+      // Android: диалога выбора папки нет — пишем в папку загрузок приложения.
+      try {
+        dir = await invoke<string>("app_download_dir");
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!dir) {
       get().notify(t("player").downloadDirRequired);
       return;
     }
@@ -454,6 +482,15 @@ export const useApp = create<AppState>()((set, get) => ({
         downloads: s.downloads.filter((d) => d.status === "queued" || d.status === "running"),
       };
     }),
+
+  retryDownload: (id) => {
+    set((s) => ({
+      downloads: s.downloads.map((d) =>
+        d.id === id ? { ...d, status: "queued", error: undefined, percent: 0 } : d,
+      ),
+    }));
+    void get().pumpDownloads();
+  },
 
   pumpDownloads: async () => {
     const s = get();
@@ -643,17 +680,29 @@ export const useApp = create<AppState>()((set, get) => ({
   pauseAfterTrack: false,
   setSleepMinutes: (min) => {
     if (min <= 0) {
+      get().services?.engine.setPauseAfterTrack(false);
+      stopSleepTimer();
       set({ sleepUntil: null, sleepRemaining: 0, pauseAfterTrack: false });
       return;
     }
+    get().services?.engine.setPauseAfterTrack(false);
     set({
       sleepUntil: Date.now() + min * 60_000,
       sleepRemaining: min * 60,
       pauseAfterTrack: false,
     });
+    kickSleepTimer();
   },
-  setSleepAfterTrack: () => set({ sleepUntil: null, sleepRemaining: 0, pauseAfterTrack: true }),
-  clearSleep: () => set({ sleepUntil: null, sleepRemaining: 0, pauseAfterTrack: false }),
+  setSleepAfterTrack: () => {
+    stopSleepTimer();
+    get().services?.engine.setPauseAfterTrack(true);
+    set({ sleepUntil: null, sleepRemaining: 0, pauseAfterTrack: true });
+  },
+  clearSleep: () => {
+    stopSleepTimer();
+    get().services?.engine.setPauseAfterTrack(false);
+    set({ sleepUntil: null, sleepRemaining: 0, pauseAfterTrack: false });
+  },
 
   accentEnabled: isAccentEnabledPersist(),
   setAccentEnabled: (enabled) => {
@@ -691,6 +740,33 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 }));
 
+let sleepKickTimer: number | undefined;
+
+/** Один самоперепланируемый таймер обратного отсчёта сна (вместо вечного setInterval). */
+function kickSleepTimer(): void {
+  window.clearTimeout(sleepKickTimer);
+  sleepKickTimer = window.setTimeout(function tick() {
+    const s = useApp.getState();
+    if (!s.sleepUntil) {
+      sleepKickTimer = undefined;
+      return;
+    }
+    const remaining = Math.ceil((s.sleepUntil - Date.now()) / 1000);
+    if (remaining <= 0) {
+      s.clearSleep();
+      s.notify(t("player").sleepTimerExpired);
+      return;
+    }
+    if (remaining !== s.sleepRemaining) useApp.setState({ sleepRemaining: remaining });
+    sleepKickTimer = window.setTimeout(tick, 1000);
+  }, 1000);
+}
+
+function stopSleepTimer(): void {
+  window.clearTimeout(sleepKickTimer);
+  sleepKickTimer = undefined;
+}
+
 async function doInit(
   set: (partial: Partial<AppState>) => void,
   get: () => AppState,
@@ -710,7 +786,8 @@ async function doInit(
     });
   }
   services.engine.on("track", bind);
-  services.engine.on("time", bind);
+  // Прогресс — отдельно: часто (несколько раз/с), но трогает только подписчиков position.
+  services.engine.on("time", ({ position, duration }) => set({ position, duration }));
   services.engine.on("queue", bind);
   services.engine.on("volume", bind);
   services.engine.on("speed", bind);
@@ -813,27 +890,19 @@ async function doInit(
     scheduleQueueSave();
   });
 
-  window.setInterval(() => {
-    const s = get();
-    if (!s.sleepUntil) return;
-    const remaining = Math.ceil((s.sleepUntil - Date.now()) / 1000);
-    if (remaining <= 0) {
-      services.engine.pause();
-      s.clearSleep();
-      s.notify("Таймер сна: пауза");
-    } else if (remaining !== s.sleepRemaining) {
-      set({ sleepRemaining: remaining });
-    }
-  }, 1000);
+  kickSleepTimer();
 
   services.engine.on("track", (track) => {
-    const s = get();
-    if (s.pauseAfterTrack && track) {
-      services.engine.pause();
-      s.clearSleep();
-      s.notify("Таймер сна: конец трека");
-    }
     void get().loadVariants(track);
+  });
+
+  // Таймер сна «после трека»: движок уже остановлен по завершении трека
+  // (setPauseAfterTrack), здесь только очищаем состояние и уведомляем.
+  services.engine.on("ended", () => {
+    const s = get();
+    if (!s.pauseAfterTrack) return;
+    s.clearSleep();
+    s.notify(t("player").sleepTimerAfterTrack);
   });
 
   let lyricsTimer: number | undefined;

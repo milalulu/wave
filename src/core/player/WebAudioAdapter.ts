@@ -151,9 +151,13 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private applySeek(): void {
     const el = this.activeElement();
-    if (el && this.pendingSeek > 0 && Number.isFinite(el.duration)) {
+    if (!el || this.pendingSeek <= 0 || !Number.isFinite(el.duration)) return;
+    try {
       el.currentTime = Math.min(this.pendingSeek, Math.max(el.duration, 0));
       this.pendingSeek = 0;
+    } catch {
+      // Если медиа ещё не готово к seek (нет данных/поток), отложенный seek
+      // применится при следующем loadedmetadata.
     }
   }
 
@@ -244,6 +248,14 @@ export class WebAudioAdapter implements AudioAdapter {
     });
   }
 
+  /** Выровнять уровни без кроссфейда: активный элемент = 1, неактивный = 0. */
+  private rebalanceGains(): void {
+    if (!this.ctx || this.fadeGains.length !== 2) return;
+    const t = this.ctx.currentTime;
+    this.fadeGains[this.activeIdx].gain.setTargetAtTime(1, t, GAIN_TAU);
+    this.fadeGains[1 - this.activeIdx].gain.setTargetAtTime(0, t, GAIN_TAU);
+  }
+
   private cancelFade(): void {
     if (this.fadeTimer !== undefined) {
       globalThis.clearTimeout(this.fadeTimer);
@@ -312,6 +324,9 @@ export class WebAudioAdapter implements AudioAdapter {
     if (next && next.currentSrc === src) {
       this.swapActive();
       next.currentTime = 0;
+      // После кроссфейда неактивный элемент имеет gain 0 — без ребаланса
+      // активированный по `load()` трек будет молчать.
+      this.rebalanceGains();
       return;
     }
     active.src = src;

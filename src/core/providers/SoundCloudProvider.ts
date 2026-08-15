@@ -24,6 +24,9 @@ interface ScTranscoding {
 
 const API = "https://api-v2.soundcloud.com";
 
+/** Стрим-URL (signature + track_authorization) годен не вечно — кэшируем с TTL. */
+const STREAM_TTL_MS = 20 * 60 * 1000;
+
 function cover(url?: string): string | undefined {
   if (!url) return undefined;
   return url.replace(/-large\.jpg$/, "-t500x500.jpg");
@@ -41,6 +44,8 @@ export class SoundCloudProvider implements MusicProvider {
     private http: HttpJsonGateway,
     private clientId: string,
   ) {}
+
+  private streamCache = new Map<string, { url: string; at: number }>();
 
   async search(query: string): Promise<SearchResults> {
     const url = `${API}/search/tracks?q=${encodeURIComponent(query)}&client_id=${encodeURIComponent(this.clientId)}&limit=20`;
@@ -65,6 +70,9 @@ export class SoundCloudProvider implements MusicProvider {
   async resolveUri(track: Track): Promise<string> {
     const scId = (track.meta?.scId as number | undefined) ?? Number(track.id.split(":").pop());
     if (!scId) throw new Error("soundcloud: no track id");
+    const key = `${scId}`;
+    const hit = this.streamCache.get(key);
+    if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
     const { status, body } = await this.http.json(
       "GET",
       `${API}/tracks/${scId}?client_id=${encodeURIComponent(this.clientId)}`,
@@ -82,6 +90,11 @@ export class SoundCloudProvider implements MusicProvider {
     );
     const streamUrl = (streamRes.body as { url?: string })?.url;
     if (!streamUrl) throw new Error(`soundcloud ${scId}: no stream url`);
+    this.streamCache.set(key, { url: streamUrl, at: Date.now() });
+    if (this.streamCache.size > 128) {
+      const first = this.streamCache.keys().next().value;
+      if (first !== undefined) this.streamCache.delete(first);
+    }
     return streamUrl;
   }
 

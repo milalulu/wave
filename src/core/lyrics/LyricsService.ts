@@ -63,7 +63,7 @@ export class LyricsService {
 
   async getLyrics(track: Track): Promise<LyricsResult> {
     const cached = this.cache.get(track.id);
-    if (cached) return cached;    let result: LyricsResult | null = null;
+    if (cached) return cached;    let result: LyricsResult | null;
     try {
       result = await this.fetch(track);
     } catch {

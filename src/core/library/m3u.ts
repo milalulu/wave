@@ -58,7 +58,7 @@ export function parseM3U(text: string, toUri: LocalUriFn = assetSchemeLocalUri):
       continue;
     }
     if (line.startsWith("#")) continue;
-    let label = pending?.label ?? "";
+    const label = pending?.label ?? "";
     let artist: string | undefined;
     let title = label;
     if (label.includes(" - ")) {

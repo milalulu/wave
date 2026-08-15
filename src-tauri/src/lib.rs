@@ -1,9 +1,12 @@
 pub mod android;
+mod diag;
 mod http;
 pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
 mod tools;
+
+use crate::diag::diagnostics;
 
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::tag::Accessor;
@@ -11,10 +14,19 @@ use serde::Serialize;
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+/// Лимит одновременных yt-dlp процессов (стрим/поиск/обновление).
+/// Прелоад следующего трека + текущий стрим + радио не должны плодить процессы.
+static YTDLP_SLOTS: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
+
+fn ytdlp_slots() -> &'static tokio::sync::Semaphore {
+    YTDLP_SLOTS.get_or_init(|| tokio::sync::Semaphore::new(2))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppConfig {
     ytdlp_path: Option<String>,
+    ytdlp_cookies: Option<String>,
     soundcloud_client_id: Option<String>,
     spotify_client_id: Option<String>,
     spotify_client_secret: Option<String>,
@@ -57,15 +69,9 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
     AppConfig {
         ytdlp_path: env("WAVE_YTDLP_PATH")
             .or_else(|| get_string(&persisted, "WAVE_YTDLP_PATH"))
-            .or_else(|| tools::ytdlp_present_path(app))
-            .or_else(|| {
-                std::process::Command::new("yt-dlp")
-                    .arg("--version")
-                    .output()
-                    .ok()
-                    .map(|o| if o.status.success() { "yt-dlp" } else { "" }.to_string())
-                    .filter(|s| !s.is_empty())
-            }),
+            .or_else(|| tools::resolve_ytdlp(app)),
+        ytdlp_cookies: env("WAVE_YTDLP_COOKIES")
+            .or_else(|| get_string(&persisted, "WAVE_YTDLP_COOKIES")),
         soundcloud_client_id: env("WAVE_SOUNDCLOUD_CLIENT_ID")
             .or_else(|| get_string(&persisted, "WAVE_SOUNDCLOUD_CLIENT_ID")),
         spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID")
@@ -147,15 +153,28 @@ fn app_config(app: tauri::AppHandle) -> AppConfig {
 
 async fn run_ytdlp(
     app: &tauri::AppHandle,
-    args: Vec<&str>,
+    args: Vec<String>,
     timeout_secs: u64,
 ) -> Result<Option<String>, String> {
+    // Не даём yt-dlp процессам плодиться: стримы/поиски встают в очередь.
+    let _permit = ytdlp_slots()
+        .acquire()
+        .await
+        .map_err(|_| "yt-dlp: semaphore closed".to_string())?;
     let binary = config(app)
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
-    let Ok(cmd) = tokio::process::Command::new(&binary)
-        .args(&args)
+    let mut cmd = tokio::process::Command::new(&binary);
+    cmd.args(&args);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // Без этого на Windows всплывает консольное окно yt-dlp.exe.
+        cmd.as_std_mut().creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let Ok(cmd) = cmd
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -184,6 +203,25 @@ async fn run_ytdlp(
     })
 }
 
+/// Аргументы yt-dlp из настройки `WAVE_YTDLP_COOKIES`:
+/// путь к cookies.txt (`--cookies`) или имя браузера `browser:chrome` (`--cookies-from-browser`).
+/// Лекарство от YouTube bot-check («Sign in to confirm you're not a bot»).
+fn ytdlp_cookies_args(app: &tauri::AppHandle) -> Vec<String> {
+    let Some(c) = config(app).ytdlp_cookies.filter(|s| !s.trim().is_empty()) else {
+        return vec![];
+    };
+    let c = c.trim().to_string();
+    if let Some(browser) = c.strip_prefix("browser:") {
+        if browser.is_empty() {
+            vec![]
+        } else {
+            vec!["--cookies-from-browser".to_string(), browser.to_string()]
+        }
+    } else {
+        vec!["--cookies".to_string(), c]
+    }
+}
+
 #[tauri::command]
 async fn yt_search(
     app: tauri::AppHandle,
@@ -192,19 +230,18 @@ async fn yt_search(
 ) -> Result<Vec<serde_json::Value>, String> {
     let limit = limit.clamp(1, 50);
     let search = format!("ytsearch{limit}:{query}");
-    let Some(stdout) = run_ytdlp(
-        &app,
-        vec![
-            &search,
-            "--no-playlist",
-            "--flat-playlist",
-            "--dump-single-json",
-            "-J",
-        ],
-        60,
-    )
-    .await?
-    else {
+    let mut args = vec![
+        search,
+        "--no-playlist".to_string(),
+        "--flat-playlist".to_string(),
+        "--dump-single-json".to_string(),
+        "-J".to_string(),
+        "--no-warnings".to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=web_safari".to_string(),
+    ];
+    args.extend(ytdlp_cookies_args(&app));
+    let Some(stdout) = run_ytdlp(&app, args, 60).await? else {
         return Ok(vec![]);
     };
     let parsed: serde_json::Value =
@@ -248,22 +285,76 @@ async fn yt_stream(
     quality: Option<String>,
 ) -> Result<String, String> {
     let url = format!("https://www.youtube.com/watch?v={id}");
-    let fmt = match quality.as_deref().unwrap_or("best") {
+    let audio_only = match quality.as_deref().unwrap_or("best") {
+        "low" => "ba[abr<=48]",
+        "medium" => "ba[abr<=128]",
+        "high" => "ba[abr<=256]",
+        _ => "ba",
+    };
+    let fallback_fmt = match quality.as_deref().unwrap_or("best") {
         "low" => "ba[abr<=48]/ba",
         "medium" => "ba[abr<=128]/ba",
         "high" => "ba[abr<=256]/ba",
         _ => "ba/b",
     };
-    let Some(stdout) = run_ytdlp(&app, vec![&url, "--no-playlist", "-f", fmt, "-g"], 90).await?
-    else {
-        return Err("yt-dlp: no stream".into());
-    };
-    stdout
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .map(|l| l.trim().to_string())
-        .ok_or_else(|| "yt-dlp: no stream url".into())
+    let cookies = ytdlp_cookies_args(&app);
+    let attempts: Vec<Vec<String>> = vec![
+        // Android-клиент отдаёт прямые не троттлящиеся URL.
+        stream_args(
+            &url,
+            &format!("{audio_only}[ext=m4a]/{audio_only}"),
+            Some("youtube:player_client=android"),
+            &cookies,
+        ),
+        stream_args(
+            &url,
+            fallback_fmt,
+            Some("youtube:player_client=web_safari"),
+            &cookies,
+        ),
+        stream_args(&url, "ba/b", None, &cookies),
+    ];
+    let mut last_err: Option<String> = None;
+    for args in attempts {
+        match run_ytdlp(&app, args, 90).await {
+            Ok(Some(stdout)) => {
+                let u = stdout
+                    .lines()
+                    .rev()
+                    .find(|l| !l.trim().is_empty())
+                    .map(|l| l.trim().to_string());
+                if let Some(u) = u {
+                    // HLS/DASH манифесты (m3u8/mpd) WebView2 не играет — пробуем дальше.
+                    if !u.contains(".m3u8") && !u.contains(".mpd") && !u.is_empty() {
+                        return Ok(u);
+                    }
+                    last_err = Some("yt-dlp: got unplayable manifest".into());
+                }
+            }
+            Ok(None) => {
+                last_err = Some("yt-dlp: no stream".into());
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| "yt-dlp: no playable stream".into()))
+}
+
+fn stream_args(url: &str, fmt: &str, client: Option<&str>, cookies: &[String]) -> Vec<String> {
+    let mut args = vec![
+        url.to_string(),
+        "--no-playlist".to_string(),
+        "-f".to_string(),
+        fmt.to_string(),
+        "-g".to_string(),
+        "--no-warnings".to_string(),
+    ];
+    if let Some(c) = client {
+        args.push("--extractor-args".to_string());
+        args.push(c.to_string());
+    }
+    args.extend(cookies.iter().cloned());
+    args
 }
 
 #[tauri::command]
@@ -273,12 +364,14 @@ async fn http_fetch_json(
     body: Option<serde_json::Value>,
     headers: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
+    let parsed = crate::http::validate_http_url(&url).await?;
+    let redacted = crate::http::redact_url(parsed.as_str());
     let client = crate::http::client();
     let mut builder = match method.as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        "PUT" => client.put(&url),
-        "DELETE" => client.delete(&url),
+        "GET" => client.get(parsed.clone()),
+        "POST" => client.post(parsed.clone()),
+        "PUT" => client.put(parsed.clone()),
+        "DELETE" => client.delete(parsed.clone()),
         _ => return Err(format!("unsupported method {method}")),
     };
     let form_content_type = headers.iter().any(|(k, v)| {
@@ -305,7 +398,7 @@ async fn http_fetch_json(
     let res = builder
         .send()
         .await
-        .map_err(|e| format!("http {method} {url}: {e}"))?;
+        .map_err(|e| format!("http {method} {redacted}: {e}"))?;
     let status = res.status().as_u16();
     let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|_| {
@@ -324,12 +417,14 @@ async fn http_fetch_text(
     body: Option<serde_json::Value>,
     headers: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
+    let parsed = crate::http::validate_http_url(&url).await?;
+    let redacted = crate::http::redact_url(parsed.as_str());
     let client = crate::http::client();
     let mut builder = match method.as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        "PUT" => client.put(&url),
-        "DELETE" => client.delete(&url),
+        "GET" => client.get(parsed.clone()),
+        "POST" => client.post(parsed.clone()),
+        "PUT" => client.put(parsed.clone()),
+        "DELETE" => client.delete(parsed.clone()),
         _ => return Err(format!("unsupported method {method}")),
     };
     for (k, v) in headers {
@@ -341,7 +436,7 @@ async fn http_fetch_text(
     let res = builder
         .send()
         .await
-        .map_err(|e| format!("http {method} {url}: {e}"))?;
+        .map_err(|e| format!("http {method} {redacted}: {e}"))?;
     let status = res.status().as_u16();
     let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
     Ok(serde_json::json!({ "status": status, "text": text }))
@@ -487,13 +582,16 @@ pub fn run() {
             restore_database,
             yt_update,
             yt_download,
+            app_download_dir,
             tools_status,
+            tools_detect,
             ensure_tools,
             read_audio_tags,
             write_audio_tags,
             save_app_config,
             relaunch,
-            mpris_update
+            mpris_update,
+            diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -565,16 +663,86 @@ async fn lastfm_scrobble(
 }
 
 #[tauri::command]
-fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("read {path}: {e}"))
+fn read_text_file(path: String, app: tauri::AppHandle) -> Result<String, String> {
+    let safe = resolve_safe_path(&app, &path, false)?;
+    std::fs::read_to_string(&safe).map_err(|e| format!("read {path}: {e}"))
 }
 
 #[tauri::command]
-fn write_text_file(path: String, content: String) -> Result<(), String> {
-    if let Some(dir) = std::path::Path::new(&path).parent() {
-        let _ = std::fs::create_dir_all(dir);
+fn write_text_file(path: String, content: String, app: tauri::AppHandle) -> Result<(), String> {
+    let safe = resolve_safe_path(&app, &path, true)?;
+    std::fs::write(&safe, content).map_err(|e| format!("write {path}: {e}"))
+}
+
+/// Корни, внутри которых разрешены read_text_file/write_text_file
+/// (выбор через системные диалоги почти всегда попадает под них).
+fn allowed_roots(app: &tauri::AppHandle) -> Vec<std::path::PathBuf> {
+    [
+        app.path().home_dir(),
+        app.path().app_local_data_dir(),
+        app.path().app_data_dir(),
+        app.path().app_config_dir(),
+        app.path().download_dir(),
+        app.path().document_dir(),
+        app.path().desktop_dir(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+/// Нормализация пути для сравнения (Windows — без учёта регистра).
+fn path_norm(p: &std::path::Path) -> String {
+    let s = p.to_string_lossy().replace('\\', "/");
+    #[cfg(windows)]
+    let s = s.to_lowercase();
+    s
+}
+
+fn path_within(root: &std::path::Path, target: &std::path::Path) -> bool {
+    let root = path_norm(root);
+    let target = path_norm(target);
+    target == root || target.starts_with(&format!("{root}/"))
+}
+
+/// Проверить, что путь лежит внутри разрешённых каталогов, и вернуть
+/// канонический путь (симлинки разрешаются, `..` схлопывается).
+fn resolve_safe_path(
+    app: &tauri::AppHandle,
+    path: &str,
+    writable: bool,
+) -> Result<std::path::PathBuf, String> {
+    let canonical_roots: Vec<std::path::PathBuf> = allowed_roots(app)
+        .iter()
+        .filter_map(|r| r.canonicalize().ok())
+        .collect();
+    if canonical_roots.is_empty() {
+        return Err("cannot resolve allowed directories".to_string());
     }
-    std::fs::write(&path, content).map_err(|e| format!("write {path}: {e}"))
+    let candidate = if writable {
+        let raw = std::path::PathBuf::from(path);
+        let parent = raw
+            .parent()
+            .ok_or_else(|| format!("invalid path: {path}"))?
+            .to_path_buf();
+        std::fs::create_dir_all(&parent).map_err(|e| format!("create dir {parent:?}: {e}"))?;
+        let canon = parent
+            .canonicalize()
+            .map_err(|e| format!("resolve {parent:?}: {e}"))?;
+        let name = raw
+            .file_name()
+            .ok_or_else(|| format!("invalid path: {path}"))?;
+        canon.join(name)
+    } else {
+        std::path::PathBuf::from(path)
+            .canonicalize()
+            .map_err(|e| format!("resolve {path}: {e}"))?
+    };
+    if canonical_roots.iter().any(|r| path_within(r, &candidate)) {
+        Ok(candidate)
+    } else {
+        Err(format!("path not allowed: {path}"))
+    }
 }
 
 fn wave_db_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
@@ -590,9 +758,38 @@ fn backup_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
         .map(|_| ())
 }
 
+/// Таблицы, которые обязаны быть в БД Wave (проверка файла перед restore).
+const DB_TABLES: [&str; 5] = [
+    "liked_tracks",
+    "saved_albums",
+    "saved_artists",
+    "history",
+    "playlists",
+];
+
+fn looks_like_wave_db(path: &std::path::Path) -> Result<(), String> {
+    use std::io::Read;
+    let f = std::fs::File::open(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let mut head = Vec::with_capacity(256 * 1024);
+    f.take(256 * 1024)
+        .read_to_end(&mut head)
+        .map_err(|e| format!("read {}: {e}", path.display()))?;
+    if !head.starts_with(b"SQLite format 3\0") {
+        return Err("file is not a SQLite database".to_string());
+    }
+    // Имена таблиц видны в sqlite_master — достаточно заглянуть в шапку файла.
+    for table in DB_TABLES {
+        if !head.windows(table.len()).any(|w| w == table.as_bytes()) {
+            return Err(format!("database is missing table: {table}"));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
     let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
+    looks_like_wave_db(std::path::Path::new(&path))?;
     if let Some(dir) = db.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -603,7 +800,7 @@ fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn yt_update(app: tauri::AppHandle) -> Result<String, String> {
-    let Some(stdout) = run_ytdlp(&app, vec!["-U"], 120).await? else {
+    let Some(stdout) = run_ytdlp(&app, vec!["-U".to_string()], 120).await? else {
         return Ok("yt-dlp is up to date".into());
     };
     Ok(stdout.trim().to_string())
@@ -612,6 +809,13 @@ async fn yt_update(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 async fn tools_status(app: tauri::AppHandle) -> tools::ToolsStatus {
     tools::status(&app)
+}
+
+/// Авто-детект yt-dlp (установленный в app data или системный в PATH) —
+/// для кнопки «найти» в настройках (важно на Android, где PATH может не содержать yt-dlp).
+#[tauri::command]
+async fn tools_detect(app: tauri::AppHandle) -> Option<String> {
+    tools::resolve_ytdlp(&app)
 }
 
 #[tauri::command]
@@ -626,6 +830,12 @@ async fn yt_download(
     output_path: String,
     job_id: Option<String>,
 ) -> Result<(), String> {
+    // Прямые ссылки на аудио (iTunes-превью, Deezer, SoundCloud, локальные)
+    // качаем минуя yt-dlp: быстрее и работает даже без установленного бинаря
+    // (важно для Android, где yt-dlp обычно недоступен).
+    if !is_youtube_page_url(&url) && (url.starts_with("http://") || url.starts_with("https://")) {
+        return download_direct(&url, &output_path).await;
+    }
     use tauri::Emitter;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -633,27 +843,37 @@ async fn yt_download(
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
-    let mut args = vec![
-        url.as_str(),
-        "-f",
-        "ba/b",
-        "-o",
-        output_path.as_str(),
-        "--no-playlist",
-        "--no-warnings",
-        "--newline",
+    let mut args: Vec<String> = vec![
+        url.clone(),
+        "-f".to_string(),
+        "ba/b".to_string(),
+        "-o".to_string(),
+        output_path.clone(),
+        "--no-playlist".to_string(),
+        "--no-warnings".to_string(),
+        "--newline".to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=android,web_safari".to_string(),
     ];
+    args.extend(ytdlp_cookies_args(&app));
     let ffmpeg_location = if tools::ffmpeg_ready(&app) {
         Some(tools::tools_dir(&app))
     } else {
         None
     };
     if let Some(loc) = ffmpeg_location.as_ref() {
-        args.push("--ffmpeg-location");
-        args.push(loc.to_str().unwrap_or_default());
+        args.push("--ffmpeg-location".to_string());
+        args.push(loc.to_str().unwrap_or_default().to_string());
     }
-    let mut child = tokio::process::Command::new(&binary)
-        .args(args)
+    let mut cmd = tokio::process::Command::new(&binary);
+    cmd.args(args);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.as_std_mut().creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = cmd
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -722,6 +942,55 @@ async fn yt_download(
         Ok(Err(e)) => Err(format!("yt-dlp wait: {e}")),
         Err(_) => Err("yt-dlp download timeout".to_string()),
     }
+}
+
+/// Страница YouTube — такой URL требует yt-dlp (иначе качаем напрямую).
+fn is_youtube_page_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.contains("youtube.com/watch")
+        || lower.contains("music.youtube.com/watch")
+        || lower.contains("youtu.be/")
+}
+
+/// Простое скачивание файла по прямой ссылке (без yt-dlp).
+async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
+    let redacted = crate::http::redact_url(url);
+    let res = crate::http::client()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("download {redacted}: {e}"))?;
+    if !res.status().is_success() {
+        return Err(format!("download {redacted}: HTTP {}", res.status()));
+    }
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| format!("download {redacted}: {e}"))?;
+    if bytes.is_empty() {
+        return Err(format!("download {redacted}: empty response"));
+    }
+    if let Some(dir) = std::path::Path::new(output_path).parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let tmp = format!("{output_path}.part");
+    std::fs::write(&tmp, &bytes).map_err(|e| format!("write {tmp}: {e}"))?;
+    if std::path::Path::new(output_path).exists() {
+        std::fs::remove_file(output_path).map_err(|e| format!("remove {output_path}: {e}"))?;
+    }
+    std::fs::rename(&tmp, output_path).map_err(|e| format!("rename to {output_path}: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn app_download_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().app_local_data_dir().map(|p| p.join("downloads")))
+        .map_err(|e| format!("cannot resolve download dir: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    Ok(dir.to_string_lossy().to_string())
 }
 
 /// Вытащить процент из строки прогресса yt-dlp: `[download]   5.2% of 10.5MiB ...`.

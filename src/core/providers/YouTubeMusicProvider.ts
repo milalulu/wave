@@ -41,7 +41,7 @@ export class YouTubeMusicProvider implements MusicProvider {
   constructor(private gateway: YtDlpGateway) {}
 
   async search(query: string): Promise<SearchResults> {
-    const key = `${query}`;
+    const key = query.trim().replace(/\s+/g, " ").toLowerCase();
     const hit = this.searchCache.get(key);
     if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
     const entries = await this.gateway.search(query, 20);

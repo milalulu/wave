@@ -69,13 +69,22 @@ export function localUriFor(track: Track): string | null {
   const title = norm(track.title);
   const artist = norm(track.artist ?? "");
   const files = downloadedFiles();
-  const candidates = files.filter((f) => {
+  // Точное совпадение по названию (+ артист, если у файла и трека он есть).
+  const exact = files.filter((f) => {
     const ft = norm(f.title ?? "");
     const fa = norm(f.artist ?? "");
     if (ft && ft === title) return !artist || !fa || fa === artist;
     return false;
   });
-  const file = candidates[0]?.file;
-  if (!file) return null;
-  return convertFileSrc(file);
+  if (exact[0]?.file) return convertFileSrc(exact[0].file);
+  // Fallback: артист совпадает, название — нечётко (варианты с пометками
+  // вроде "(remaster)", "Live" или разные переводы).
+  const loose = files.find((f) => {
+    const ft = norm(f.title ?? "");
+    const fa = norm(f.artist ?? "");
+    if (!ft || !fa) return false;
+    if (fa !== artist) return false;
+    return ft.includes(title) || title.includes(ft);
+  });
+  return loose?.file ? convertFileSrc(loose.file) : null;
 }

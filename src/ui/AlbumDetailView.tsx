@@ -7,14 +7,10 @@ import type { Track } from "../core/types";
 
 export function AlbumDetailView() {
   const { t, tf } = useI18n();
-  const { albumDetail, play, clearDetail, setView } = useApp(
-    (s) => ({
-      albumDetail: s.albumDetail,
-      play: s.play,
-      clearDetail: s.clearDetail,
-      setView: s.setView,
-    })
-  );
+  const albumDetail = useApp((s) => s.albumDetail);
+  const play = useApp((s) => s.play);
+  const clearDetail = useApp((s) => s.clearDetail);
+  const setView = useApp((s) => s.setView);
 
   if (!albumDetail) {
     return <div className="detail-view">{t("common").unknown}</div>;

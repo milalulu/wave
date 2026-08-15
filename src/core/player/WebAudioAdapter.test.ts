@@ -354,6 +354,30 @@ describe("WebAudioAdapter", () => {
     adapter.destroy();
   });
 
+  it("после кроссфейда load() активирует предзагруженный элемент с gain 1", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.load("a.mp3");
+    await adapter.play();
+    // Кроссфейд a → b: el1 активен (gain 1), el0 в неактиве с gain 0.
+    adapter.load("b.mp3");
+    await adapter.play();
+    vi.advanceTimersByTime(CROSSFADE_MS + 100);
+    const ctx = lastCtx();
+    expect(ctx.gains[1].gain.value).toBe(1);
+
+    // Пауза + предзагрузка следующего (c) в el0.
+    adapter.pause();
+    adapter.preload("c.mp3");
+    // Переключение на предзагруженный c через load()-swap (без кроссфейда).
+    adapter.load("c.mp3");
+    await adapter.play();
+    // Бывший неактивный (gain 0) стал активным — gain обязан вернуться к 1.
+    expect(ctx.gains[0].gain.value).toBe(1);
+    expect(ctx.gains[1].gain.value).toBe(0);
+    expect(instances()[0].paused).toBe(false);
+    adapter.destroy();
+  });
+
   it("фолбэк без AudioContext: звук через элемент, спектр нули", async () => {
     resetGlobals({ noCtx: true });
     const adapter = new WebAudioAdapter();

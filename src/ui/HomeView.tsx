@@ -99,7 +99,12 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <h2 className="home-section-title">{t("home").recentlyPlayed}</h2>
           <div className="track-list">
             {recent.map((entry, i) => (
-              <TrackRow key={`${entry.track.id}:${entry.playedAt}`} track={entry.track} index={i + 1} />
+              <TrackRow
+                key={`${entry.track.id}:${entry.playedAt}`}
+                track={entry.track}
+                index={i + 1}
+                nowPlaying={recent.findIndex((e) => e.track.id === snapshot.current?.id) === i}
+              />
             ))}
           </div>
         </section>

@@ -30,6 +30,7 @@ import { loadCrossfadeMs } from "./crossfade";
 
 interface AppConfig {
   ytdlpPath?: string | null;
+  ytdlpCookies?: string | null;
   soundcloudClientId?: string | null;
   spotifyClientId?: string | null;
   spotifyClientSecret?: string | null;
@@ -97,7 +98,10 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
   const musicbrainz = new MusicBrainzProvider(httpGateway);
   const local = new LocalProvider(localSource);
   providers.push(itunes, deezer, musicbrainz, local);
-  if (!IS_ANDROID) {
+  // yt-dlp есть на десктопе (ставится автоматически) либо задан вручную
+  // (Android: путь к бинарю из Termux/root-сборки в настройках).
+  const hasYtDlp = !IS_ANDROID || Boolean(cfg.ytdlpPath);
+  if (hasYtDlp) {
     const youtube = new YouTubeMusicProvider(ytGateway);
     providers.push(youtube);
   }
@@ -112,14 +116,14 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
       new SpotifyProvider(httpGateway, {
         clientId: cfg.spotifyClientId,
         clientSecret: cfg.spotifyClientSecret,
-        ytFallback: IS_ANDROID
-          ? undefined
-          : async (artist, title) => {
+        ytFallback: hasYtDlp
+          ? async (artist, title) => {
               const results = await ytGateway.search(`${artist} ${title}`.trim(), 1);
               const first = results[0];
               if (!first) throw new Error("spotify: no youtube fallback");
               return ytGateway.stream(first.id, loadYtQuality());
-            },
+            }
+          : undefined,
       }),
     );
   }
@@ -133,6 +137,7 @@ export async function composeServices(): Promise<AppServices> {
   const cfg = await invoke<AppConfig>("app_config");
   const { providers, local } = buildProviders(cfg);
 
+  // eslint-disable-next-line prefer-const -- волна назначается позже, т.к. используется в замыкании onQueueEnd выше
   let wave: WaveEngine;
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     resolveUri: async (track) => {
@@ -173,7 +178,10 @@ export async function composeServices(): Promise<AppServices> {
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
   engine.on("track", (track) => {
-    if (track) void history.recordPlay(track);
+    // restoreQueue() при старте тоже эмитит "track", но это не прослушивание:
+    // в этот момент state === "paused". Такие записи в историю не пишем,
+    // иначе каждый запуск приложения дублирует последний трек.
+    if (track && engine.snapshot.state !== "paused") void history.recordPlay(track);
   });
   return { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
 }

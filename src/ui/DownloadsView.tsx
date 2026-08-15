@@ -13,6 +13,7 @@ export function DownloadsView() {
   const { t } = useI18n();
   const downloads = useApp((s) => s.downloads);
   const clearDownloads = useApp((s) => s.clearDownloads);
+  const retryDownload = useApp((s) => s.retryDownload);
 
   const finished = downloads.filter((d) => d.status === "done" || d.status === "error").length;
 
@@ -49,6 +50,11 @@ export function DownloadsView() {
                     style={{ width: `${Math.round(d.percent ?? 0)}%` }}
                   />
                 </div>
+              )}
+              {d.status === "error" && (
+                <button className="btn small" onClick={() => retryDownload(d.id)}>
+                  {t("downloads").dlRetry}
+                </button>
               )}
               {d.status === "error" && d.error && <div className="download-error">{d.error}</div>}
             </div>

@@ -690,6 +690,97 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(124, 92, 255, 0.1);
 }
 
+/* ---------- Playlist view ---------- */
+.playlist-split {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  min-height: 0;
+  flex: 1;
+}
+.playlist-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+.playlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.playlist-item.active {
+  background: var(--hover);
+}
+.playlist-item small {
+  margin-left: auto;
+  color: var(--muted);
+}
+.playlist-item .icon-btn {
+  opacity: 0;
+}
+.playlist-item:hover .icon-btn {
+  opacity: 1;
+}
+.playlist-cover {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.playlist-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.playlist-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+}
+.playlist-detail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.playlist-detail .detail-header {
+  align-items: center;
+  gap: 16px;
+}
+.playlist-detail .detail-cover {
+  width: 96px;
+  height: 96px;
+}
+.playlist-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
 .track-row {
   position: relative;
   display: flex;
@@ -1597,7 +1688,7 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 24px;
   padding: 24px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-elevated);
+  background: var(--bg-elev);
   flex-shrink: 0;
 }
 
@@ -1734,7 +1825,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--bg-elevated);
+  background: var(--bg-elev);
 }
 .settings-seg button {
   border: none;
@@ -1759,7 +1850,7 @@ input[type="range"]::-webkit-slider-thumb {
   align-items: start;
 }
 .settings-card {
-  background: var(--bg-elevated);
+  background: var(--bg-elev);
   border-radius: 12px;
   padding: 18px;
 }
@@ -1787,7 +1878,7 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: 14px;
 }
 .settings-section {
-  background: var(--bg-elevated);
+  background: var(--bg-elev);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
@@ -2133,4 +2224,266 @@ input[type="range"]::-webkit-slider-thumb {
 .tag-editor-row label {
   flex: 1;
   min-width: 0;
+}
+
+/* =========================================================
+   Mobile layout (Android / narrow screens)
+   ========================================================= */
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto auto;
+    grid-template-areas:
+      "content"
+      "player"
+      "nav";
+  }
+
+  /* ----- Bottom navigation (sidebar → нижний таббар) ----- */
+  .sidebar {
+    grid-area: nav;
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 94%, transparent);
+  }
+  .sidebar-logo,
+  .sidebar-footer {
+    display: none;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 2px;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 58px;
+    min-height: 54px;
+    padding: 6px 8px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* ----- Content ----- */
+  .content {
+    grid-area: content;
+    padding: 12px 12px 20px;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .view {
+    max-width: none;
+  }
+  .view-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .track-row {
+    padding: 10px 10px;
+  }
+  .icon-btn,
+  .more-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .play-btn {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* ----- Player bar: компактная колонка ----- */
+  .player-bar {
+    grid-area: player;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .player-side,
+  .player-variants-wrap,
+  .spectrum-wrap {
+    display: none;
+  }
+  .player-track {
+    cursor: pointer;
+    min-height: 46px;
+  }
+  .player-cover {
+    width: 44px;
+    height: 44px;
+  }
+  .player-controls {
+    flex-direction: column-reverse;
+    gap: 2px;
+  }
+  .player-buttons {
+    justify-content: center;
+    gap: 6px;
+  }
+  .player-progress {
+    width: 100%;
+  }
+  .player-bar.mini {
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+  }
+  .player-bar.mini .player-progress {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  /* ----- Полноэкранный «Сейчас играет» ----- */
+  .content-nowplaying {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: var(--body-bg);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .content-nowplaying .home {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: max(10px, env(safe-area-inset-top)) 16px 24px;
+    width: 100%;
+  }
+  .np-collapse {
+    display: block;
+    align-self: flex-start;
+  }
+  .content-nowplaying .hero {
+    flex-direction: column;
+    text-align: center;
+    gap: 18px;
+  }
+  .content-nowplaying .hero-cover {
+    width: min(70vw, 340px);
+    height: min(70vw, 340px);
+  }
+  .content-nowplaying .hero-cover-empty {
+    font-size: 96px;
+  }
+  .content-nowplaying .hero h1 {
+    font-size: 26px;
+  }
+  .content-nowplaying .hero-meta,
+  .content-nowplaying .hero-actions {
+    justify-content: center;
+  }
+  .content-nowplaying .hero-actions {
+    flex-wrap: wrap;
+  }
+  .content-nowplaying .quick-actions {
+    grid-template-columns: 1fr;
+  }
+  .content-nowplaying .lyrics-body {
+    max-height: 42vh;
+  }
+
+  /* ----- Главная ----- */
+  .home-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .home-stats {
+    flex-wrap: wrap;
+  }
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+  .card-action {
+    padding: 14px 16px;
+  }
+  .home-now {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .home-now-actions {
+    flex-wrap: wrap;
+  }
+
+  /* ----- Настройки ----- */
+  .settings-topbar {
+    position: static;
+  }
+  .settings-topbar-actions {
+    width: 100%;
+  }
+  .settings-cards,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .settings-action-row,
+  .actions-row {
+    flex-wrap: wrap;
+  }
+  .input-group {
+    flex-wrap: wrap;
+  }
+  .input-group .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ----- Кнопка сворачивания полноэкранного плеера (mobile) ----- */
+.np-collapse {
+  display: none;
+}
+
+/* ----- Диагностика ----- */
+.diag-card .setting-row {
+  font-size: 13px;
+}
+.diag-ok {
+  color: #34d399;
+}
+.diag-bad {
+  color: var(--danger);
+}
+.diag-log {
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.diag-row:last-child {
+  border-bottom: none;
+}
+.diag-row .diag-key {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.diag-row .diag-val {
+  text-align: right;
+  word-break: break-all;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
 }

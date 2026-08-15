@@ -109,7 +109,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setView]);
 
   if (!ready) {
     return <div className="splash">Wave</div>;
@@ -118,7 +118,7 @@ function App() {
   return (
     <div className="app">
       <Sidebar view={view} onView={setView} />
-      <main className="content">
+      <main className={`content ${view === "nowPlaying" ? "content-nowplaying" : ""}`}>
         <Suspense fallback={<div className="splash">Wave</div>}>
           {view === "home" && <HomeView onNavigate={setView} />}
           {view === "nowPlaying" && <NowPlayingView onNavigate={setView} />}
@@ -133,7 +133,7 @@ function App() {
           {view === "settings" && <SettingsView />}
         </Suspense>
       </main>
-      <PlayerBar onOpenQueue={() => setView("queue")} />
+      <PlayerBar onOpenQueue={() => setView("queue")} onOpenPlayer={() => setView("nowPlaying")} />
       <Toasts />
     </div>
   );

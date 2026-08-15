@@ -1,7 +1,53 @@
 use serde::Serialize;
+use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
 const YTDLP_RELEASE: &str = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
+
+/// Кэш резолва системного yt-dlp: не спавним `yt-dlp --version` на каждый
+/// поиск/стрим (config() вызывается из каждого запуска yt-dlp).
+static YTDLP_LOOKUP: OnceLock<Mutex<Option<Option<String>>>> = OnceLock::new();
+
+fn ytdlp_lookup() -> &'static Mutex<Option<Option<String>>> {
+    YTDLP_LOOKUP.get_or_init(|| Mutex::new(None))
+}
+
+/// Резолв пути yt-dlp: сначала установленный в app data, затем в PATH.
+/// Результат кэшируется до установки/обновления инструментов.
+pub fn resolve_ytdlp(app: &tauri::AppHandle) -> Option<String> {
+    if let Some(cached) = ytdlp_lookup().lock().ok().and_then(|g| g.clone()) {
+        return cached;
+    }
+    let resolved = ytdlp_present_path(app).or_else(system_ytdlp);
+    if let Ok(mut g) = ytdlp_lookup().lock() {
+        *g = Some(resolved.clone());
+    }
+    resolved
+}
+
+fn system_ytdlp() -> Option<String> {
+    let mut cmd = std::process::Command::new("yt-dlp");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    cmd.arg("--version")
+        .output()
+        .ok()
+        .map(|o| if o.status.success() { "yt-dlp" } else { "" }.to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Сбросить кэш пути после установки/обновления yt-dlp.
+pub fn reset_ytdlp_cache() {
+    if let Ok(mut g) = ytdlp_lookup().lock() {
+        *g = None;
+    }
+}
+
+/// Сериализует установку инструментов (стартовый фон + кнопка «Установить»).
+static ENSURE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 /// Пиннированный релиз ffmpeg (BtbN). Датированные теги держатся ~2 года;
 /// имя файла (N-<hash>) берём из checksums.sha256 этого же релиза.
@@ -132,6 +178,10 @@ fn write_atomic(dest: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
     let tmp = dest.with_extension(format!("tmp{}", std::process::id()));
     std::fs::write(&tmp, bytes).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    // Windows: rename не перезаписывает существующий файл — чистим перед заменой.
+    if dest.exists() {
+        std::fs::remove_file(dest).map_err(|e| format!("remove {}: {e}", dest.display()))?;
+    }
     std::fs::rename(&tmp, dest).map_err(|e| format!("rename to {}: {e}", dest.display()))?;
     Ok(())
 }
@@ -157,6 +207,7 @@ async fn ensure_ytdlp(app: &tauri::AppHandle) -> Result<(), String> {
         ));
     }
     write_atomic(&dest, &bytes)?;
+    reset_ytdlp_cache();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -214,7 +265,15 @@ async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Скачать недостающие инструменты. Вызывается фоном при старте и по кнопке.
+/// На Android yt-dlp не скачиваем: официальный релиз — Linux-запускаемый
+/// zipapp, которому нужен интерпретатор python3 (его нет). Юзер может задать
+/// путь к бинарю (Termux и т.п.) в настройках.
 pub async fn ensure(app: &tauri::AppHandle) -> Result<ToolsStatus, String> {
+    let _guard = ENSURE_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await;
+    #[cfg(not(target_os = "android"))]
     ensure_ytdlp(app).await?;
     #[cfg(target_os = "windows")]
     ensure_ffmpeg(app).await?;

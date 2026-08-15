@@ -18,13 +18,15 @@ function formatDuration(seconds?: number): string {
 interface TrackRowProps {
   track: Track;
   index?: number;
+  /** Явно пометить строку как играющую сейчас (иначе — совпадение id с текущим треком). */
+  nowPlaying?: boolean;
   onDragStart?: (e: DragEvent<HTMLDivElement>, track: Track) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>, track: Track) => void;
   onDragOver?: (e: DragEvent<HTMLDivElement>, track: Track) => void;
   onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }
 
-export function TrackRow({ track, index, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
+export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
   const { t } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
   const likedIds = useApp((s) => s.likedIds);
@@ -43,7 +45,7 @@ export function TrackRow({ track, index, onDragStart, onDrop, onDragOver, onDrag
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [editingTags, setEditingTags] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isCurrent = snapshot.current?.id === track.id;
+  const isCurrent = nowPlaying !== undefined ? nowPlaying : snapshot.current?.id === track.id;
   const liked = likedIds.includes(track.id);
   const noPlay = track.meta?.noPlay === true;
   const canDownload = !noPlay && Boolean(track.meta?.url ?? track.meta?.audioUrl ?? track.uri);
@@ -90,7 +92,7 @@ export function TrackRow({ track, index, onDragStart, onDrop, onDragOver, onDrag
   return (
     <div
       className={`track-row ${isCurrent ? "track-current" : ""} ${noPlay ? "track-noplay" : ""}`}
-      title={noPlay ? "Информация (аудио недоступно)" : undefined}
+      title={noPlay ? t("common").noAudio : undefined}
       onDoubleClick={onPlay}
       onClick={onPlay}
       draggable
@@ -149,7 +151,7 @@ export function TrackRow({ track, index, onDragStart, onDrop, onDragOver, onDrag
       <div className="track-actions">
         <button
           className={`icon-btn more-btn ${menuOpen ? "active" : ""}`}
-          title="Действия"
+          title={t("common").actions}
           onClick={(e) => {
             e.stopPropagation();
             openMenu();
@@ -159,7 +161,7 @@ export function TrackRow({ track, index, onDragStart, onDrop, onDragOver, onDrag
         </button>
         <button
           className={`icon-btn ${liked ? "liked" : ""}`}
-          title={liked ? "Убрать из понравившегося" : "Понравилось"}
+          title={liked ? t("common").unlike : t("common").like}
           onClick={(e) => {
             e.stopPropagation();
             void toggleLike(track);

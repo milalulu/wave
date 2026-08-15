@@ -25,6 +25,7 @@ export interface Translations {
     dlRunning: string;
     dlDone: string;
     dlFailed: string;
+    dlRetry: string;
   };
   player: {
     play: string;
@@ -55,6 +56,8 @@ export interface Translations {
     variants: string;
     variantsEmpty: string;
     similar: string;
+    sleepTimerExpired: string;
+    sleepTimerAfterTrack: string;
   };
   home: {
     welcomeTitle: string;
@@ -172,6 +175,7 @@ export interface Translations {
     providerNotLoaded: string;
     updateYtDlp: string;
     updateYtDlpDesc: string;
+    detectYtDlp: string;
     tools: string;
     toolsDesc: string;
     toolsInstall: string;
@@ -194,6 +198,22 @@ export interface Translations {
     lyricsAutoOpenDesc: string;
     lyricsAutoscroll: string;
     lyricsAutoscrollDesc: string;
+    diagnostics: string;
+    diagRefresh: string;
+    diagPlatform: string;
+    diagNetwork: string;
+    diagTools: string;
+    diagStorage: string;
+    diagLogs: string;
+    diagClearLogs: string;
+    diagNoLogs: string;
+    diagAndroid: string;
+    diagReady: string;
+    diagMissing: string;
+    diagVersion: string;
+    diagSize: (bytes: number) => string;
+    diagPath: string;
+    diagDatabase: string;
   };
   queue: {
     title: string;
@@ -204,6 +224,7 @@ export interface Translations {
     title: string;
     start: string;
     empty: string;
+    hint: string;
   };
   toasts: {
     queueRestored: string;
@@ -261,6 +282,10 @@ export interface Translations {
     hours: string;
     unknown: string;
     noPlaylists: string;
+    actions: string;
+    noAudio: string;
+    errorTitle: string;
+    reload: string;
   };
   trackMenu: {
     editTags: string;
@@ -274,7 +299,7 @@ export interface Translations {
   };
 }
 
-const translations: Record<Locale, Translations> = {
+export const translations: Record<Locale, Translations> = {
   en: {
     app: {
       name: "Wave",
@@ -300,6 +325,7 @@ const translations: Record<Locale, Translations> = {
       dlRunning: "Downloading",
       dlDone: "Done",
       dlFailed: "Failed",
+      dlRetry: "Retry",
     },
     player: {
       play: "Play",
@@ -330,6 +356,8 @@ const translations: Record<Locale, Translations> = {
       variants: "Variants",
       variantsEmpty: "No variants on other platforms",
       similar: "Similar",
+      sleepTimerExpired: "Sleep timer: paused",
+      sleepTimerAfterTrack: "Sleep timer: end of track",
     },
     home: {
       welcomeTitle: "Welcome to Wave",
@@ -447,6 +475,7 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Provider not loaded",
       updateYtDlp: "Update yt-dlp",
       updateYtDlpDesc: "Updates the yt-dlp binary (when installed system-wide or bundled).",
+      detectYtDlp: "Detect",
       tools: "Dependencies",
       toolsDesc: "yt-dlp and ffmpeg are downloaded automatically on first launch into the app data folder.",
       toolsInstall: "Download",
@@ -469,6 +498,25 @@ const translations: Record<Locale, Translations> = {
       lyricsAutoOpenDesc: "Open the lyrics panel automatically when a new track starts.",
       lyricsAutoscroll: "Auto-scroll lyrics",
       lyricsAutoscrollDesc: "Follow the current line while the song is playing.",
+      diagnostics: "Diagnostics",
+      diagRefresh: "Run checks",
+      diagPlatform: "Platform",
+      diagNetwork: "Network",
+      diagTools: "Dependencies",
+      diagStorage: "Storage",
+      diagLogs: "Event log",
+      diagClearLogs: "Clear log",
+      diagNoLogs: "No events logged yet",
+      diagAndroid: "Android",
+      diagReady: "Ready",
+      diagMissing: "Missing",
+      diagVersion: "Version",
+      diagSize: (bytes: number) =>
+        bytes >= 1024 * 1024
+          ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+          : `${(bytes / 1024).toFixed(1)} KB`,
+      diagPath: "Path",
+      diagDatabase: "Database",
     },
     queue: {
       title: "Queue",
@@ -479,6 +527,7 @@ const translations: Record<Locale, Translations> = {
       title: "Wave",
       start: "Start Wave",
       empty: "Wave is empty (no liked tracks or history)",
+      hint: "Every launch is a fresh mix: likes and frequently played genres get more weight",
     },
     toasts: {
       queueRestored: "Queue restored — press play",
@@ -536,6 +585,10 @@ const translations: Record<Locale, Translations> = {
       hours: "h",
       unknown: "Unknown",
       noPlaylists: "No playlists",
+      actions: "Actions",
+      noAudio: "No audio available",
+      errorTitle: "Something went wrong",
+      reload: "Reload",
     },
     trackMenu: {
       editTags: "Edit tags",
@@ -573,6 +626,7 @@ const translations: Record<Locale, Translations> = {
       dlRunning: "Скачивание",
       dlDone: "Готово",
       dlFailed: "Ошибка",
+      dlRetry: "Повторить",
     },
     player: {
       play: "Играть",
@@ -603,6 +657,8 @@ const translations: Record<Locale, Translations> = {
       variants: "Варианты",
       variantsEmpty: "На других площадках не найдено",
       similar: "Похожие",
+      sleepTimerExpired: "Таймер сна: пауза",
+      sleepTimerAfterTrack: "Таймер сна: конец трека",
     },
     home: {
       welcomeTitle: "Добро пожаловать в Wave",
@@ -720,6 +776,7 @@ const translations: Record<Locale, Translations> = {
       providerNotLoaded: "Провайдер не загружен",
       updateYtDlp: "Обновить yt-dlp",
       updateYtDlpDesc: "Обновляет бинарник yt-dlp (если установлен в системе или в комплекте).",
+      detectYtDlp: "Найти",
       tools: "Зависимости",
       toolsDesc: "yt-dlp и ffmpeg скачиваются автоматически при первом запуске в папку данных приложения.",
       toolsInstall: "Скачать",
@@ -742,6 +799,25 @@ const translations: Record<Locale, Translations> = {
       lyricsAutoOpenDesc: "Открывать панель текстов автоматически при старте нового трека.",
       lyricsAutoscroll: "Автопрокрутка текстов",
       lyricsAutoscrollDesc: "Следить за текущей строкой во время воспроизведения.",
+      diagnostics: "Диагностика",
+      diagRefresh: "Проверить",
+      diagPlatform: "Платформа",
+      diagNetwork: "Сеть",
+      diagTools: "Зависимости",
+      diagStorage: "Хранилище",
+      diagLogs: "Журнал событий",
+      diagClearLogs: "Очистить журнал",
+      diagNoLogs: "Событий пока не было",
+      diagAndroid: "Android",
+      diagReady: "Установлено",
+      diagMissing: "Нет",
+      diagVersion: "Версия",
+      diagSize: (bytes: number) =>
+        bytes >= 1024 * 1024
+          ? `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
+          : `${(bytes / 1024).toFixed(1)} КБ`,
+      diagPath: "Путь",
+      diagDatabase: "База данных",
     },
     queue: {
       title: "Очередь",
@@ -752,6 +828,7 @@ const translations: Record<Locale, Translations> = {
       title: "Wave",
       start: "Запустить Wave",
       empty: "Wave пуст (нет лайков или истории)",
+      hint: "Каждый запуск — свежая подборка: лайки и часто слушаемые жанры получают больший вес",
     },
     toasts: {
       queueRestored: "Очередь восстановлена — нажмите play",
@@ -809,6 +886,10 @@ const translations: Record<Locale, Translations> = {
       hours: "ч",
       unknown: "Неизвестно",
       noPlaylists: "Нет плейлистов",
+      actions: "Действия",
+      noAudio: "Аудио недоступно",
+      errorTitle: "Что-то пошло не так",
+      reload: "Перезагрузить",
     },
     trackMenu: {
       editTags: "Редактировать теги",

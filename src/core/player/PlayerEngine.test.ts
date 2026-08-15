@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Track } from "../types";
+import type { PlayerState, Track } from "../types";
 import { MockAudioAdapter } from "./PlayerAdapter";
 import { PLAY_START_TIMEOUT_MS, PlayerEngine, STALL_TIMEOUT_MS } from "./PlayerEngine";
 
@@ -58,6 +58,23 @@ describe("PlayerEngine", () => {
     adapter.end();
     expect(engine.snapshot.current?.id).toBe("a");
     expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("pauses after current track when pause-after-track is armed", async () => {
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks(tracks);
+    engine.setPauseAfterTrack(true);
+    adapter.end();
+    await flush();
+    // Не переходит на следующий трек, очередь сохранена, флаг сброшен.
+    expect(engine.snapshot.current?.id).toBe("a");
+    expect(engine.snapshot.state).toBe("paused");
+    adapter.end();
+    await flush();
+    expect(engine.snapshot.current?.id).toBe("b");
+    engine.destroy();
   });
 
   it("pauses and resumes", async () => {
@@ -134,6 +151,18 @@ describe("PlayerEngine", () => {
     expect(seen).toEqual(["a"]);
   });
 
+  it("track event state differs: paused on restore, loading on real play", async () => {
+    // История пишется из события "track"; на restore она не должна считаться
+    // прослушиванием (state === "paused"), а на реальном старте — должна.
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    const states: PlayerState[] = [];
+    engine.on("track", () => states.push(engine.snapshot.state));
+    await engine.restoreQueue([tracks[0]], 0);
+    await engine.playTracks([tracks[1]]);
+    expect(states).toEqual(["paused", "loading"]);
+  });
+
   it("resolves uri on first play after restore when no source was preloaded", async () => {
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter, {
@@ -162,7 +191,22 @@ describe("PlayerEngine", () => {
     adapter.fail("audio error code 4");
     expect(resolved).toEqual([]);
     expect(engine.snapshot.state).toBe("paused");
-    expect(adapter.src).toBe("https://www.youtube.com/watch?v=x");
+    expect(adapter.src).toBe("");
+    engine.destroy();
+  });
+
+  it("does not load a youtube page into the adapter on restore", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.restoreQueue(
+      [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
+      0,
+      30,
+    );
+    // Страница YouTube — не поток: прелоад сломал бы элемент и EQ-граф (CORS).
+    expect(adapter.src).toBe("");
+    // Seek позиции всё равно передаётся в адаптер (применится по загрузке).
+    expect(adapter.getPosition()).toBe(30);
     engine.destroy();
   });
 
@@ -175,13 +219,6 @@ describe("PlayerEngine", () => {
       [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
       0,
     );
-    const orig = adapter.play;
-    adapter.play = async () => {
-      if (adapter.src.startsWith("https://www.youtube.com/")) {
-        throw new Error("not supported");
-      }
-      return orig.call(adapter);
-    };
     await engine.play();
     expect(adapter.src).toBe("u://fresh");
     expect(engine.snapshot.state).toBe("playing");

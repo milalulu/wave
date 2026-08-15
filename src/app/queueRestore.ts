@@ -2,6 +2,8 @@ import type { Track } from "../core/types";
 
 const KEY = "wave:queue-restore";
 const TTL = 7 * 24 * 3600 * 1000;
+/** Ограничиваем размер сохраняемой очереди (лимит localStorage ~5MB). */
+const MAX_TRACKS = 300;
 
 export interface RestoreState {
   queue: Track[];
@@ -25,9 +27,15 @@ export function loadRestore(): RestoreState | null {
 
 export function saveRestore(queue: Track[], index: number, position: number): void {
   try {
+    const slice = queue.slice(0, MAX_TRACKS);
+    // Обложки — самый тяжёлый кусок, для restore они не нужны (подтянутся
+    // при показе/игре). Так запись не упирается в квоту localStorage.
+    const compact: Track[] = slice.map((t) =>
+      t.coverUrl ? { ...t, coverUrl: undefined } : t,
+    );
     localStorage.setItem(
       KEY,
-      JSON.stringify({ queue, index, position, savedAt: Date.now() }),
+      JSON.stringify({ queue: compact, index, position, savedAt: Date.now() }),
     );
   } catch {
     /* переполнение localStorage — молча игнорируем */
@@ -37,5 +45,7 @@ export function saveRestore(queue: Track[], index: number, position: number): vo
 export function clearRestore(): void {
   try {
     localStorage.removeItem(KEY);
-  } catch {}
+  } catch {
+    /* localStorage недоступен — молча игнорируем */
+  }
 }

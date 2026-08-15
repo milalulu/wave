@@ -4,6 +4,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
+import { Cover } from "./Cover";
 import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon } from "./icons";
 import { buildM3U, parseM3U } from "../core/library/m3u";
 import type { Playlist, Track } from "../core/types";
@@ -13,7 +14,9 @@ function parseJSON(text: string): Track[] | null {
     const data = JSON.parse(text);
     if (Array.isArray(data.tracks)) return data.tracks as Track[];
     if (Array.isArray(data)) return data as Track[];
-  } catch {}
+  } catch {
+    /* некорректный JSON — вернём null */
+  }
   return null;
 }
 
@@ -27,6 +30,7 @@ export function PlaylistView() {
   const reorderPlaylist = useApp((s) => s.reorderPlaylist);
   const play = useApp((s) => s.play);
   const notify = useApp((s) => s.notify);
+  const currentId = useApp((s) => s.snapshot.current?.id ?? null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
@@ -54,7 +58,7 @@ export function PlaylistView() {
     } else {
       setSelectedTracks([]);
     }
-  }, [selectedPlaylistId, playlists]);
+  }, [selectedPlaylistId, playlists, t]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -179,6 +183,11 @@ export function PlaylistView() {
                 className={`playlist-item ${selectedPlaylistId === pl.id ? "active" : ""}`}
                 onClick={() => setSelectedPlaylist(pl.id)}
               >
+                {pl.coverUrl ? (
+                  <Cover className="playlist-cover" src={pl.coverUrl} alt="" />
+                ) : (
+                  <span className="playlist-cover playlist-cover-empty">{pl.name.charAt(0)}</span>
+                )}
                 <span>{pl.name}</span>
                 <small>{tf("playlist").tracksCount(pl.tracks?.length ?? pl.trackIds.length)}</small>
                 <button
@@ -204,6 +213,7 @@ export function PlaylistView() {
         {selected ? (
           <section className="playlist-detail">
             <header className="detail-header">
+              {selected.coverUrl && <Cover className="detail-cover" src={selected.coverUrl} alt="" />}
               <h2>{selected.name}</h2>
               <div className="detail-actions">
                 <button className="btn btn-primary" onClick={() => play(selectedTracks)} disabled={selectedTracks.length === 0}>
@@ -223,7 +233,7 @@ export function PlaylistView() {
             <div className="track-list">
               {selectedTracks.map((track, i) => (
                 <div
-                  key={track.id}
+                  key={`${track.id}:${i}`}
                   className={`playlist-dropzone ${dragOverIndex === i ? "drag-over" : ""}`}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -237,6 +247,7 @@ export function PlaylistView() {
                   <TrackRow
                     track={track}
                     index={i + 1}
+                    nowPlaying={selectedTracks.findIndex((tr) => tr.id === currentId) === i}
                     onDragStart={() => setDragIndex(i)}
                     onDragEnd={clearDrag}
                   />

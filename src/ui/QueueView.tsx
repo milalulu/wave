@@ -7,7 +7,6 @@ import { HeartIcon } from "./icons";
 export function QueueView() {
   const { t } = useI18n();
   const queue = useApp((s) => s.snapshot.queue);
-  const current = useApp((s) => s.snapshot.current);
   const queueIndex = useApp((s) => s.snapshot.queueIndex);
   const likedIds = useApp((s) => s.likedIds);
   const toggleLike = useApp((s) => s.toggleLike);
@@ -28,11 +27,11 @@ export function QueueView() {
       ) : (
         <div className="track-list">
           {queue.map((track, i) => {
-            const isCurrent = current?.id === track.id;
+            const isCurrent = queueIndex >= 0 && i === queueIndex;
             const isUpcoming = queueIndex >= 0 && i > queueIndex;
             return (
               <div
-                key={track.id}
+                key={`${track.id}:${i}`}
                 className={`track-row ${isCurrent ? "track-current" : ""} ${dragIndex === i ? "track-dragging" : ""}`}
                 draggable
                 onDragStart={() => setDragIndex(i)}

@@ -62,6 +62,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   /** Авто-фолбэк на вариант (другой источник) при ошибке воспроизведения. */
   private fallback?: () => Track | null;
   private fallbackUsed = false;
+  /** id трека, который "съел" фолбэк: для новой записи фолбэк разрешается снова. */
+  private fallbackTrackId: string | null = null;
+  /** Таймер сна «после трека»: остановить по завершении текущего трека. */
+  private pauseAtEnd = false;
   /** Загружен ли источник в адаптер (иначе play() сначала резолвит URI). */
   private hasSource = false;
 
@@ -140,7 +144,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
     if (tracks.length === 0) return;
     this.queue.replace(tracks, startIndex);
+    // Старая очередь сброшена: предзагруженные URI следующего трека недействительны.
+    this.preloadCache.clear();
+    this.preloadedId = null;
     this.fallbackUsed = false;
+    this.fallbackTrackId = null;
     await this.playCurrent();
   }
 
@@ -154,7 +162,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (queue.length === 0) return;
     const clamped = Math.min(Math.max(index, 0), queue.length - 1);
     this.queue.replace(queue, clamped);
+    this.preloadCache.clear();
+    this.preloadedId = null;
     this.fallbackUsed = false;
+    this.fallbackTrackId = null;
     const track = this.queue.current();
     if (!track) return;
     this.setState("paused");
@@ -164,10 +175,18 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       try {
         this.adapter.load(uri);
         this.hasSource = true;
-        if (position > 0) this.adapter.seek(position);
       } catch {
         // пере-резолвится при play()
         this.hasSource = false;
+      }
+    }
+    // Позиция применяется адаптером по загрузке метаданных (pendingSeek),
+    // поэтому выставляем её и для треков без прямого uri (yt/soundcloud).
+    if (position > 0) {
+      try {
+        this.adapter.seek(position);
+      } catch {
+        // позиция не критична — просто начинаем с 0
       }
     }
     this.emit("track", track);
@@ -177,7 +196,19 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private directUri(track: Track): string {
     const u = track.uri;
     if (!u) return "";
-    return u.startsWith("http://") || u.startsWith("https://") || u.startsWith("asset://") ? u : "";
+    if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("asset://"))) return "";
+    // Страница YouTube — это не поток: загрузка её в <audio> гарантированно
+    // падает с ошибкой и триггерит CORS-teardown в WebAudioAdapter, который
+    // навсегда отключает EQ-граф. Настоящий поток резолвится при первом play().
+    if (this.isYouTubePage(u)) return "";
+    return u;
+  }
+
+  private isYouTubePage(u: string): boolean {
+    return (
+      /^https?:\/\/(?:www\.|m\.|music\.)?youtube\.com\/(?:watch|embed|shorts|live)\b/i.test(u) ||
+      /^https?:\/\/(?:www\.)?youtu\.be\//i.test(u)
+    );
   }
 
   async playTrack(track: Track): Promise<void> {
@@ -292,6 +323,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.adapter.setCrossfadeMs(ms);
   }
 
+  /** Остановить воспроизведение после завершения текущего трека (таймер сна). */
+  setPauseAfterTrack(on: boolean): void {
+    this.pauseAtEnd = on;
+  }
+
   /** Данные спектра для визуализатора. */
   getSpectrum(data: Uint8Array): void {
     this.adapter.getSpectrum(data);
@@ -359,6 +395,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async playCurrent(): Promise<void> {
     const track = this.queue.current();
     if (!track) return;
+    // Новый трек (другой id) — фолбэк можно использовать снова (раз за трек).
+    // Вариант того же трека не получит второй шанс — фолбэк уже был потрачен.
+    if (track.id !== this.fallbackTrackId) {
+      this.fallbackUsed = false;
+    }
     this.playSeq += 1;
     this.retries = 0;
     await this.startTrack(this.playSeq);
@@ -376,8 +417,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       return;
     }
     // Источник недоступен — пробуем вариант на другой площадке (один раз за трек).
-    if (this.fallback && !this.fallbackUsed) {
+    const current = this.queue.current();
+    if (this.fallback && !this.fallbackUsed && current) {
       this.fallbackUsed = true;
+      this.fallbackTrackId = current.id;
       const fb = this.fallback();
       if (fb && this.queue.replaceCurrent(fb)) {
         this.emitQueue();
@@ -465,7 +508,16 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private async onTrackEnded(): Promise<void> {
+    // Флаг читаем до emit: обработчики (таймер сна) могут его сбросить.
+    const stop = this.pauseAtEnd;
     this.emit("ended", undefined);
+    if (stop) {
+      this.pauseAtEnd = false;
+      this.adapter.pause();
+      // У завершённого элемента pause() не эмитит событие — ставим явно.
+      this.setState("paused");
+      return;
+    }
     if (this.repeat === "one") {
       this.adapter.seek(0);
       await this.play();

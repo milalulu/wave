@@ -4,7 +4,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
-import { HeartIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon } from "./icons";
 
 function formatTime(seconds?: number): string {
   if (!seconds || !Number.isFinite(seconds)) return "0:00";
@@ -20,6 +20,8 @@ interface NowPlayingViewProps {
 export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const { t, tf } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
+  const position = useApp((s) => s.position);
+  const duration = useApp((s) => s.duration);
   const likedIds = useApp((s) => s.likedIds);
   const lyrics = useApp((s) => s.lyrics);
   const lyricsLoading = useApp((s) => s.lyricsLoading);
@@ -44,10 +46,10 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
     let idx = -1;
     for (let i = 0; i < lyrics.lines.length; i++) {
       const t2 = lyrics.lines[i].time;
-      if (t2 !== undefined && t2 <= snapshot.position) idx = i;
+      if (t2 !== undefined && t2 <= position) idx = i;
     }
     return idx;
-  }, [lyrics, snapshot.position]);
+  }, [lyrics, position]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -59,6 +61,15 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
 
   return (
     <div className="home">
+      <div className="np-collapse">
+        <button
+          className="icon-btn"
+          onClick={() => onNavigate("home")}
+          title={t("common").close}
+        >
+          <ChevronDownIcon size={22} />
+        </button>
+      </div>
       {track ? (
         <div className="hero">
           <div className="hero-cover">
@@ -96,7 +107,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
             </div>
             <div className="hero-meta">
               <span className="hero-meta-item">
-                {formatTime(snapshot.position)} / {formatTime(snapshot.duration)}
+                {formatTime(position)} / {formatTime(duration)}
                 {snapshot.speed !== 1 && <> · {snapshot.speed}×</>}
               </span>
             </div>

@@ -23,9 +23,11 @@ import {
   setPreferredProviders,
 } from "../app/platformSettings";
 import { providerLabel } from "./providers";
+import { DiagnosticsView } from "./DiagnosticsView";
 
 interface AppConfigResult {
   ytdlpPath?: string | null;
+  ytdlpCookies?: string | null;
   soundcloudClientId?: string | null;
   spotifyClientId?: string | null;
   spotifyClientSecret?: string | null;
@@ -45,6 +47,7 @@ interface ToolsStatus {
 
 const ENV_KEYS = [
   "WAVE_YTDLP_PATH",
+  "WAVE_YTDLP_COOKIES",
   "WAVE_SOUNDCLOUD_CLIENT_ID",
   "WAVE_SPOTIFY_CLIENT_ID",
   "WAVE_SPOTIFY_CLIENT_SECRET",
@@ -57,6 +60,7 @@ const ENV_KEYS = [
 function fromRust(cfg: AppConfigResult): Record<string, string> {
   const map: Record<string, string> = {
     WAVE_YTDLP_PATH: cfg.ytdlpPath ?? "",
+    WAVE_YTDLP_COOKIES: cfg.ytdlpCookies ?? "",
     WAVE_SOUNDCLOUD_CLIENT_ID: cfg.soundcloudClientId ?? "",
     WAVE_SPOTIFY_CLIENT_ID: cfg.spotifyClientId ?? "",
     WAVE_SPOTIFY_CLIENT_SECRET: cfg.spotifyClientSecret ?? "",
@@ -114,6 +118,7 @@ export function SettingsView() {
   const [allResults, setAllResults] = useState<Record<string, string>>({});
   const [tools, setTools] = useState<ToolsStatus | null>(null);
   const [toolsBusy, setToolsBusy] = useState(false);
+  const [tab, setTab] = useState<"main" | "diagnostics">("main");
 
   const loadTools = async (): Promise<void> => {
     try {
@@ -168,7 +173,9 @@ export function SettingsView() {
       setConfig(fromRust(cfg));
       const dir = localStorage.getItem("wave-local-dir");
       if (dir) setLocalDir(dir);
-    } catch {}
+    } catch {
+      /* конфиг недоступен — оставим пустые поля */
+    }
   };
 
   const saveConfig = async () => {
@@ -197,6 +204,7 @@ export function SettingsView() {
     setTestResults((prev) => ({ ...prev, [key]: t("common").loading }));
     try {
       const providers = services.providers.filter((p) => {
+        if (key === "WAVE_YTDLP_PATH") return p.id === "youtube";
         if (key === "WAVE_SOUNDCLOUD_CLIENT_ID") return p.id === "soundcloud";
         if (key === "WAVE_SPOTIFY_CLIENT_ID") return p.id === "spotify";
         if (key === "WAVE_VK_TOKEN") return p.id === "vk";
@@ -234,8 +242,27 @@ export function SettingsView() {
     }
   };
 
+  const handleDetect = async (key: string) => {
+    setTesting(key);
+    setTestResults((prev) => ({ ...prev, [key]: t("common").loading }));
+    try {
+      const path = await invoke<string | null>("tools_detect");
+      if (path) {
+        setConfig((c) => ({ ...c, [key]: path }));
+        setTestResults((prev) => ({ ...prev, [key]: t("settings").testOK }));
+      } else {
+        setTestResults((prev) => ({ ...prev, [key]: t("settings").providerNotLoaded }));
+      }
+    } catch (e) {
+      setTestResults((prev) => ({ ...prev, [key]: `${t("settings").testFailed} ${e instanceof Error ? e.message : String(e)}` }));
+    } finally {
+      setTesting(null);
+    }
+  };
+
   const envKeys = [
-    { key: "WAVE_YTDLP_PATH", label: "yt-dlp path", placeholder: "yt-dlp (or full path)", type: "text" },
+    { key: "WAVE_YTDLP_PATH", label: "yt-dlp path", placeholder: "yt-dlp (or full path)", type: "text", test: true, detect: true },
+    { key: "WAVE_YTDLP_COOKIES", label: "yt-dlp cookies", placeholder: "C:/path/to/cookies.txt or browser:chrome", type: "text" },
     { key: "WAVE_SOUNDCLOUD_CLIENT_ID", label: "SoundCloud Client ID", placeholder: "pJ6Fj6roW2KRzWAOwGj6kkQ8VRBJjyBD", type: "text", test: true },
     { key: "WAVE_SPOTIFY_CLIENT_ID", label: "Spotify Client ID", placeholder: "...", type: "text", test: true },
     { key: "WAVE_SPOTIFY_CLIENT_SECRET", label: "Spotify Client Secret", placeholder: "...", type: "password", test: false },
@@ -243,7 +270,7 @@ export function SettingsView() {
     { key: "WAVE_LASTFM_API_KEY", label: "Last.fm API Key", placeholder: "...", type: "text", test: true },
     { key: "WAVE_LASTFM_API_SECRET", label: "Last.fm API Secret", placeholder: "...", type: "password", test: false },
     { key: "WAVE_LASTFM_SESSION_KEY", label: "Last.fm Session Key", placeholder: "...", type: "password", test: false },
-    { key: "WAVE_API_TOKEN", label: "HTTP API Token (empty = auto)", placeholder: "auto-generated", type: "text", test: false },
+    { key: "WAVE_API_TOKEN", label: "HTTP API Token (empty = auto)", placeholder: "auto-generated", type: "password", test: false },
   ];
 
   return (
@@ -251,35 +278,53 @@ export function SettingsView() {
       <div className="settings-topbar">
         <h1>{t("settings").title}</h1>
         <div className="settings-topbar-actions">
-          <div className="settings-seg" role="group" aria-label={t("settings").language}>
-            <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} title={t("settings").language}>
-              English
+          <div className="settings-seg" role="group" aria-label="settings">
+            <button className={tab === "main" ? "active" : ""} onClick={() => setTab("main")}>
+              {t("settings").title}
             </button>
-            <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} title={t("settings").language}>
-              Русский
-            </button>
-          </div>
-          <div className="settings-seg" role="group" aria-label={t("settings").theme}>
-            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
-              {t("settings").themeLight}
-            </button>
-            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
-              {t("settings").themeDark}
+            <button
+              className={tab === "diagnostics" ? "active" : ""}
+              onClick={() => setTab("diagnostics")}
+            >
+              {t("settings").diagnostics}
             </button>
           </div>
-          <button className="btn btn-primary" onClick={saveConfig}>
-            <SaveIcon size={16} /> {t("settings").save}
-          </button>
-          <button className="btn" onClick={loadConfig}>
-            <RefreshCwIcon size={16} /> {t("settings").load}
-          </button>
+          {tab === "main" && (
+            <>
+              <div className="settings-seg" role="group" aria-label={t("settings").language}>
+                <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} title={t("settings").language}>
+                  English
+                </button>
+                <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} title={t("settings").language}>
+                  Русский
+                </button>
+              </div>
+              <div className="settings-seg" role="group" aria-label={t("settings").theme}>
+                <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
+                  {t("settings").themeLight}
+                </button>
+                <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
+                  {t("settings").themeDark}
+                </button>
+              </div>
+              <button className="btn btn-primary" onClick={saveConfig}>
+                <SaveIcon size={16} /> {t("settings").save}
+              </button>
+              <button className="btn" onClick={loadConfig}>
+                <RefreshCwIcon size={16} /> {t("settings").load}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
+      {tab === "diagnostics" ? (
+        <DiagnosticsView />
+      ) : (
       <div className="settings-cards">
         <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
           <div className="settings-grid">
-            {envKeys.map(({ key, label, placeholder, type, test }) => (
+            {envKeys.map(({ key, label, placeholder, type, test, detect }) => (
               <div key={key} className="setting-row">
                 <label htmlFor={key}>{label}</label>
                 <div className="input-group">
@@ -290,6 +335,15 @@ export function SettingsView() {
                     value={config[key] || ""}
                     onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.value }))}
                   />
+                  {detect && (
+                    <button
+                      className="btn small"
+                      onClick={() => handleDetect(key)}
+                      disabled={testing === key}
+                    >
+                      {testing === key ? "..." : t("settings").detectYtDlp}
+                    </button>
+                  )}
                   {test && (
                     <button
                       className="btn small"
@@ -590,6 +644,7 @@ export function SettingsView() {
           </div>
         </SettingsCard>
       </div>
+      )}
     </div>
   );
 }

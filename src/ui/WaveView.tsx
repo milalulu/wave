@@ -15,7 +15,7 @@ export function WaveView() {
           <WaveIcon size={38} />
         </span>
         <h2>{t("wave").title}</h2>
-        <p>{t("wave").empty.replace("пуст", "построенная на ваших лайках, истории и любимых жанрах")}</p>
+        <p>{t("wave").empty}</p>
         <div className="wave-stats">
           <span>{t("library").liked}: {likedIds.length}</span>
           <span>{t("common").open}: {services?.providers.map((p) => p.name).join(", ") ?? "—"}</span>
@@ -25,7 +25,7 @@ export function WaveView() {
           {t("wave").start}
         </button>
         <p className="muted">
-          {t("wave").empty.replace("пуст", "Каждый запуск — свежая подборка: лайки и часто слушаемые жанры получают больший вес")}
+          {t("wave").hint}
         </p>
       </div>
     </div>

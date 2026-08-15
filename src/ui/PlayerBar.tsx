@@ -46,11 +46,14 @@ function formatRemaining(seconds: number): string {
 
 interface PlayerBarProps {
   onOpenQueue: () => void;
+  onOpenPlayer: () => void;
 }
 
-export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
+export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const { t, tf } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
+  const position = useApp((s) => s.position);
+  const storeDuration = useApp((s) => s.duration);
   const likedIds = useApp((s) => s.likedIds);
   const sleepUntil = useApp((s) => s.sleepUntil);
   const sleepRemaining = useApp((s) => s.sleepRemaining);
@@ -85,7 +88,7 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
   const eqActive = snapshot.equalizer.some((g) => g !== 0);
 
   const track = snapshot.current;
-  const duration = track?.duration ?? snapshot.duration;
+  const duration = track?.duration ?? storeDuration;
   const liked = track ? likedIds.includes(track.id) : false;
   const buffering = snapshot.state === "loading";
   const sleepActive = sleepUntil !== null || pauseAfterTrack;
@@ -129,14 +132,14 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
           <span className="player-mini-artist">{track?.artist ?? ""}</span>
         </div>
         <div className="player-progress">
-          <span className="time">{formatTime(snapshot.position)}</span>
+          <span className="time">{formatTime(position)}</span>
           <input
             type="range"
             className="seek"
             min={0}
             max={duration || 100}
             step={1}
-            value={Math.min(snapshot.position, duration || 0)}
+            value={Math.min(position, duration || 0)}
             disabled={!track}
             onChange={(e) => seek(Number(e.target.value))}
           />
@@ -161,7 +164,7 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
 
   return (
     <footer className="player-bar">
-      <div className="player-track">
+      <div className="player-track" onClick={onOpenPlayer}>
         {track?.coverUrl ? (
           <Cover className="player-cover" src={track.coverUrl} alt="" />
         ) : (
@@ -172,7 +175,10 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
             <div className="player-variants-wrap">
               <button
                 className={`variants-toggle ${variantsOpen ? "active" : ""}`}
-                onClick={() => setVariantsOpen((o) => !o)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVariantsOpen((o) => !o);
+                }}
                 title={t("player").variants}
               >
                 {variantsLoading ? (
@@ -232,7 +238,10 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
         <button
           className={`icon-btn ${liked ? "liked" : ""}`}
           disabled={!track}
-          onClick={() => void toggleLike()}
+          onClick={(e) => {
+            e.stopPropagation();
+            void toggleLike();
+          }}
           title={t("common").like}
         >
           <HeartIcon size={18} filled={liked} />
@@ -277,14 +286,14 @@ export function PlayerBar({ onOpenQueue }: PlayerBarProps) {
               <Spectrum engine={services.engine} />
             </div>
           )}
-          <span className="time">{formatTime(snapshot.position)}</span>
+          <span className="time">{formatTime(position)}</span>
           <input
             type="range"
             className="seek"
             min={0}
             max={duration || 100}
             step={1}
-            value={Math.min(snapshot.position, duration || 0)}
+            value={Math.min(position, duration || 0)}
             disabled={!track}
             onChange={(e) => seek(Number(e.target.value))}
           />

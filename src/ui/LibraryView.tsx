@@ -79,6 +79,7 @@ export function LibraryView() {
 function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[]; empty: string; exportName?: string; filterable?: boolean }) {
   const { t } = useI18n();
   const notify = useApp((s) => s.notify);
+  const currentId = useApp((s) => s.snapshot.current?.id ?? null);
   const [filter, setFilter] = useState("");
 
   const visible = filterable
@@ -91,6 +92,10 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
         );
       })
     : tracks;
+
+  // Волна «сейчас играет» — только на первом вхождении трека в списке,
+  // чтобы одинаковые треки не мигали все сразу.
+  const firstCurrent = visible.findIndex((tr) => tr.id === currentId);
 
   const exportTracks = async (format: "m3u" | "json") => {
     const path = await save({
@@ -149,7 +154,12 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
         <p className="muted">{t("search").noResults}</p>
       ) : (
         visible.map((track, i) => (
-          <TrackRow key={track.id} track={track} index={i + 1} />
+          <TrackRow
+            key={`${track.id}:${i}`}
+            track={track}
+            index={i + 1}
+            nowPlaying={firstCurrent === i}
+          />
         ))
       )}
     </div>

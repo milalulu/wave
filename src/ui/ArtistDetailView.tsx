@@ -9,27 +9,16 @@ import type { Album, Track } from "../core/types";
 
 export function ArtistDetailView() {
   const { t, tf } = useI18n();
-  const { artistDetail, play, clearDetail, setView } = useApp(
-    (s) => ({
-      artistDetail: s.artistDetail,
-      play: s.play,
-      clearDetail: s.clearDetail,
-      setView: s.setView,
-    })
-  );
-
-  if (!artistDetail) {
-    return <div className="detail-view">{t("common").unknown}</div>;
-  }
-
-  const { artist, topTracks, albums } = artistDetail;
-
-  const [similar, setSimilar] = useState<Track[]>([]);
+  const artistDetail = useApp((s) => s.artistDetail);
+  const play = useApp((s) => s.play);
+  const clearDetail = useApp((s) => s.clearDetail);
+  const setView = useApp((s) => s.setView);
   const services = useApp((s) => s.services);
+  const [similar, setSimilar] = useState<Track[]>([]);
 
   useEffect(() => {
-    if (!services || topTracks.length === 0) return;
-    const seed = topTracks[0];
+    if (!services || !artistDetail || artistDetail.topTracks.length === 0) return;
+    const seed = artistDetail.topTracks[0];
     const results = services.providers
       .filter((p) => typeof p.getSimilarTracks === "function")
       .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "") ?? []);
@@ -42,7 +31,13 @@ export function ArtistDetailView() {
         setSimilar(out.slice(0, 12));
       })
       .catch(() => setSimilar([]));
-  }, [services, topTracks.length, artist]);
+  }, [services, artistDetail]);
+
+  if (!artistDetail) {
+    return <div className="detail-view">{t("common").unknown}</div>;
+  }
+
+  const { artist, topTracks, albums } = artistDetail;
 
   const handlePlayAll = async () => {
     await play(topTracks);
