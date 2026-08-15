@@ -447,7 +447,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(android::init())
         .plugin(
@@ -494,7 +493,7 @@ pub fn run() {
             write_audio_tags,
             save_app_config,
             relaunch,
-            mpris::mpris_update
+            mpris_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -504,6 +503,25 @@ pub fn run() {
 #[tauri::command]
 fn relaunch(app: tauri::AppHandle) {
     app.restart();
+}
+
+/// Обновить состояние MPRIS. Реальный MPRIS живёт только на Linux;
+/// на остальных платформах команда существует как no-op, чтобы
+/// invoke_handler компилировался для всех таргетов.
+#[tauri::command]
+async fn mpris_update(
+    app: tauri::AppHandle,
+    state_json: serde_json::Value,
+) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        mpris::mpris_update(app, state_json).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (app, state_json);
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -523,8 +541,8 @@ async fn lastfm_update_now_playing(
     album: Option<String>,
     duration: Option<u32>,
 ) -> Result<(), String> {
-    let creds = lastfm::creds(&app)
-        .ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
+    let creds =
+        lastfm::creds(&app).ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
     lastfm::lfm_post(
         "track.updateNowPlaying",
         &lastfm::track_params(title, artist, album, duration),
@@ -542,8 +560,8 @@ async fn lastfm_scrobble(
     duration: Option<u32>,
     timestamp: i64,
 ) -> Result<(), String> {
-    let creds = lastfm::creds(&app)
-        .ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
+    let creds =
+        lastfm::creds(&app).ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
     let mut params = lastfm::track_params(title, artist, album, duration);
     params.push(("timestamp".to_string(), timestamp.to_string()));
     lastfm::lfm_post("track.scrobble", &params, &creds).await

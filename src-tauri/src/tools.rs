@@ -147,8 +147,8 @@ async fn ensure_ytdlp(app: &tauri::AppHandle) -> Result<(), String> {
         .unwrap_or("yt-dlp");
     let sums = download_bytes(&format!("{YTDLP_RELEASE}SHA2-256SUMS")).await?;
     let text = String::from_utf8_lossy(&sums);
-    let expected = checksum_for(&text, name)
-        .ok_or_else(|| format!("no sha256 for {name} in SHA2-256SUMS"))?;
+    let expected =
+        checksum_for(&text, name).ok_or_else(|| format!("no sha256 for {name} in SHA2-256SUMS"))?;
     let bytes = download_bytes(&format!("{YTDLP_RELEASE}{name}")).await?;
     let actual = sha256_hex(&bytes);
     if actual != expected {
@@ -176,11 +176,10 @@ async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
     let sums_url = format!("{FFMPEG_BASE}{FFMPEG_TAG}/checksums.sha256");
     let sums = download_bytes(&sums_url).await?;
     let text = String::from_utf8_lossy(&sums);
-    let zip_name = ffmpeg_zip_name(&text).ok_or_else(|| {
-        format!("ffmpeg: win64-gpl.zip not found in {sums_url}")
-    })?;
-    let expected = checksum_for(&text, zip_name)
-        .ok_or_else(|| format!("ffmpeg: no sha256 for {zip_name}"))?;
+    let zip_name = ffmpeg_zip_name(&text)
+        .ok_or_else(|| format!("ffmpeg: win64-gpl.zip not found in {sums_url}"))?;
+    let expected =
+        checksum_for(&text, zip_name).ok_or_else(|| format!("ffmpeg: no sha256 for {zip_name}"))?;
     let url = format!("{FFMPEG_BASE}{FFMPEG_TAG}/{zip_name}");
     let bytes = download_bytes(&url).await?;
     let actual = sha256_hex(&bytes);
@@ -236,14 +235,20 @@ mod tests {
     #[test]
     fn parses_two_space_format() {
         let hash = checksum_for(YTDLP_SUMS, "yt-dlp.exe").unwrap();
-        assert_eq!(hash, "52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8");
+        assert_eq!(
+            hash,
+            "52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8"
+        );
     }
 
     #[test]
     fn accepts_star_binary_marker() {
         let text = "495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd *yt-dlp\n";
         let hash = checksum_for(text, "yt-dlp").unwrap();
-        assert_eq!(hash, "495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd");
+        assert_eq!(
+            hash,
+            "495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd"
+        );
     }
 
     #[test]

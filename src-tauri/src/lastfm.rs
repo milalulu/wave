@@ -21,9 +21,7 @@ fn env(name: &str) -> Option<String> {
 /// Креды: env имеет приоритет над сохранённым конфигом.
 pub fn creds(app: &tauri::AppHandle) -> Option<LastFmCreds> {
     let persisted = crate::read_persisted_config(app);
-    let get = |key: &str| {
-        env(key).or_else(|| crate::get_string(&persisted, key))
-    };
+    let get = |key: &str| env(key).or_else(|| crate::get_string(&persisted, key));
     Some(LastFmCreds {
         api_key: get("WAVE_LASTFM_API_KEY")?,
         api_secret: get("WAVE_LASTFM_API_SECRET")?,
@@ -40,7 +38,10 @@ pub fn scrobble_enabled(app: &tauri::AppHandle) -> bool {
     let persisted = crate::read_persisted_config(app);
     let toggle = env("WAVE_LASTFM_SCROBBLE_ENABLED")
         .or_else(|| crate::get_string(&persisted, "WAVE_LASTFM_SCROBBLE_ENABLED"));
-    !matches!(toggle.as_deref(), Some("0") | Some("false") | Some("False") | Some("FALSE"))
+    !matches!(
+        toggle.as_deref(),
+        Some("0") | Some("false") | Some("False") | Some("FALSE")
+    )
 }
 
 /// Подписанный POST на audioscrobbler. Подпись = md5(конкатенация
