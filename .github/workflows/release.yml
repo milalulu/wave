@@ -195,10 +195,11 @@ jobs:
         run: |
           set -e
           cd src-tauri/gen/android/app/build/outputs/apk
-          for apk in $(find . -name '*.apk'); do
+          find . -name '*.apk' | while read -r apk; do
             case "$apk" in
               *arm64*) name="wave-android-arm64.apk" ;;
-              *armeabi*) name="wave-android-armv7.apk" ;;
+              *armeabi*|*armv7*) name="wave-android-armv7.apk" ;;
+              *universal*) name="wave-android.apk" ;;
               *) name="wave-android-$(basename "$apk")" ;;
             esac
             cp "$apk" "$name"

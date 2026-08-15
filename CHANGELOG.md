@@ -13,7 +13,7 @@
 - **История очереди** ограничена 100 записями без дубликатов подряд.
 
 ### Added
-- **Android-релиз:** джоба `android` в release.yml собирает APK (aarch64/armv7), верифицирует подписи `apksigner` и публикует их в релиз со стабильными именами `wave-android-arm64.apk`/`wave-android-armv7.apk` — без секретов (debug-подпись). Секреты `ANDROID_KEYSTORE_BASE64`/`ANDROID_KEYSTORE_PASSWORD` включают релизную подпись для Play Store.
+- **Android-релиз:** джоба `android` в release.yml собирает APK (aarch64/armv7 + universal), верифицирует подписи `apksigner` и публикует их в релиз со стабильными именами (`wave-android.apk` — universal, arm64+armv7) — без секретов (debug-подпись). Секреты `ANDROID_KEYSTORE_BASE64`/`ANDROID_KEYSTORE_PASSWORD` включают релизную подпись для Play Store.
 - **macOS-публикация:** джоба `macos-publish` (universal binary, подпись + нотаризация при заданных Apple-секретах).
 - **SHA-256 верификация загрузок** yt-dlp (`SHA2-256SUMS`) и ffmpeg (`checksums.sha256`) перед установкой; версии инструментов закреплены, атомарная запись, права 0600/0755.
 - **Last.fm из persisted-конфига:** учётные данные и тумблер «скробблить» (`wave:lastfm:scrobbleEnabled`) читаются из `wave-config.json` без правки кода.
