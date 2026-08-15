@@ -562,6 +562,10 @@ pub fn run() {
                     let _ = tools::ensure(&handle).await;
                 });
             }
+            #[cfg(target_os = "android")]
+            {
+                let _ = app;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -677,18 +681,17 @@ fn write_text_file(path: String, content: String, app: tauri::AppHandle) -> Resu
 /// Корни, внутри которых разрешены read_text_file/write_text_file
 /// (выбор через системные диалоги почти всегда попадает под них).
 fn allowed_roots(app: &tauri::AppHandle) -> Vec<std::path::PathBuf> {
-    [
+    let mut roots = vec![
         app.path().home_dir(),
         app.path().app_local_data_dir(),
         app.path().app_data_dir(),
         app.path().app_config_dir(),
         app.path().download_dir(),
         app.path().document_dir(),
-        app.path().desktop_dir(),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+    ];
+    #[cfg(not(target_os = "android"))]
+    roots.push(app.path().desktop_dir());
+    roots.into_iter().flatten().collect()
 }
 
 /// Нормализация пути для сравнения (Windows — без учёта регистра).
