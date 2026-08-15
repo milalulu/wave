@@ -272,6 +272,20 @@ describe("WebAudioAdapter", () => {
     adapter.destroy();
   });
 
+  it("не предзагружает, пока неактивный элемент играет (кроссфейд)", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.load("a.mp3");
+    await adapter.play();
+    adapter.load("b.mp3");
+    await adapter.play();
+    // во время кроссфейда неактивный элемент (el1) уже играет b.mp3
+    expect(instances()[1].paused).toBe(false);
+    adapter.preload("c.mp3");
+    expect(instances()[1].src).toBe("b.mp3");
+    vi.advanceTimersByTime(CROSSFADE_MS + 100);
+    adapter.destroy();
+  });
+
   it("getSpectrum возвращает данные анализатора или нули без графа", () => {
     const adapter = new WebAudioAdapter();
     adapter.load("a.mp3");

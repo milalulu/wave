@@ -1,48 +1,71 @@
 use serde_json::json;
 
 /// Скробблинг Last.fm: подписанные запросы (md5) к audioscrobbler.
-/// Требуются переменные окружения WAVE_LASTFM_API_KEY, WAVE_LASTFM_API_SECRET,
-/// WAVE_LASTFM_SESSION_KEY (сессия получается через auth.getSession после
-/// авторизации пользователя на last.fm).
-fn lfm_env(name: &str) -> Option<String> {
-    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+/// Креды берутся из env (WAVE_LASTFM_API_KEY / _SECRET / _SESSION_KEY)
+/// или из персистентного конфига (Настройки → API keys).
+
+pub struct LastFmCreds {
+    pub api_key: String,
+    pub api_secret: String,
+    pub session_key: String,
 }
 
 fn md5_hex(s: &str) -> String {
     format!("{:x}", md5::compute(s.as_bytes()))
 }
 
-/// Скробблинг настроен: ключ + секрет + session key.
-pub fn scrobble_enabled() -> bool {
-    lfm_env("WAVE_LASTFM_API_KEY").is_some()
-        && lfm_env("WAVE_LASTFM_API_SECRET").is_some()
-        && lfm_env("WAVE_LASTFM_SESSION_KEY").is_some()
+fn env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+}
+
+/// Креды: env имеет приоритет над сохранённым конфигом.
+pub fn creds(app: &tauri::AppHandle) -> Option<LastFmCreds> {
+    let persisted = crate::read_persisted_config(app);
+    let get = |key: &str| {
+        env(key).or_else(|| crate::get_string(&persisted, key))
+    };
+    Some(LastFmCreds {
+        api_key: get("WAVE_LASTFM_API_KEY")?,
+        api_secret: get("WAVE_LASTFM_API_SECRET")?,
+        session_key: get("WAVE_LASTFM_SESSION_KEY")?,
+    })
+}
+
+/// Скробблинг настроен и включён. Выключить можно через
+/// WAVE_LASTFM_SCROBBLE_ENABLED=0 (env или конфиг).
+pub fn scrobble_enabled(app: &tauri::AppHandle) -> bool {
+    if creds(app).is_none() {
+        return false;
+    }
+    let persisted = crate::read_persisted_config(app);
+    let toggle = env("WAVE_LASTFM_SCROBBLE_ENABLED")
+        .or_else(|| crate::get_string(&persisted, "WAVE_LASTFM_SCROBBLE_ENABLED"));
+    !matches!(toggle.as_deref(), Some("0") | Some("false") | Some("False") | Some("FALSE"))
 }
 
 /// Подписанный POST на audioscrobbler. Подпись = md5(конкатенация
 /// «name+value» всех параметров (кроме format/api_sig) в алфавитном порядке + secret).
-pub async fn lfm_post(method: &str, params: &[(String, String)]) -> Result<(), String> {
-    let api_key = lfm_env("WAVE_LASTFM_API_KEY").ok_or("WAVE_LASTFM_API_KEY not set")?;
-    let secret = lfm_env("WAVE_LASTFM_API_SECRET").ok_or("WAVE_LASTFM_API_SECRET not set")?;
-    let sk = lfm_env("WAVE_LASTFM_SESSION_KEY").ok_or("WAVE_LASTFM_SESSION_KEY not set")?;
-
+pub async fn lfm_post(
+    method: &str,
+    params: &[(String, String)],
+    creds: &LastFmCreds,
+) -> Result<(), String> {
     let mut pairs: Vec<(String, String)> = params.to_vec();
-    pairs.push(("api_key".into(), api_key));
+    pairs.push(("api_key".into(), creds.api_key.clone()));
     pairs.push(("method".into(), method.to_string()));
-    pairs.push(("sk".into(), sk));
+    pairs.push(("sk".into(), creds.session_key.clone()));
     pairs.sort();
 
     let sig_input = pairs
         .iter()
         .map(|(k, v)| format!("{k}{v}"))
         .collect::<String>()
-        + &secret;
+        + &creds.api_secret;
     let api_sig = md5_hex(&sig_input);
     pairs.push(("format".into(), "json".into()));
     pairs.push(("api_sig".into(), api_sig));
 
-    let client = reqwest::Client::new();
-    let res = client
+    let res = crate::http::client()
         .post("https://ws.audioscrobbler.com/2.0/")
         .form(&pairs)
         .send()

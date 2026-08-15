@@ -1,6 +1,7 @@
 pub mod android;
 mod http;
 pub mod lastfm;
+#[cfg(target_os = "linux")]
 pub mod mpris;
 mod tools;
 
@@ -37,14 +38,14 @@ fn persisted_config_path(app: &tauri::AppHandle) -> std::path::PathBuf {
         .join("wave-config.json")
 }
 
-fn read_persisted_config(app: &tauri::AppHandle) -> serde_json::Value {
+pub(crate) fn read_persisted_config(app: &tauri::AppHandle) -> serde_json::Value {
     std::fs::read_to_string(persisted_config_path(app))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or(serde_json::Value::Null)
 }
 
-fn get_string(json: &serde_json::Value, key: &str) -> Option<String> {
+pub(crate) fn get_string(json: &serde_json::Value, key: &str) -> Option<String> {
     json.get(key)
         .and_then(|v| v.as_str())
         .filter(|s| !s.trim().is_empty())
@@ -78,7 +79,7 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
             .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_SECRET")),
         lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY")
             .or_else(|| get_string(&persisted, "WAVE_LASTFM_SESSION_KEY")),
-        lastfm_scrobble_enabled: lastfm::scrobble_enabled(),
+        lastfm_scrobble_enabled: lastfm::scrobble_enabled(&app),
     }
 }
 
@@ -89,7 +90,13 @@ fn save_app_config(app: tauri::AppHandle, config: serde_json::Value) -> Result<(
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    std::fs::write(&path, config.to_string()).map_err(|e| format!("save config: {e}"))
+    std::fs::write(&path, config.to_string()).map_err(|e| format!("save config: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
 }
 
 fn resolve_api_token(app: &tauri::AppHandle) -> String {
@@ -110,6 +117,11 @@ fn resolve_api_token(app: &tauri::AppHandle) -> String {
     let token = random_token();
     let _ = std::fs::create_dir_all(&dir);
     let _ = std::fs::write(&file, &token);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600));
+    }
     token
 }
 
@@ -261,7 +273,7 @@ async fn http_fetch_json(
     body: Option<serde_json::Value>,
     headers: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = crate::http::client();
     let mut builder = match method.as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
@@ -276,14 +288,16 @@ async fn http_fetch_json(
         builder = builder.header(k, v);
     }
     if let Some(b) = body {
-        if form_content_type && b.is_object() {
-            let params: Vec<(String, String)> = b
-                .as_object()
-                .unwrap()
-                .iter()
-                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
-                .collect();
-            builder = builder.form(&params);
+        if let Some(obj) = b.as_object() {
+            if form_content_type {
+                let params: Vec<(String, String)> = obj
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                    .collect();
+                builder = builder.form(&params);
+            } else {
+                builder = builder.json(&b);
+            }
         } else {
             builder = builder.json(&b);
         }
@@ -310,7 +324,7 @@ async fn http_fetch_text(
     body: Option<serde_json::Value>,
     headers: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = crate::http::client();
     let mut builder = match method.as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
@@ -355,7 +369,7 @@ async fn vk_search(
         ("is_regular", "1"),
         ("need_album_info", "1"),
     ];
-    let client = reqwest::Client::new();
+    let client = crate::http::client();
     let res = client
         .post("https://vk.com/al_audio.php")
         .header("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
@@ -447,9 +461,10 @@ pub fn run() {
             {
                 let token = resolve_api_token(app.handle());
                 http::server::start(app.handle().clone(), bridge.clone(), token);
+                #[cfg(target_os = "linux")]
                 mpris::start(app.handle().clone());
                 let handle = app.handle().clone();
-                tokio::spawn(async move {
+                tauri::async_runtime::spawn(async move {
                     let _ = tools::ensure(&handle).await;
                 });
             }
@@ -502,29 +517,36 @@ fn api_respond(
 
 #[tauri::command]
 async fn lastfm_update_now_playing(
+    app: tauri::AppHandle,
     title: String,
     artist: Option<String>,
     album: Option<String>,
     duration: Option<u32>,
 ) -> Result<(), String> {
+    let creds = lastfm::creds(&app)
+        .ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
     lastfm::lfm_post(
         "track.updateNowPlaying",
         &lastfm::track_params(title, artist, album, duration),
+        &creds,
     )
     .await
 }
 
 #[tauri::command]
 async fn lastfm_scrobble(
+    app: tauri::AppHandle,
     title: String,
     artist: Option<String>,
     album: Option<String>,
     duration: Option<u32>,
     timestamp: i64,
 ) -> Result<(), String> {
+    let creds = lastfm::creds(&app)
+        .ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
     let mut params = lastfm::track_params(title, artist, album, duration);
     params.push(("timestamp".to_string(), timestamp.to_string()));
-    lastfm::lfm_post("track.scrobble", &params).await
+    lastfm::lfm_post("track.scrobble", &params, &creds).await
 }
 
 #[tauri::command]
@@ -874,19 +896,16 @@ fn write_audio_tags(
     use lofty::tag::items::Timestamp;
     use lofty::tag::Accessor;
     let mut tagged = lofty::read_from_path(&path).map_err(|e| format!("read {path}: {e}"))?;
-    let mut owned_new_tag: Option<lofty::tag::Tag>;
     let tag = if let Some(t) = tagged.primary_tag_mut() {
         t
     } else if let Some(t) = tagged.first_tag_mut() {
         t
     } else {
         let new_tag = lofty::tag::Tag::new(lofty::tag::TagType::Id3v2);
-        owned_new_tag = Some(
-            tagged
-                .insert_tag(new_tag)
-                .ok_or_else(|| format!("cannot create tags for {path}"))?,
-        );
-        owned_new_tag.as_mut().expect("tag just inserted")
+        tagged.insert_tag(new_tag);
+        tagged
+            .first_tag_mut()
+            .ok_or_else(|| format!("cannot create tags for {path}"))?
     };
     if !title.is_empty() {
         tag.set_title(title);

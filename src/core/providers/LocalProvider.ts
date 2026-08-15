@@ -1,6 +1,7 @@
 import type { SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
+import { localPathFromUri } from "../library/m3u";
 
 export interface LocalFileMeta {
   path: string;
@@ -90,7 +91,8 @@ export class LocalProvider implements MusicProvider {
   }
 
   private toTrackFromUrl(url: string, index: number): Track {
-    const filename = decodeURIComponent(url.split("/").pop() ?? "track");
+    const path = localPathFromUri(url) ?? url;
+    const filename = path.split(/[\\/]/).filter(Boolean).pop() ?? "track";
     const fallbackTitle = filename.replace(/\.[^.]+$/, "") || filename;
     return {
       id: `local:${index}:${url}`,

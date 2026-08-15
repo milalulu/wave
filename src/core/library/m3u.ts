@@ -1,18 +1,29 @@
 import type { Track } from "../types";
 
-export function localUri(path: string): string {
-  return `asset://localhost/${path
+export type LocalUriFn = (path: string) => string;
+
+const assetSchemeLocalUri: LocalUriFn = (path) =>
+  `asset://localhost/${path
     .split("/")
     .filter((s) => s.length > 0)
     .map(encodeURIComponent)
     .join("/")}`;
+
+export function localUri(path: string, toUri: LocalUriFn = assetSchemeLocalUri): string {
+  return toUri(path);
 }
 
 export function localPathFromUri(uri: string): string | null {
-  if (!uri.startsWith("asset://localhost/")) return null;
-  const raw = uri.slice("asset://localhost/".length);
-  const decoded = raw.split("/").map(decodeURIComponent).join("/");
-  return decoded.startsWith("/") ? decoded : `/${decoded}`;
+  if (uri.startsWith("http://asset.localhost/")) {
+    const decoded = decodeURIComponent(uri.slice("http://asset.localhost/".length));
+    return decoded.length > 0 ? decoded : null;
+  }
+  if (uri.startsWith("asset://localhost/")) {
+    const raw = uri.slice("asset://localhost/".length);
+    const decoded = raw.split("/").map(decodeURIComponent).join("/");
+    return decoded.startsWith("/") ? decoded : `/${decoded}`;
+  }
+  return null;
 }
 
 /** Сборка M3U: EXTINF (длительность, артист - трек) + путь/URL. */
@@ -32,7 +43,7 @@ export function buildM3U(tracks: Track[]): string {
 }
 
 /** Разбор M3U в локальные треки (пути из файла). */
-export function parseM3U(text: string): Track[] {
+export function parseM3U(text: string, toUri: LocalUriFn = assetSchemeLocalUri): Track[] {
   const tracks: Track[] = [];
   let pending: { duration?: number; label?: string } | null = null;
   for (const raw of text.split(/\r?\n/)) {
@@ -58,7 +69,12 @@ export function parseM3U(text: string): Track[] {
     tracks.push({
       id: `local:${line}`,
       provider: "local",
-      uri: line.startsWith("asset://") ? line : line.startsWith("/") ? localUri(line) : line,
+      uri:
+        line.startsWith("asset://") || line.startsWith("http://asset.localhost/")
+          ? line
+          : line.startsWith("/")
+            ? toUri(line)
+            : line,
       title: title || line.split("/").pop() || line,
       artist,
       duration: pending?.duration,

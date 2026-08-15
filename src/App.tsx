@@ -1,20 +1,35 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "./app/stores";
 import { Sidebar } from "./ui/Sidebar";
 import { PlayerBar } from "./ui/PlayerBar";
-import { HomeView } from "./ui/HomeView";
-import { NowPlayingView } from "./ui/NowPlayingView";
-import { SearchView } from "./ui/SearchView";
-import { LibraryView } from "./ui/LibraryView";
-import { QueueView } from "./ui/QueueView";
-import { WaveView } from "./ui/WaveView";
-import { AlbumDetailView } from "./ui/AlbumDetailView";
-import { ArtistDetailView } from "./ui/ArtistDetailView";
-import { PlaylistView } from "./ui/PlaylistView";
-import { DownloadsView } from "./ui/DownloadsView";
-import { SettingsView } from "./ui/SettingsView";
 import { Toasts } from "./ui/Toasts";
+
+const HomeView = lazy(() => import("./ui/HomeView").then((m) => ({ default: m.HomeView })));
+const NowPlayingView = lazy(() =>
+  import("./ui/NowPlayingView").then((m) => ({ default: m.NowPlayingView })),
+);
+const SearchView = lazy(() => import("./ui/SearchView").then((m) => ({ default: m.SearchView })));
+const LibraryView = lazy(() =>
+  import("./ui/LibraryView").then((m) => ({ default: m.LibraryView })),
+);
+const QueueView = lazy(() => import("./ui/QueueView").then((m) => ({ default: m.QueueView })));
+const WaveView = lazy(() => import("./ui/WaveView").then((m) => ({ default: m.WaveView })));
+const AlbumDetailView = lazy(() =>
+  import("./ui/AlbumDetailView").then((m) => ({ default: m.AlbumDetailView })),
+);
+const ArtistDetailView = lazy(() =>
+  import("./ui/ArtistDetailView").then((m) => ({ default: m.ArtistDetailView })),
+);
+const PlaylistView = lazy(() =>
+  import("./ui/PlaylistView").then((m) => ({ default: m.PlaylistView })),
+);
+const DownloadsView = lazy(() =>
+  import("./ui/DownloadsView").then((m) => ({ default: m.DownloadsView })),
+);
+const SettingsView = lazy(() =>
+  import("./ui/SettingsView").then((m) => ({ default: m.SettingsView })),
+);
 
 function App() {
   const ready = useApp((s) => s.ready);
@@ -104,17 +119,19 @@ function App() {
     <div className="app">
       <Sidebar view={view} onView={setView} />
       <main className="content">
-        {view === "home" && <HomeView onNavigate={setView} />}
-        {view === "nowPlaying" && <NowPlayingView onNavigate={setView} />}
-        {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
-        {view === "library" && <LibraryView />}
-        {view === "queue" && <QueueView />}
-        {view === "wave" && <WaveView />}
-        {view === "album" && <AlbumDetailView />}
-        {view === "artist" && <ArtistDetailView />}
-        {view === "playlist" && <PlaylistView />}
-        {view === "downloads" && <DownloadsView />}
-        {view === "settings" && <SettingsView />}
+        <Suspense fallback={<div className="splash">Wave</div>}>
+          {view === "home" && <HomeView onNavigate={setView} />}
+          {view === "nowPlaying" && <NowPlayingView onNavigate={setView} />}
+          {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
+          {view === "library" && <LibraryView />}
+          {view === "queue" && <QueueView />}
+          {view === "wave" && <WaveView />}
+          {view === "album" && <AlbumDetailView />}
+          {view === "artist" && <ArtistDetailView />}
+          {view === "playlist" && <PlaylistView />}
+          {view === "downloads" && <DownloadsView />}
+          {view === "settings" && <SettingsView />}
+        </Suspense>
       </main>
       <PlayerBar onOpenQueue={() => setView("queue")} />
       <Toasts />

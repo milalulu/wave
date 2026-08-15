@@ -125,6 +125,68 @@ describe("PlayerEngine", () => {
     expect(engine.snapshot.state).toBe("idle");
   });
 
+  it("emits track event on restoreQueue", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    const seen: (string | null)[] = [];
+    engine.on("track", (t) => seen.push(t?.id ?? null));
+    await engine.restoreQueue([tracks[0]], 0);
+    expect(seen).toEqual(["a"]);
+  });
+
+  it("resolves uri on first play after restore when no source was preloaded", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => "u://resolved",
+    });
+    await engine.restoreQueue([tracks[0]], 0, 10);
+    expect(engine.snapshot.state).toBe("paused");
+    await engine.play();
+    expect(adapter.src).toBe("u://resolved");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("does not auto-play or retry on load error while paused (restore)", async () => {
+    const adapter = new MockAudioAdapter();
+    const resolved: string[] = [];
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        resolved.push(t.id);
+        return "u://fresh";
+      },
+    });
+    await engine.restoreQueue(
+      [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
+      0,
+    );
+    adapter.fail("audio error code 4");
+    expect(resolved).toEqual([]);
+    expect(engine.snapshot.state).toBe("paused");
+    expect(adapter.src).toBe("https://www.youtube.com/watch?v=x");
+    engine.destroy();
+  });
+
+  it("re-resolves stale uri when play fails after restore", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => "u://fresh",
+    });
+    await engine.restoreQueue(
+      [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
+      0,
+    );
+    const orig = adapter.play;
+    adapter.play = async () => {
+      if (adapter.src.startsWith("https://www.youtube.com/")) {
+        throw new Error("not supported");
+      }
+      return orig.call(adapter);
+    };
+    await engine.play();
+    expect(adapter.src).toBe("u://fresh");
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
   it("autoplays more tracks when queue ends", async () => {
     const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
     const adapter = new MockAudioAdapter();

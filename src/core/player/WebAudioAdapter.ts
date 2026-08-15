@@ -324,6 +324,9 @@ export class WebAudioAdapter implements AudioAdapter {
     const active = this.activeElement();
     const next = this.inactiveElement();
     if (!active.currentSrc || !next) return;
+    // Неактивный элемент играет — идёт кроссфейд на него; перезаписывать
+    // src сейчас нельзя (прервёт переход). Пропускаем предзагрузку.
+    if (!next.paused) return;
     if (this.preloadedUri === src) return;
     this.preloadedUri = src;
     next.volume = this.masterVolume;

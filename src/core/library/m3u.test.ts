@@ -36,4 +36,26 @@ describe("m3u", () => {
     expect(localPathFromUri(localUri("/home/user/my song.mp3"))).toBe("/home/user/my song.mp3");
     expect(localPathFromUri("https://example.com/x")).toBeNull();
   });
+
+  it("localPathFromUri: Windows convertFileSrc (http://asset.localhost)", () => {
+    expect(
+      localPathFromUri("http://asset.localhost/C%3A%5CUsers%5Cme%5CMusic%5Csong.mp3"),
+    ).toBe("C:\\Users\\me\\Music\\song.mp3");
+  });
+
+  it("localPathFromUri: Android convertFileSrc (http://asset.localhost, %2F)", () => {
+    expect(
+      localPathFromUri("http://asset.localhost/%2Fstorage%2Femulated%2F0%2FMusic%2Fsong.mp3"),
+    ).toBe("/storage/emulated/0/Music/song.mp3");
+  });
+
+  it("parseM3U оставляет http://asset.localhost строки как есть", () => {
+    const tracks = parseM3U(
+      "#EXTM3U\nhttp://asset.localhost/C%3A%5CUsers%5Cme%5CMusic%5Csong.mp3",
+    );
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].uri).toBe(
+      "http://asset.localhost/C%3A%5CUsers%5Cme%5CMusic%5Csong.mp3",
+    );
+  });
 });

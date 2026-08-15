@@ -33,6 +33,7 @@ interface AppConfigResult {
   lastfmApiKey?: string | null;
   lastfmApiSecret?: string | null;
   lastfmSessionKey?: string | null;
+  lastfmScrobbleEnabled?: boolean;
 }
 
 interface ToolsStatus {
@@ -63,6 +64,7 @@ function fromRust(cfg: AppConfigResult): Record<string, string> {
     WAVE_LASTFM_API_KEY: cfg.lastfmApiKey ?? "",
     WAVE_LASTFM_API_SECRET: cfg.lastfmApiSecret ?? "",
     WAVE_LASTFM_SESSION_KEY: cfg.lastfmSessionKey ?? "",
+    WAVE_LASTFM_SCROBBLE_ENABLED: cfg.lastfmScrobbleEnabled ? "1" : "0",
   };
   return map;
 }
@@ -175,6 +177,8 @@ export function SettingsView() {
       const v = (config[key] ?? "").trim();
       if (v) payload[key] = v;
     }
+    payload["WAVE_LASTFM_SCROBBLE_ENABLED"] =
+      config["WAVE_LASTFM_SCROBBLE_ENABLED"] === "1" ? "1" : "0";
     setBlockedProviders(blocked);
     setPreferredProviders(preferred);
     try {
@@ -304,6 +308,19 @@ export function SettingsView() {
                 ? t("settings").lastfmStatusEnabled
                 : t("settings").lastfmStatusDisabled}
             </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={config["WAVE_LASTFM_SCROBBLE_ENABLED"] === "1"}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    WAVE_LASTFM_SCROBBLE_ENABLED: e.target.checked ? "1" : "0",
+                  }))
+                }
+              />
+              <span>{t("settings").lastfmScrobbleToggle}</span>
+            </label>
           </div>
         </SettingsCard>
 

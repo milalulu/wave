@@ -75,7 +75,7 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
         activityRef.contentResolver.openInputStream(uri)?.use { input ->
           FileOutputStream(target).use { output -> input.copyTo(output) }
         }
-        val url = "asset://localhost" + Uri.encode(target.absolutePath, "/")
+        val url = "http://asset.localhost/" + Uri.encode(target.absolutePath)
         paths.add(url)
       } catch (_: Exception) {
         // пропускаем непрочитанные файлы

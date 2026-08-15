@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https:; media-src 'self' asset: blob: https:; font-src 'self' data:; connect-src 'self' asset: blob: https:; object-src 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost blob: https:; font-src 'self' data:; connect-src 'self' asset: http://asset.localhost blob: https:; object-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

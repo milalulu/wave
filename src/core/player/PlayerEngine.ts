@@ -62,6 +62,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   /** Авто-фолбэк на вариант (другой источник) при ошибке воспроизведения. */
   private fallback?: () => Track | null;
   private fallbackUsed = false;
+  /** Загружен ли источник в адаптер (иначе play() сначала резолвит URI). */
+  private hasSource = false;
 
   constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
     super();
@@ -161,11 +163,14 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (uri) {
       try {
         this.adapter.load(uri);
+        this.hasSource = true;
         if (position > 0) this.adapter.seek(position);
       } catch {
         // пере-резолвится при play()
+        this.hasSource = false;
       }
     }
+    this.emit("track", track);
     this.emitQueue();
   }
 
@@ -192,9 +197,17 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.setState("loading");
     }
     try {
-      await this.playWithGuard();
+      // После restore у треков без прямого uri (yt/soundcloud/lastfm) источника
+      // в адаптере нет — резолвим и загружаем его перед play().
+      if (this.hasSource) {
+        await this.playWithGuard();
+      } else {
+        await this.playCurrent();
+      }
     } catch (err) {
-      this.emit("error", err instanceof Error ? err.message : String(err));
+      // play() упал (протухший/неверный src) — сразу пере-резолвим поток,
+      // не дожидаясь stall-таймера.
+      this.onLoadError(err instanceof Error ? err.message : String(err), this.playSeq);
     }
   }
 
@@ -239,6 +252,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private stopAtEnd(): void {
     this.adapter.pause();
+    this.hasSource = false;
     this.queue.clear();
     this.emit("queue", { queue: [], index: -1, history: [] });
   }
@@ -328,6 +342,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   clearQueue(): void {
     this.queue.clear();
+    this.hasSource = false;
     this.adapter.pause();
     this.setState("idle");
     this.emit("track", null);
@@ -352,6 +367,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   /** Ошибка загрузки/стрима: пере-резолв (срок жизни URL истекает), затем error. */
   private onLoadError(message: string, seq: number): void {
     if (seq !== this.playSeq || !this.queue.current()) return;
+    // Ошибка в паузе — это фоновая (например, восстановление очереди после
+    // рестарта с протухшим uri). Не трогаем машину и не начинаем играть сами.
+    if (this.state === "paused") return;
     if (this.resolveUri && this.retries < this.maxRetries) {
       this.retries += 1;
       void this.startTrack(seq);
@@ -389,6 +407,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
       if (seq !== this.playSeq) return;
       this.adapter.load(uri);
+      this.hasSource = true;
       this.duration = track.duration ?? 0;
       await this.playWithGuard();
     } catch (err) {
@@ -406,16 +425,23 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
    */
   private async playWithGuard(): Promise<void> {
     let settled = false;
-    const play = this.adapter.play().catch((err: unknown) => {
-      if (settled) return;
-      throw err;
-    });
+    let timer: number | undefined;
     const timeout = new Promise<void>((resolve) => {
-      globalThis.setTimeout(() => {
+      timer = globalThis.setTimeout(() => {
         settled = true;
         resolve();
       }, PLAY_START_TIMEOUT_MS);
     });
+    const play = this.adapter.play().then(
+      () => {
+        if (timer !== undefined) globalThis.clearTimeout(timer);
+      },
+      (err: unknown) => {
+        if (timer !== undefined) globalThis.clearTimeout(timer);
+        if (settled) return;
+        throw err;
+      },
+    );
     await Promise.race([play, timeout]);
   }
 

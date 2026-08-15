@@ -164,6 +164,7 @@ export interface Translations {
     testAll: string;
     lastfmStatusEnabled: string;
     lastfmStatusDisabled: string;
+    lastfmScrobbleToggle: string;
     test: string;
     testing: string;
     testOK: string;
@@ -438,6 +439,7 @@ const translations: Record<Locale, Translations> = {
       testAll: "Test all platforms",
       lastfmStatusEnabled: "Last.fm scrobbling: enabled (now playing + scrobble)",
       lastfmStatusDisabled: "Last.fm scrobbling: disabled. Set Key, Secret and Session Key.",
+      lastfmScrobbleToggle: "Send now-playing and scrobble plays to Last.fm",
       test: "Test",
       testing: "...",
       testOK: "✓ OK",
@@ -710,6 +712,7 @@ const translations: Record<Locale, Translations> = {
       testAll: "Проверить все площадки",
       lastfmStatusEnabled: "Last.fm скробблинг: включён (now playing + scrobble)",
       lastfmStatusDisabled: "Last.fm скробблинг: выключен. Укажите Key, Secret и Session Key.",
+      lastfmScrobbleToggle: "Отправлять now-playing и скробблить прослушивания на Last.fm",
       test: "Тест",
       testing: "...",
       testOK: "✓ OK",

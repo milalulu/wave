@@ -1,3 +1,4 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Track } from "../core/types";
 
 const DL_KEY = "wave-downloads";
@@ -76,9 +77,5 @@ export function localUriFor(track: Track): string | null {
   });
   const file = candidates[0]?.file;
   if (!file) return null;
-  return `asset://localhost/${file
-    .split("/")
-    .filter((s) => s.length > 0)
-    .map(encodeURIComponent)
-    .join("/")}`;
+  return convertFileSrc(file);
 }

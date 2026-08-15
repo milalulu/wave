@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
@@ -76,7 +76,7 @@ export function PlaylistView() {
       if (file.toLowerCase().endsWith(".json")) {
         tracks = parseJSON(text);
       } else {
-        tracks = parseM3U(text);
+        tracks = parseM3U(text, convertFileSrc);
       }
       if (!tracks || tracks.length === 0) {
         notify(t("toasts").importEmpty);

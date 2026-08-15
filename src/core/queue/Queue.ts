@@ -70,13 +70,17 @@ export class Queue {
 
   append(track: Track): void {
     this.tracks.push(track);
-    const cur = this.current();
-    this.rebuildOrder();
-    if (cur) {
-      const idx = this.tracks.indexOf(cur);
-      this.pos = idx >= 0 ? this.order.indexOf(idx) : -1;
+    const newIdx = this.tracks.length - 1;
+    const hasCurrent = this.current() !== null;
+    if (hasCurrent && this.shuffle) {
+      // В shuffle новый трек встаёт на случайную позицию в несыгранном хвосте,
+      // чтобы доливка очереди не перетасовывала уже выстроенный порядок.
+      const tailStart = this.pos + 1;
+      const count = this.order.length - tailStart + 1;
+      const insertPos = tailStart + Math.floor(this.rng() * count);
+      this.order.splice(insertPos, 0, newIdx);
     } else {
-      this.pos = -1;
+      this.order.push(newIdx);
     }
   }
 
@@ -84,7 +88,6 @@ export class Queue {
     if (trackIndex < 0 || trackIndex >= this.tracks.length) return null;
     const currentTrack = this.current();
     const removingCurrent = trackIndex === this.currentIndex();
-    const wasBeforeCursor = !removingCurrent && this.isBeforeCursor(trackIndex);
     const [removed] = this.tracks.splice(trackIndex, 1);
     this.rebuildOrder();
     if (this.tracks.length === 0) {
@@ -94,8 +97,6 @@ export class Queue {
     const curIndex = currentTrack ? this.tracks.indexOf(currentTrack) : -1;
     if (removingCurrent || curIndex < 0) {
       this.pos = 0;
-    } else if (wasBeforeCursor) {
-      this.pos = Math.min(this.pos, this.order.length - 1);
     } else {
       this.pos = this.order.indexOf(curIndex);
       if (this.pos < 0) this.pos = 0;
@@ -207,13 +208,12 @@ export class Queue {
     }
   }
 
-  private isBeforeCursor(trackIndex: number): boolean {
-    const orderPos = this.order.indexOf(trackIndex);
-    return orderPos >= 0 && orderPos < this.pos;
-  }
-
   private recordHistory(): void {
     const current = this.current();
-    if (current) this.history.push(current);
+    if (!current) return;
+    const last = this.history[this.history.length - 1];
+    if (last?.id === current.id) return;
+    this.history.push(current);
+    if (this.history.length > 100) this.history.shift();
   }
 }

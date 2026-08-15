@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SqliteStorage } from "./SqliteStorage";
 import type { Storage } from "../core/database/Storage";
@@ -48,12 +48,7 @@ const localSource: LocalSource = {
     return typeof result === "string" ? result : null;
   },
   listMusicFiles: async (dir) => invoke("list_music_files", { dir }),
-  toUri: (path) =>
-    `asset://localhost/${path
-      .split("/")
-      .filter((s) => s.length > 0)
-      .map(encodeURIComponent)
-      .join("/")}`,
+  toUri: (path) => convertFileSrc(path),
   pickAudioFiles: IS_ANDROID ? async () => invoke<string[]>("pick_local_audio") : undefined,
 };
 
