@@ -129,7 +129,12 @@ jobs:
           key: android-gradle-${{ hashFiles('src-tauri/gen/android/**/*.kts') }}
 
       - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+        run: |
+          if ! cargo ndk --version >/dev/null 2>&1; then
+            cargo install cargo-ndk --locked
+          else
+            echo "cargo-ndk already installed, skipping"
+          fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
