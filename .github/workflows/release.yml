@@ -170,7 +170,7 @@ jobs:
           prerelease: false
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
-          args: build --apk --target aarch64 armv7
+          args: --apk --target aarch64 armv7
 
       - name: Verify APK signatures
         shell: bash
