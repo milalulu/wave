@@ -167,8 +167,6 @@ async fn ensure_ytdlp(app: &tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
-    use std::io::Read;
-
     let dest = ffmpeg_path(app);
     if ffmpeg_ready(app) {
         return Ok(());

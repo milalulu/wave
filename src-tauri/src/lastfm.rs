@@ -3,7 +3,6 @@ use serde_json::json;
 /// Скробблинг Last.fm: подписанные запросы (md5) к audioscrobbler.
 /// Креды берутся из env (WAVE_LASTFM_API_KEY / _SECRET / _SESSION_KEY)
 /// или из персистентного конфига (Настройки → API keys).
-
 pub struct LastFmCreds {
     pub api_key: String,
     pub api_secret: String,

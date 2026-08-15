@@ -79,7 +79,7 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
             .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_SECRET")),
         lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY")
             .or_else(|| get_string(&persisted, "WAVE_LASTFM_SESSION_KEY")),
-        lastfm_scrobble_enabled: lastfm::scrobble_enabled(&app),
+        lastfm_scrobble_enabled: lastfm::scrobble_enabled(app),
     }
 }
 
