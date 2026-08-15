@@ -509,10 +509,7 @@ fn relaunch(app: tauri::AppHandle) {
 /// на остальных платформах команда существует как no-op, чтобы
 /// invoke_handler компилировался для всех таргетов.
 #[tauri::command]
-async fn mpris_update(
-    app: tauri::AppHandle,
-    state_json: serde_json::Value,
-) -> Result<(), String> {
+async fn mpris_update(app: tauri::AppHandle, state_json: serde_json::Value) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         mpris::mpris_update(app, state_json).await
