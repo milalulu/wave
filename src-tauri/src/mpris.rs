@@ -336,7 +336,8 @@ pub fn start(app: AppHandle) {
 }
 
 /// Обновить состояние плеера из фронтенда и уведомить DE (PropertiesChanged).
-#[tauri::command]
+/// Вызывается из кросс-платформенной команды `mpris_update` (lib.rs), чтобы
+/// не дублировать генерацию `#[tauri::command]` для одного имени.
 pub async fn mpris_update(
     app: tauri::AppHandle,
     state_json: serde_json::Value,
