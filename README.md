@@ -17,10 +17,10 @@
 | **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_amd64.deb) |
 | **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.5-1.x86_64.rpm) |
 | **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_amd64.AppImage) |
-| **Android** | [APK в релизах](https://github.com/milalulu/wave/releases) |
+| **Android** | [APK arm64](https://github.com/milalulu/wave/releases/latest/download/wave-android-arm64.apk) · [APK armv7](https://github.com/milalulu/wave/releases/latest/download/wave-android-armv7.apk) |
 | **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
 
-> Обновления внутри приложения устанавливаются автоматически (Tauri updater). macOS и Android пока не собираются.
+> Обновления внутри приложения устанавливаются автоматически (Tauri updater). Android APK собирается и публикуется без секретов (debug-подпись); для Play Store нужен keystore. macOS пока не собирается.
 > Ссылки ведут на последний релиз; при выпуске новой версии обновите имя файла в URL (номер версии входит в имя файла).
 
 ---

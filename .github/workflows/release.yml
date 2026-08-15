@@ -185,6 +185,27 @@ jobs:
               "$APKSIGNER" verify --verbose --print-certs "$apk"
             done
 
+      # Гарантированно публикуем APK в релиз со стабильными именами.
+      # Секреты не нужны: без keystore.properties сборка подписывается debug-ключом
+      # (см. signingConfig в build.gradle.kts) и APK можно скачивать и ставить.
+      - name: Upload APKs with stable names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          cd src-tauri/gen/android/app/build/outputs/apk
+          for apk in $(find . -name '*.apk'); do
+            case "$apk" in
+              *arm64*) name="wave-android-arm64.apk" ;;
+              *armeabi*) name="wave-android-armv7.apk" ;;
+              *) name="wave-android-$(basename "$apk")" ;;
+            esac
+            cp "$apk" "$name"
+            gh release upload "${{ github.ref_name }}" "$name" --clobber
+            echo "uploaded $name"
+          done
+
   macos-publish:
     permissions:
       contents: write
