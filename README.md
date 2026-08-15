@@ -13,10 +13,10 @@
 
 | Платформа | Установщик |
 |---|---|
-| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_x64-setup.exe) |
-| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_amd64.deb) |
-| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.5-1.x86_64.rpm) |
-| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.5_amd64.AppImage) |
+| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_x64-setup.exe) |
+| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_amd64.deb) |
+| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.6-1.x86_64.rpm) |
+| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_amd64.AppImage) |
 | **Android** | [APK (universal, arm64 + armv7)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk) |
 | **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
 
@@ -100,8 +100,8 @@ pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
 CI собирает установщики автоматически при пуше git-тега `v*`:
 
 ```bash
-git tag v0.1.5
-git push origin v0.1.5
+git tag v0.1.6
+git push origin v0.1.6
 ```
 
 Релиз создаётся как **черновик** — проверьте артефакты и опубликуйте вручную. Для подписи сборок задайте в настройках репозитория (Settings → Secrets and variables → Actions) секреты:
