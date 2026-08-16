@@ -1,9 +1,18 @@
 /** Настройки источников: какие площадки отключены и в каком порядке предпочтений. */
 
+import type { SearchResults } from "../core/types";
+
 const BLOCKED_KEY = "wave-blocked-providers";
 const PREFERRED_KEY = "wave-preferred-providers";
 const BLOCKED_TRACKS_KEY = "wave-blocked-tracks";
 const BLOCKED_ARTISTS_KEY = "wave-blocked-artists";
+const EXCLUDE_PREVIEWS_KEY = "wave-exclude-previews";
+
+/**
+ * Площадки, которые отдают только 30-секундные превью (полный трек не играет).
+ * Используется как запасной признак для треков из старых очередей/кеша без meta.
+ */
+const PREVIEW_ONLY_PROVIDERS = new Set(["itunes", "deezer"]);
 
 /** Известные площадки (для UI настроек и фильтрации). */
 export const KNOWN_PROVIDERS = [
@@ -53,6 +62,48 @@ export function setPreferredProviders(ids: string[]): void {
 
 export function isBlockedProvider(id: string): boolean {
   return getBlockedProviders().includes(id);
+}
+
+/**
+ * Трек, который можно сыграть только как превью (не полностью): либо явно
+ * помечен провайдером (meta.preview), либо площадка принципиально отдаёт
+ * только превью (iTunes/Deezer).
+ */
+export function isPreviewTrack(track: { provider: string; meta?: Record<string, unknown> }): boolean {
+  if (track.meta?.preview === true) return true;
+  return PREVIEW_ONLY_PROVIDERS.has(track.provider);
+}
+
+/** Не искать треки, которые не могут проиграться полностью (превью). Включено по умолчанию. */
+export function isExcludePreviewsEnabled(): boolean {
+  try {
+    return localStorage.getItem(EXCLUDE_PREVIEWS_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setExcludePreviewsEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(EXCLUDE_PREVIEWS_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Отфильтровать результаты поиска от треков-превью, если фильтр включён.
+ * Альбомы и артисты не трогаем — они не проигрываются как превью.
+ */
+export function filterPreviewResults(
+  results: SearchResults[],
+  excludePreviews: boolean,
+): SearchResults[] {
+  if (!excludePreviews) return results;
+  return results.map((r) => {
+    if (!r.tracks.some((t) => isPreviewTrack(t))) return r;
+    return { ...r, tracks: r.tracks.filter((t) => !isPreviewTrack(t)) };
+  });
 }
 
 /** Отфильтровать список объектов провайдеров, убрав заблокированные. */

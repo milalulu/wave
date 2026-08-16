@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activeProviders,
+  filterPreviewResults,
   filterProviders,
   getBlockedArtists,
   getBlockedProviders,
   getBlockedTrackIds,
   isArtistBlocked,
   isBlockedProvider,
+  isExcludePreviewsEnabled,
+  isPreviewTrack,
   isTrackBlocked,
   orderProviders,
   setBlockedProviders,
+  setExcludePreviewsEnabled,
   toggleBlockedArtist,
   toggleBlockedTrack,
 } from "./platformSettings";
+import type { SearchResults, Track } from "../core/types";
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -110,5 +115,57 @@ describe("platformSettings track/artist blocking", () => {
   it("ignores empty artist names", () => {
     expect(toggleBlockedArtist("   ")).toBe(false);
     expect(isArtistBlocked()).toBe(false);
+  });
+});
+
+describe("platformSettings preview filter", () => {
+  const track = (id: string, provider: string, preview?: boolean): Track => ({
+    id,
+    provider,
+    uri: "x.mp3",
+    title: id,
+    ...(preview !== undefined ? { meta: { preview } } : {}),
+  });
+  const results = (tracks: Track[]): SearchResults[] => [
+    { provider: "a", tracks, albums: [], artists: [] },
+  ];
+
+  it("распознаёт превью по площадке (iTunes/Deezer)", () => {
+    expect(isPreviewTrack(track("1", "itunes"))).toBe(true);
+    expect(isPreviewTrack(track("2", "deezer"))).toBe(true);
+  });
+
+  it("распознаёт превью по meta.preview (Spotify с preview_url)", () => {
+    expect(isPreviewTrack(track("3", "spotify", true))).toBe(true);
+    expect(isPreviewTrack(track("4", "spotify"))).toBe(false);
+    expect(isPreviewTrack(track("5", "youtube"))).toBe(false);
+  });
+
+  it("фильтр убирает превью, но оставляет альбомы и артистов", () => {
+    const mixed: SearchResults[] = [
+      {
+        provider: "a",
+        tracks: [track("1", "itunes"), track("2", "youtube")],
+        albums: [{ id: "al1", provider: "a", title: "Album" }],
+        artists: [{ id: "ar1", provider: "a", name: "Artist" }],
+      },
+    ];
+    const filtered = filterPreviewResults(mixed, true);
+    expect(filtered[0].tracks.map((t) => t.id)).toEqual(["2"]);
+    expect(filtered[0].albums).toHaveLength(1);
+    expect(filtered[0].artists).toHaveLength(1);
+  });
+
+  it("при выключенном фильтре результаты не меняются", () => {
+    const input = results([track("1", "itunes"), track("2", "deezer")]);
+    expect(filterPreviewResults(input, false)).toEqual(input);
+  });
+
+  it("исключение превью включено по умолчанию и переключается", () => {
+    expect(isExcludePreviewsEnabled()).toBe(true);
+    setExcludePreviewsEnabled(false);
+    expect(isExcludePreviewsEnabled()).toBe(false);
+    setExcludePreviewsEnabled(true);
+    expect(isExcludePreviewsEnabled()).toBe(true);
   });
 });

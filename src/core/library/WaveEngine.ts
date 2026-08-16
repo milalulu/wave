@@ -128,15 +128,14 @@ export class SmartWaveSource implements WaveSource {
       item.weight = weight;
     }
 
-    const entries = [...pool.values()];
+    const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
     const result: Track[] = [];
     for (let i = 0; i < limit && entries.length > 0; i++) {
+      // Штраф разнообразия пересчитывается от базового веса на каждом пике,
+      // чтобы ранние выборы артиста не «навсегда» давили его вес.
       for (const item of entries) {
-        const artist = item.track.artist ?? "";
-        const already = chosenArtists.get(artist) ?? 0;
-        if (already > 0) {
-          item.weight = item.weight * 0.4 * Math.pow(0.5, already - 1);
-        }
+        const already = chosenArtists.get(item.track.artist ?? "") ?? 0;
+        item.weight = already > 0 ? item.base * 0.4 * Math.pow(0.5, already - 1) : item.base;
       }
       const total = entries.reduce((sum, e) => sum + e.weight, 0);
       let roll = this.rng() * total;
@@ -175,6 +174,12 @@ export class WaveEngine {
     this.blockFilter = fn;
   }
 
+  /** Исключить только что сыгранный трек из будущих волн. */
+  markPlayed(track: Track): void {
+    this.recentIds.add(track.id);
+    this.trimRecent();
+  }
+
   async generateWave(limit = 20): Promise<Track[]> {
     const likedTracks = await this.storage.getLikedTracks();
     const history = await this.storage.getHistory(100);
@@ -202,16 +207,19 @@ export class WaveEngine {
     for (const t of filtered) {
       this.recentIds.add(t.id);
     }
-    if (this.recentIds.size > this.recentCap) {
-      const toDrop = this.recentIds.size - this.recentCap;
-      let dropped = 0;
-      for (const id of this.recentIds) {
-        if (dropped >= toDrop) break;
-        this.recentIds.delete(id);
-        dropped++;
-      }
-    }
+    this.trimRecent();
     return filtered;
+  }
+
+  private trimRecent(): void {
+    if (this.recentIds.size <= this.recentCap) return;
+    const toDrop = this.recentIds.size - this.recentCap;
+    let dropped = 0;
+    for (const id of this.recentIds) {
+      if (dropped >= toDrop) break;
+      this.recentIds.delete(id);
+      dropped++;
+    }
   }
 
   private async fetchCandidates(
@@ -235,17 +243,16 @@ export class WaveEngine {
     };
 
     const top = [...genres.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
-    for (const [genre] of top) {
-      await collect(genre);
-    }
+    const queries: string[] = top.map(([genre]) => genre);
 
     const topArtist = [...artistCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
     if (topArtist) {
       const similar = await this.fetchSimilarArtists(topArtist);
-      for (const artist of similar.slice(0, 4)) {
-        await collect(artist);
-      }
+      queries.push(...similar.slice(0, 4));
     }
+
+    // Жанры и похожие артисты опрашиваются параллельно.
+    await Promise.all(queries.map((q) => collect(q)));
 
     return out.slice(0, limit * 2);
   }

@@ -11,8 +11,7 @@ export function ArtistDetailView() {
   const { t, tf } = useI18n();
   const artistDetail = useApp((s) => s.artistDetail);
   const play = useApp((s) => s.play);
-  const clearDetail = useApp((s) => s.clearDetail);
-  const setView = useApp((s) => s.setView);
+  const goBack = useApp((s) => s.goBack);
   const services = useApp((s) => s.services);
   const [similar, setSimilar] = useState<Track[]>([]);
 
@@ -51,7 +50,7 @@ export function ArtistDetailView() {
   return (
     <div className="detail-view artist-detail">
       <header className="detail-header">
-        <button className="back-btn" onClick={() => { clearDetail(); setView("search"); }}>
+        <button className="back-btn" onClick={goBack}>
           <BackIcon size={20} />
         </button>
         <div className="detail-cover">

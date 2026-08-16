@@ -9,8 +9,7 @@ export function AlbumDetailView() {
   const { t, tf } = useI18n();
   const albumDetail = useApp((s) => s.albumDetail);
   const play = useApp((s) => s.play);
-  const clearDetail = useApp((s) => s.clearDetail);
-  const setView = useApp((s) => s.setView);
+  const goBack = useApp((s) => s.goBack);
 
   if (!albumDetail) {
     return <div className="detail-view">{t("common").unknown}</div>;
@@ -30,7 +29,7 @@ export function AlbumDetailView() {
   return (
     <div className="detail-view album-detail">
       <header className="detail-header">
-        <button className="back-btn" onClick={() => { clearDetail(); setView("search"); }}>
+        <button className="back-btn" onClick={goBack}>
           <BackIcon size={20} />
         </button>
         <div className="detail-cover">

@@ -29,6 +29,7 @@ import type { Track } from "../core/types";
 afterEach(() => {
   useApp.setState({
     view: "home",
+    navStack: ["home"],
     playlists: [],
     selectedPlaylistId: null,
     notices: [],
@@ -71,6 +72,52 @@ describe("navigation", () => {
     useApp.setState({ view: "home" });
     useApp.getState().setView("album");
     expect(useApp.getState().view).toBe("album");
+  });
+
+  it("pushes sub-views onto the navigation stack and resets it on tabs", () => {
+    useApp.setState({ view: "home", navStack: ["home"] });
+    const { setView } = useApp.getState();
+    setView("album");
+    setView("artist");
+    expect(useApp.getState().navStack).toEqual(["home", "album", "artist"]);
+    setView("library");
+    expect(useApp.getState().navStack).toEqual(["library"]);
+    expect(useApp.getState().view).toBe("library");
+  });
+
+  it("does not duplicate the current top view", () => {
+    useApp.setState({ view: "home", navStack: ["home"] });
+    useApp.getState().setView("queue");
+    useApp.getState().setView("queue");
+    expect(useApp.getState().navStack).toEqual(["home", "queue"]);
+  });
+
+  it("goBack pops the stack and returns to the previous view", () => {
+    useApp.setState({ view: "home", navStack: ["home"] });
+    const { setView, goBack } = useApp.getState();
+    setView("album");
+    setView("artist");
+    goBack();
+    expect(useApp.getState().view).toBe("album");
+    expect(useApp.getState().navStack).toEqual(["home", "album"]);
+    goBack();
+    expect(useApp.getState().view).toBe("home");
+    expect(useApp.getState().navStack).toEqual(["home"]);
+  });
+
+  it("goBack is a no-op at the root tab", () => {
+    useApp.setState({ view: "home", navStack: ["home"] });
+    useApp.getState().goBack();
+    expect(useApp.getState().view).toBe("home");
+    expect(useApp.getState().navStack).toEqual(["home"]);
+  });
+
+  it("goBack clears the detail of the view being left", () => {
+    useApp.setState({ view: "home", navStack: ["home"], albumDetail: { album: { id: "a" } } as never });
+    useApp.getState().setView("album");
+    useApp.getState().goBack();
+    expect(useApp.getState().view).toBe("home");
+    expect(useApp.getState().albumDetail).toBeNull();
   });
 
   it("clearDetail resets album and artist details", () => {
@@ -175,6 +222,14 @@ describe("settings toggles", () => {
     expect(useApp.getState().autoContinue).toBe(true);
     useApp.getState().setOfflineMode(true);
     expect(useApp.getState().offlineMode).toBe(true);
+  });
+
+  it("excludePreviews включён по умолчанию и переключается", () => {
+    expect(useApp.getState().excludePreviews).toBe(true);
+    useApp.getState().setExcludePreviews(false);
+    expect(useApp.getState().excludePreviews).toBe(false);
+    useApp.getState().setExcludePreviews(true);
+    expect(useApp.getState().excludePreviews).toBe(true);
   });
 });
 

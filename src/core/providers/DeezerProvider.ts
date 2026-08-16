@@ -118,6 +118,7 @@ export class DeezerProvider implements MusicProvider {
       albumArtist: t.album?.artist?.name,
       coverUrl: t.album?.cover_medium,
       duration: t.duration,
+      meta: { preview: true },
     };
   }
 

@@ -29,7 +29,6 @@ import { DiagnosticsView } from "./DiagnosticsView";
 interface AppConfigResult {
   ytdlpPath?: string | null;
   ytdlpCookies?: string | null;
-  soundcloudClientId?: string | null;
   spotifyClientId?: string | null;
   spotifyClientSecret?: string | null;
   vkToken?: string | null;
@@ -49,7 +48,6 @@ interface ToolsStatus {
 const ENV_KEYS = [
   "WAVE_YTDLP_PATH",
   "WAVE_YTDLP_COOKIES",
-  "WAVE_SOUNDCLOUD_CLIENT_ID",
   "WAVE_SPOTIFY_CLIENT_ID",
   "WAVE_SPOTIFY_CLIENT_SECRET",
   "WAVE_VK_TOKEN",
@@ -62,7 +60,6 @@ function fromRust(cfg: AppConfigResult): Record<string, string> {
   const map: Record<string, string> = {
     WAVE_YTDLP_PATH: cfg.ytdlpPath ?? "",
     WAVE_YTDLP_COOKIES: cfg.ytdlpCookies ?? "",
-    WAVE_SOUNDCLOUD_CLIENT_ID: cfg.soundcloudClientId ?? "",
     WAVE_SPOTIFY_CLIENT_ID: cfg.spotifyClientId ?? "",
     WAVE_SPOTIFY_CLIENT_SECRET: cfg.spotifyClientSecret ?? "",
     WAVE_VK_TOKEN: cfg.vkToken ?? "",
@@ -95,6 +92,8 @@ export function SettingsView() {
   const setAutoContinue = useApp((s) => s.setAutoContinue);
   const offlineMode = useApp((s) => s.offlineMode);
   const setOfflineMode = useApp((s) => s.setOfflineMode);
+  const excludePreviews = useApp((s) => s.excludePreviews);
+  const setExcludePreviews = useApp((s) => s.setExcludePreviews);
   const theme = useApp((s) => s.theme);
   const setTheme = useApp((s) => s.setTheme);
   const lyricsAutoOpen = useApp((s) => s.lyricsAutoOpen);
@@ -244,7 +243,6 @@ export function SettingsView() {
     try {
       const providers = services.providers.filter((p) => {
         if (key === "WAVE_YTDLP_PATH") return p.id === "youtube";
-        if (key === "WAVE_SOUNDCLOUD_CLIENT_ID") return p.id === "soundcloud";
         if (key === "WAVE_SPOTIFY_CLIENT_ID") return p.id === "spotify";
         if (key === "WAVE_VK_TOKEN") return p.id === "vk";
         if (key === "WAVE_LASTFM_API_KEY") return p.id === "lastfm";
@@ -302,7 +300,6 @@ export function SettingsView() {
   const envKeys = [
     { key: "WAVE_YTDLP_PATH", label: "yt-dlp path", placeholder: "yt-dlp (or full path)", type: "text", test: true, detect: true },
     { key: "WAVE_YTDLP_COOKIES", label: "yt-dlp cookies", placeholder: "C:/path/to/cookies.txt or browser:chrome", type: "text" },
-    { key: "WAVE_SOUNDCLOUD_CLIENT_ID", label: "SoundCloud Client ID", placeholder: "pJ6Fj6roW2KRzWAOwGj6kkQ8VRBJjyBD", type: "text", test: true },
     { key: "WAVE_SPOTIFY_CLIENT_ID", label: "Spotify Client ID", placeholder: "...", type: "text", test: true },
     { key: "WAVE_SPOTIFY_CLIENT_SECRET", label: "Spotify Client Secret", placeholder: "...", type: "password", test: false },
     { key: "WAVE_VK_TOKEN", label: "VK Token (user, scope=audio)", placeholder: "...", type: "password", test: true },
@@ -498,6 +495,14 @@ export function SettingsView() {
             <label className="toggle-row">
               <input
                 type="checkbox"
+                checked={excludePreviews}
+                onChange={(e) => setExcludePreviews(e.target.checked)}
+              />
+              <span>{t("settings").excludePreviews}</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
                 checked={accentEnabled}
                 onChange={(e) => setAccentEnabled(e.target.checked)}
               />
@@ -520,6 +525,7 @@ export function SettingsView() {
               <span>{t("settings").offlineMode}</span>
             </label>
           </div>
+          <p className="muted">{t("settings").excludePreviewsDesc}</p>
           <p className="muted">{t("settings").accentFromCoverDesc}</p>
           <p className="muted">{t("settings").autoContinueDesc}</p>
           <p className="muted">{t("settings").offlineModeDesc}</p>

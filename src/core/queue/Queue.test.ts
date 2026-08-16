@@ -122,4 +122,23 @@ describe("Queue", () => {
     q.move(0, 9);
     expect(q.tracksList.map((t) => t.id)).toEqual(["a", "b", "c"]);
   });
+
+  it("replaceTrackFields updates every occurrence and reports change", () => {
+    const q = new Queue();
+    q.replace([...tracks, { ...tracks[0] }]);
+    const changed = q.replaceTrackFields("a", { title: "A*", artist: "X" });
+    expect(changed).toBe(true);
+    const occurrences = q.tracksList.filter((t) => t.id === "a");
+    expect(occurrences).toHaveLength(2);
+    for (const t of occurrences) {
+      expect(t.title).toBe("A*");
+      expect(t.artist).toBe("X");
+    }
+  });
+
+  it("replaceTrackFields returns false when id is absent", () => {
+    const q = new Queue();
+    q.replace(tracks);
+    expect(q.replaceTrackFields("missing", { title: "X" })).toBe(false);
+  });
 });

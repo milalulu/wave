@@ -25,7 +25,9 @@ import { findTrackVariants, type TrackVariant } from "./trackVariants";
 import { registerDownload, unregisterDownload, offlineEnabled, setOfflineEnabled } from "./offline";
 import {
   isArtistBlocked,
+  isExcludePreviewsEnabled,
   isTrackBlocked,
+  setExcludePreviewsEnabled,
   toggleBlockedArtist,
   toggleBlockedTrack,
 } from "./platformSettings";
@@ -73,6 +75,9 @@ interface AppState {
   reloadServices: () => Promise<void>;
   view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
   setView: (v: AppState["view"]) => void;
+  /** Стек навигации: табы сбрасывают его, под-вьюхи пушатся. */
+  navStack: AppState["view"][];
+  goBack: () => void;
   albumDetail: AlbumDetail | null;
   artistDetail: ArtistDetail | null;
   loadAlbum: (providerId: string, albumId: string) => Promise<void>;
@@ -137,6 +142,8 @@ interface AppState {
   setAutoContinue: (enabled: boolean) => void;
   offlineMode: boolean;
   setOfflineMode: (enabled: boolean) => void;
+  excludePreviews: boolean;
+  setExcludePreviews: (enabled: boolean) => void;
   accentEnabled: boolean;
   setAccentEnabled: (enabled: boolean) => void;
   theme: Theme;
@@ -166,6 +173,16 @@ const emptySnapshot: PlayerSnapshot = {
   history: [],
 };
 
+/** Корневые вкладки: переход на них сбрасывает стек навигации. */
+const TAB_VIEWS: ReadonlySet<AppState["view"]> = new Set([
+  "home",
+  "search",
+  "wave",
+  "library",
+  "settings",
+]);
+const isTabView = (v: AppState["view"]): boolean => TAB_VIEWS.has(v);
+
 export const useApp = create<AppState>()((set, get) => ({
   services: null,
   ready: false,
@@ -192,7 +209,29 @@ export const useApp = create<AppState>()((set, get) => ({
     set({ logs: [] });
   },
   view: "home",
-  setView: (v) => set({ view: v }),
+  navStack: ["home"],
+  setView: (v) =>
+    set((s) => {
+      if (s.view === v) return s;
+      const navStack = isTabView(v)
+        ? [v]
+        : s.navStack[s.navStack.length - 1] === v
+          ? s.navStack
+          : [...s.navStack, v];
+      return { view: v, navStack };
+    }),
+  goBack: () =>
+    set((s) => {
+      if (s.navStack.length <= 1) return s;
+      const navStack = s.navStack.slice(0, -1);
+      const view = navStack[navStack.length - 1];
+      return {
+        view,
+        navStack,
+        ...(s.view === "album" ? { albumDetail: null } : {}),
+        ...(s.view === "artist" ? { artistDetail: null } : {}),
+      };
+    }),
   albumDetail: null,
   artistDetail: null,
   loadAlbum: async (providerId, albumId) => {
@@ -202,7 +241,8 @@ export const useApp = create<AppState>()((set, get) => ({
     if (!provider) return;
     try {
       const detail = await provider.getAlbum(albumId);
-      set({ albumDetail: detail, view: "album" });
+      set({ albumDetail: detail });
+      get().setView("album");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
@@ -214,7 +254,8 @@ export const useApp = create<AppState>()((set, get) => ({
     if (!provider) return;
     try {
       const detail = await provider.getArtist(artistId);
-      set({ artistDetail: detail, view: "artist" });
+      set({ artistDetail: detail });
+      get().setView("artist");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
@@ -407,6 +448,9 @@ export const useApp = create<AppState>()((set, get) => ({
       ...s,
       localTracks: s.localTracks.map((tr) => (tr.id === trackId ? { ...tr, ...meta } : tr)),
     }));
+    // Правки тегов должны дойти и до очереди/текущего трека, иначе
+    // PlayerBar/NowPlaying показывают старые title/artist.
+    get().services?.engine.updateTrack(trackId, meta);
   },
 
   openLocalDirectory: async () => {
@@ -466,6 +510,16 @@ export const useApp = create<AppState>()((set, get) => ({
     }
     if (!dir) {
       get().notify(t("player").downloadDirRequired);
+      return;
+    }
+    const exists = get().downloads.some(
+      (d) =>
+        d.track.id === track.id &&
+        d.dir === dir &&
+        (d.status === "queued" || d.status === "running" || d.status === "done"),
+    );
+    if (exists) {
+      get().notify(t("downloads").dlAlreadyQueued);
       return;
     }
     const id = `dl:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -565,6 +619,19 @@ export const useApp = create<AppState>()((set, get) => ({
     setOfflineEnabled(enabled);
     set({ offlineMode: enabled });
   },
+  excludePreviews: (() => {
+    try {
+      return isExcludePreviewsEnabled();
+    } catch {
+      return true;
+    }
+  })(),
+  setExcludePreviews: (enabled) => {
+    setExcludePreviewsEnabled(enabled);
+    set({ excludePreviews: enabled });
+    // Результаты поиска кешируются — при переключении фильтра нужен свежий поиск.
+    clearSearchCache();
+  },
   startRadio: async (seedTrack) => {
     const { services, snapshot } = get();
     const track = seedTrack ?? snapshot.current;
@@ -658,14 +725,15 @@ export const useApp = create<AppState>()((set, get) => ({
       set({ lyrics: null, lyricsLoading: false });
       return;
     }
+    const token = ++lyricsToken;
     set({ lyricsLoading: true });
     try {
       const result = await services.lyrics.getLyrics(track);
-      if (get().snapshot.current?.id !== track.id) return;
+      if (token !== lyricsToken) return;
       set({ lyrics: result, lyricsLoading: false });
     } catch (e) {
       console.warn("[lyrics]", e);
-      if (get().snapshot.current?.id !== track.id) return;
+      if (token !== lyricsToken) return;
       set({ lyricsLoading: false });
     }
   },
@@ -743,6 +811,7 @@ export const useApp = create<AppState>()((set, get) => ({
 }));
 
 let sleepKickTimer: number | undefined;
+let lyricsToken = 0;
 
 /** Один самоперепланируемый таймер обратного отсчёта сна (вместо вечного setInterval). */
 function kickSleepTimer(): void {
@@ -902,6 +971,8 @@ async function doInit(
 
   services.engine.on("track", (track) => {
     void get().loadVariants(track);
+    // Волна не должна предлагать только что сыгранное.
+    if (track) services.wave.markPlayed(track);
   });
 
   // Таймер сна «после трека»: движок уже остановлен по завершении трека
@@ -918,7 +989,7 @@ async function doInit(
   services.engine.on("track", (track) => {
     window.clearTimeout(lyricsTimer);
     if (!track) {
-      set({ lyrics: null });
+      set({ lyrics: null, lyricsLoading: false });
       return;
     }
     if (get().lyricsAutoOpen) set({ lyricsOpen: true });

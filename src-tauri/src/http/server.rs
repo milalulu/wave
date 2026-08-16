@@ -1,12 +1,14 @@
 use axum::{
-    extract::{Request, State},
-    http::StatusCode,
+    body::Body,
+    extract::{Query, Request, State},
+    http::{header::HeaderValue, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use tauri::AppHandle;
 
 use super::bridge::BridgeHandle;
@@ -73,6 +75,7 @@ route_handler!(block_artist_toggle, "blocks.artist.toggle");
 
 pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
     let state = ServerState { app, bridge, token };
+    let media = Router::new().route("/audio", get(audio_proxy));
     let health = Router::new()
         .route("/health", get(health))
         .route("/api/v1/health", get(health))
@@ -108,7 +111,7 @@ pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
         .route("/api/v1/blocks/artists", get(blocks_artists))
         .route("/api/v1/blocks/artist", post(block_artist_toggle))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
-    Router::new().merge(health).merge(v1).with_state(state)
+    Router::new().merge(media).merge(health).merge(v1).with_state(state)
 }
 
 pub fn start(app: AppHandle, bridge: BridgeHandle, token: String) {
@@ -175,5 +178,75 @@ async fn bridge_call(state: &ServerState, action: &str, payload: Value) -> Respo
             };
             (code, Json(json!({ "error": e }))).into_response()
         }
+    }
+}
+
+/// CDN, отдающие аудио без CORS-заголовков (WebView не может их дёрнуть
+/// напрямую из WebAudio). Всё остальное адресно не проксируем.
+const MEDIA_HOST_ALLOWLIST: [&str; 10] = [
+    ".googlevideo.com",
+    ".sndcdn.com",
+    ".media-streaming.soundcloud.cloud",
+    ".itunes.apple.com",
+    ".dzcdn.net",
+    ".userapi.com",
+    ".vk.me",
+    ".vk.com",
+    ".last.fm",
+    ".freetls.fastly.net",
+];
+
+fn media_host_allowed(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    MEDIA_HOST_ALLOWLIST
+        .iter()
+        .any(|suffix| host == suffix.trim_start_matches('.') || host.ends_with(suffix))
+}
+
+/// Прокси аудио для WebAudio: байты прогоняются через локальный сервер,
+/// который отдаёт их с `Access-Control-Allow-Origin: *`. Без токена —
+/// рендер его не знает; защита от SSRF — validate_http_url + allowlist CDN.
+async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response {
+    let Some(url) = params.get("url") else {
+        return (StatusCode::BAD_REQUEST, "missing url").into_response();
+    };
+    if !media_host_allowed(url) {
+        return (StatusCode::FORBIDDEN, "host not allowed").into_response();
+    }
+    if let Err(e) = super::validate_http_url(url).await {
+        return (StatusCode::FORBIDDEN, e).into_response();
+    }
+    let response = match super::client().get(url).send().await {
+        Ok(res) => res,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, format!("proxy fetch: {e}")).into_response();
+        }
+    };
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    match response.bytes().await {
+        Ok(body) => {
+            let mut res = Response::new(Body::from(body));
+            *res.status_mut() = status;
+            res.headers_mut().insert(
+                "Access-Control-Allow-Origin",
+                HeaderValue::from_static("*"),
+            );
+            res.headers_mut().insert(
+                "Content-Type",
+                HeaderValue::from_str(&content_type)
+                    .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+            );
+            res
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("proxy body: {e}")).into_response(),
     }
 }

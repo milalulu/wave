@@ -32,6 +32,8 @@ function loadFilter(): string[] | null {
 export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const { t } = useI18n();
   const providers = useApp((s) => s.services?.providers ?? []);
+  const excludePreviews = useApp((s) => s.excludePreviews);
+  const setExcludePreviews = useApp((s) => s.setExcludePreviews);
   const [input, setInput] = useState(query);
   const [results, setResults] = useState<SearchResults[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -161,19 +163,44 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="muted">{t("common").loading}</p>}
-      {results && <Results results={results} />}
+      {results && (
+        <Results
+          results={results}
+          excludePreviews={excludePreviews}
+          onShowPreviews={() => setExcludePreviews(false)}
+        />
+      )}
     </div>
   );
 }
 
-function Results({ results }: { results: SearchResults[] }) {
+function Results({
+  results,
+  excludePreviews,
+  onShowPreviews,
+}: {
+  results: SearchResults[];
+  excludePreviews: boolean;
+  onShowPreviews: () => void;
+}) {
   const { t } = useI18n();
   const tracks = results.flatMap((r) => r.tracks);
   const albums = results.flatMap((r) => r.albums);
   const artists = results.flatMap((r) => r.artists);
+  // Треки скрыты фильтром превью, но альбомы/исполнители нашлись — объясняем,
+  // почему список треков пуст (иначе поиск выглядит «молча пустым»).
+  const previewsHidden = excludePreviews && tracks.length === 0 && (albums.length > 0 || artists.length > 0);
 
   return (
     <div className="results">
+      {previewsHidden && (
+        <p className="muted">
+          {t("search").previewsHidden}{" "}
+          <button className="btn small" onClick={onShowPreviews}>
+            {t("search").showPreviews}
+          </button>
+        </p>
+      )}
       {tracks.length > 0 && (
         <section>
           <h2>{t("search").tracks}</h2>

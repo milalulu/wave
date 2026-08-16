@@ -15,7 +15,13 @@ function toLoopStatus(repeat: RepeatMode): string {
  * приходящие через событие `mpris-command`.
  */
 export function bindMpris(services: AppServices): () => void {
-  const push = (): void => {
+  // Событие time тикает несколько раз в секунду — не спамим DBus,
+  // пушим состояние позиции не чаще раза в секунду.
+  let lastPush = 0;
+  const push = (force: boolean): void => {
+    const now = Date.now();
+    if (!force && now - lastPush < 1000) return;
+    lastPush = now;
     const snap = services.engine.snapshot;
     const track = snap.current;
     void invoke("mpris_update", {
@@ -35,7 +41,8 @@ export function bindMpris(services: AppServices): () => void {
   };
 
   const events = ["state", "track", "time", "volume", "shuffle", "repeat"] as const;
-  for (const ev of events) services.engine.on(ev, push);
+  for (const ev of events) services.engine.on(ev, () => push(ev !== "time"));
+  push(true);
 
   let unlisten: (() => void) | undefined;
   void listen<{ action: string; value?: unknown }>("mpris-command", (event) => {
@@ -45,6 +52,7 @@ export function bindMpris(services: AppServices): () => void {
       case "play":
       case "pause":
       case "togglePlay":
+      case "playpause":
         void engine.togglePlay();
         break;
       case "next":
@@ -53,11 +61,19 @@ export function bindMpris(services: AppServices): () => void {
       case "previous":
         void engine.previous();
         break;
+      // MPRIS Seek(offset) — относительный сдвиг в микросекундах (спецификация),
+      // а SetPosition — абсолютная позиция в микросекундах.
       case "seek":
-        if (typeof value === "number") engine.seek(value);
+        if (typeof value === "number") {
+          engine.seek(Math.max(0, engine.snapshot.position + value / 1_000_000));
+        }
         break;
-      case "volume":
-        if (typeof value === "number") engine.setVolume(Math.max(0, Math.min(1, value / 100)));
+      case "setPosition":
+        if (typeof value === "number") engine.seek(value / 1_000_000);
+        break;
+      // MPRIS Volume приходит в диапазоне 0.0–1.0 (f64).
+      case "setVolume":
+        if (typeof value === "number") engine.setVolume(Math.max(0, Math.min(1, value)));
         break;
       case "shuffle":
         engine.setShuffle(value === true || value === "true");

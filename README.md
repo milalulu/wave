@@ -13,10 +13,10 @@
 
 | Платформа | Установщик |
 |---|---|
-| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_x64-setup.exe) |
-| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_amd64.deb) |
-| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.6-1.x86_64.rpm) |
-| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.6_amd64.AppImage) |
+| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_x64-setup.exe) |
+| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_amd64.deb) |
+| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.8-1.x86_64.rpm) |
+| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_amd64.AppImage) |
 | **Android** | [APK (universal, arm64 + armv7)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk) |
 | **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
 

@@ -45,9 +45,10 @@ function App() {
   const init = useApp((s) => s.init);
   const view = useApp((s) => s.view);
   const setView = useApp((s) => s.setView);
+  const navStack = useApp((s) => s.navStack);
+  const goBack = useApp((s) => s.goBack);
   const [query, setQuery] = useState("");
   const [focusToken, setFocusToken] = useState(0);
-  const [stack, setStack] = useState<ViewKey[]>(["home"]);
   const contentRef = useRef<HTMLElement>(null);
   const scrollMemory = useRef(new Map<string, number>());
   const prevViewRef = useRef<ViewKey | null>(null);
@@ -68,22 +69,6 @@ function App() {
   useEffect(() => {
     void init();
   }, [init]);
-
-  // Стек навигации для под-вьюх на мобильном: табы сбрасывают стек,
-  // детальные вьюхи пушатся, назад возвращает на предыдущий таб.
-  useEffect(() => {
-    setStack((prev) => {
-      const top = prev[prev.length - 1];
-      if (top === view) return prev;
-      return isTabView(view) ? [view] : [...prev, view];
-    });
-  }, [view]);
-
-  const goBack = () => {
-    if (stack.length <= 1) return;
-    const target = stack[stack.length - 2];
-    setView(target);
-  };
 
   // Стабильные ссылки для обработчиков, зарегистрированных один раз.
   const goBackRef = useRef(goBack);
@@ -219,7 +204,7 @@ function App() {
         onOpenQueue={() => setView("queue")}
         onOpenPlayer={() => setView("nowPlaying")}
       />
-      <MobileTopBar view={view} canGoBack={stack.length > 1} onBack={goBack} />
+      <MobileTopBar view={view} canGoBack={navStack.length > 1} onBack={goBack} />
       <MobilePlayerBar
         onOpenQueue={() => setView("queue")}
         onOpenPlayer={() => setView("nowPlaying")}

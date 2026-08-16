@@ -1,8 +1,8 @@
 import type { PlayerState } from "../types";
 
 export interface AudioAdapter {
-  /** Load a source; doesn't start playback. */
-  load(src: string): void;
+  /** Load a source; doesn't start playback. Resolves when the source is ready. */
+  load(src: string): Promise<void>;
   /** Preload a source into a secondary element (gapless switching). */
   preload(src: string): void;
   /** Fill an array with spectrum data from the analyser (zeros if unavailable). */
@@ -40,7 +40,7 @@ export class MockAudioAdapter implements AudioAdapter {
     error?: (m: string) => void;
   } = {};
 
-  load(src: string): void {
+  async load(src: string): Promise<void> {
     this.src = src;
     this.position = 0;
   }

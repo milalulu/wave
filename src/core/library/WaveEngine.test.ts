@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HistoryEntry, Track } from "../types";
-import { WeightedRandomWaveSource } from "./WaveEngine";
+import { SmartWaveSource, WaveEngine, WeightedRandomWaveSource } from "./WaveEngine";
+import { MemoryStorage } from "../database/MemoryStorage";
 
 const tracks: Track[] = [
   { id: "a", provider: "test", uri: "u://a", title: "A", genre: "rock" },
@@ -57,5 +58,57 @@ describe("WeightedRandomWaveSource", () => {
     };
     const wave = source.generate(10, ctx);
     expect(wave.map((t) => t.id)).toEqual(["c"]);
+  });
+});
+
+describe("SmartWaveSource", () => {
+  const picker = (values: number[]) => {
+    let i = 0;
+    return () => values[i++] ?? 0.5;
+  };
+
+  it("recomputes the artist penalty from the base weight instead of compounding it", () => {
+    const xs = [
+      { id: "x1", provider: "test", uri: "u://x1", title: "X1", artist: "X" },
+      { id: "x2", provider: "test", uri: "u://x2", title: "X2", artist: "X" },
+      { id: "x3", provider: "test", uri: "u://x3", title: "X3", artist: "X" },
+    ];
+    const y = { id: "y1", provider: "test", uri: "u://y1", title: "Y1", artist: "Y" };
+    const source = new SmartWaveSource(picker([0.1, 0.1, 0.1, 0.9]));
+    const ctx = {
+      likedTracks: [...xs, y],
+      history: [] as HistoryEntry[],
+      libraryGenres: new Map<string, number>(),
+      candidates: [],
+    };
+    const wave = source.generate(4, ctx);
+    // Третий пик: вес x3 пересчитан от базы (0.4*0.5 = 0.2), а не от
+    // уже урезанного (0.4 -> 0.08), поэтому X3 выбирается раньше Y1.
+    expect(wave.map((t) => t.id)).toEqual(["x1", "x2", "x3", "y1"]);
+  });
+
+  it("limits consecutive picks from the same artist", () => {
+    const same = tracks.map((t, i) => ({ ...t, id: `a${i}`, artist: "Same" }));
+    const other = { id: "o", provider: "test", uri: "u://o", title: "O", artist: "Other" };
+    const source = new SmartWaveSource();
+    const ctx = {
+      likedTracks: [...same, other],
+      history: [] as HistoryEntry[],
+      libraryGenres: new Map<string, number>(),
+      candidates: [],
+    };
+    const wave = source.generate(10, ctx);
+    expect(new Set(wave.map((t) => t.artist))).toEqual(new Set(["Same", "Other"]));
+  });
+});
+
+describe("WaveEngine", () => {
+  it("markPlayed excludes the played track from the next wave", async () => {
+    const storage = new MemoryStorage();
+    for (const t of tracks) await storage.addLikedTrack(t);
+    const engine = new WaveEngine(storage, [], new WeightedRandomWaveSource());
+    engine.markPlayed(tracks[0]);
+    const wave = await engine.generateWave(10);
+    expect(wave.map((t) => t.id)).not.toContain("a");
   });
 });

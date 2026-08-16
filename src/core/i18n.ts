@@ -26,6 +26,7 @@ export interface Translations {
     dlDone: string;
     dlFailed: string;
     dlRetry: string;
+    dlAlreadyQueued: string;
   };
   player: {
     play: string;
@@ -94,6 +95,8 @@ export interface Translations {
     artists: string;
     albums: string;
     tracks: string;
+    previewsHidden: string;
+    showPreviews: string;
   };
   library: {
     liked: string;
@@ -163,6 +166,8 @@ export interface Translations {
     autoContinueDesc: string;
     offlineMode: string;
     offlineModeDesc: string;
+    excludePreviews: string;
+    excludePreviewsDesc: string;
     resetCaches: string;
     resetCachesDesc: string;
     testAll: string;
@@ -344,6 +349,7 @@ export const translations: Record<Locale, Translations> = {
       dlDone: "Done",
       dlFailed: "Failed",
       dlRetry: "Retry",
+      dlAlreadyQueued: "Already in the download queue",
     },
     player: {
       play: "Play",
@@ -412,6 +418,8 @@ export const translations: Record<Locale, Translations> = {
       artists: "Artists",
       albums: "Albums",
       tracks: "Tracks",
+      previewsHidden: "Tracks that only play as a short preview are hidden.",
+      showPreviews: "Show previews",
     },
     library: {
       liked: "Liked",
@@ -481,6 +489,8 @@ export const translations: Record<Locale, Translations> = {
       autoContinueDesc: "Fill the queue with the wave or similar tracks when it ends",
       offlineMode: "Offline mode",
       offlineModeDesc: "Play from downloaded files instead of streaming",
+      excludePreviews: "Exclude preview-only tracks from search",
+      excludePreviewsDesc: "Tracks that can only play as a short preview (iTunes, Deezer, Spotify) won't appear in search results.",
       resetCaches: "Reset caches",
       resetCachesDesc: "Clear search, variants, covers and lyrics caches.",
       testAll: "Test all platforms",
@@ -663,6 +673,7 @@ export const translations: Record<Locale, Translations> = {
       dlDone: "Готово",
       dlFailed: "Ошибка",
       dlRetry: "Повторить",
+      dlAlreadyQueued: "Уже в очереди загрузок",
     },
     player: {
       play: "Играть",
@@ -731,6 +742,8 @@ export const translations: Record<Locale, Translations> = {
       artists: "Исполнители",
       albums: "Альбомы",
       tracks: "Треки",
+      previewsHidden: "Треки, которые проигрываются только как короткое превью, скрыты.",
+      showPreviews: "Показать превью",
     },
     library: {
       liked: "Понравившееся",
@@ -800,6 +813,8 @@ export const translations: Record<Locale, Translations> = {
       autoContinueDesc: "Дозаполнять очередь волной или похожими треками, когда она закончится",
       offlineMode: "Оффлайн-режим",
       offlineModeDesc: "Играть из скачанных файлов вместо стриминга",
+      excludePreviews: "Не искать треки-превью в поиске",
+      excludePreviewsDesc: "Треки, которые могут проигрываться только как короткое превью (iTunes, Deezer, Spotify), не будут попадать в результаты поиска.",
       resetCaches: "Сбросить кеши",
       resetCachesDesc: "Очищает кеши поиска, вариантов, обложек и текстов.",
       testAll: "Проверить все площадки",

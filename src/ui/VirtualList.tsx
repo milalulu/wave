@@ -28,6 +28,7 @@ export function VirtualList<T>({
     count: items.length,
     getScrollElement: () => scrollEl,
     estimateSize: () => estimateSize,
+    getItemKey: (index) => rowKey(items[index], index),
     overscan,
   });
 

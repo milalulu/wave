@@ -29,7 +29,6 @@ fn ytdlp_slots() -> &'static tokio::sync::Semaphore {
 struct AppConfig {
     ytdlp_path: Option<String>,
     ytdlp_cookies: Option<String>,
-    soundcloud_client_id: Option<String>,
     spotify_client_id: Option<String>,
     spotify_client_secret: Option<String>,
     vk_token: Option<String>,
@@ -74,8 +73,6 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
             .or_else(|| tools::resolve_ytdlp(app)),
         ytdlp_cookies: env("WAVE_YTDLP_COOKIES")
             .or_else(|| get_string(&persisted, "WAVE_YTDLP_COOKIES")),
-        soundcloud_client_id: env("WAVE_SOUNDCLOUD_CLIENT_ID")
-            .or_else(|| get_string(&persisted, "WAVE_SOUNDCLOUD_CLIENT_ID")),
         spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID")
             .or_else(|| get_string(&persisted, "WAVE_SPOTIFY_CLIENT_ID")),
         spotify_client_secret: env("WAVE_SPOTIFY_CLIENT_SECRET")
@@ -229,9 +226,15 @@ async fn yt_search(
     app: tauri::AppHandle,
     query: String,
     limit: u32,
+    provider: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let limit = limit.clamp(1, 50);
-    let search = format!("ytsearch{limit}:{query}");
+    let is_sc = provider.as_deref() == Some("sc");
+    let search = if is_sc {
+        format!("scsearch{limit}:{query}")
+    } else {
+        format!("ytsearch{limit}:{query}")
+    };
     let mut args = vec![
         search,
         "--no-playlist".to_string(),
@@ -239,9 +242,11 @@ async fn yt_search(
         "--dump-single-json".to_string(),
         "-J".to_string(),
         "--no-warnings".to_string(),
-        "--extractor-args".to_string(),
-        "youtube:player_client=web_safari".to_string(),
     ];
+    if !is_sc {
+        args.push("--extractor-args".to_string());
+        args.push("youtube:player_client=web_safari".to_string());
+    }
     args.extend(ytdlp_cookies_args(&app));
     let Some(stdout) = run_ytdlp(&app, args, 60).await? else {
         return Ok(vec![]);
@@ -272,7 +277,9 @@ async fn yt_search(
                 "id": id,
                 "title": title,
                 "uploader": e.get("uploader").and_then(|v| v.as_str()),
-                "duration": e.get("duration").and_then(|v| v.as_i64()),
+                "duration": e
+                    .get("duration")
+                    .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64))),
                 "thumbnail": thumbnail,
             }))
         })
@@ -280,45 +287,57 @@ async fn yt_search(
     Ok(out)
 }
 
-#[tauri::command]
-async fn yt_stream(
-    app: tauri::AppHandle,
-    id: String,
-    quality: Option<String>,
+async fn resolve_stream(
+    app: &tauri::AppHandle,
+    url: &str,
+    quality: Option<&str>,
+    prefer_progressive: bool,
 ) -> Result<String, String> {
-    let url = format!("https://www.youtube.com/watch?v={id}");
-    let audio_only = match quality.as_deref().unwrap_or("best") {
+    let audio_only = match quality.unwrap_or("best") {
         "low" => "ba[abr<=48]",
         "medium" => "ba[abr<=128]",
         "high" => "ba[abr<=256]",
         _ => "ba",
     };
-    let fallback_fmt = match quality.as_deref().unwrap_or("best") {
+    let fallback_fmt = match quality.unwrap_or("best") {
         "low" => "ba[abr<=48]/ba",
         "medium" => "ba[abr<=128]/ba",
         "high" => "ba[abr<=256]/ba",
         _ => "ba/b",
     };
-    let cookies = ytdlp_cookies_args(&app);
-    let attempts: Vec<Vec<String>> = vec![
-        // Android-клиент отдаёт прямые не троттлящиеся URL.
+    let cookies = ytdlp_cookies_args(app);
+    let mut attempts: Vec<Vec<String>> = vec![];
+    if prefer_progressive {
+        // SoundCloud: прямой mp3 (cf-media) вместо HLS-плейлиста — плеер (WebAudio)
+        // играет только протокол http, поэтому просим его в первую очередь.
+        attempts.push(stream_args(
+            url,
+            &format!("{audio_only}[protocol=http]/{audio_only}[ext=mp3]/{audio_only}"),
+            None,
+            &cookies,
+        ));
+    }
+    attempts.extend([
+        // Дефолтный клиент стабильно отдаёт m4a/opus; android/web_safari с
+        // текущими версиями yt-dlp отвечают "format not available" и лишь
+        // добавляют ~6 секунд к каждой загрузке трека.
         stream_args(
-            &url,
+            url,
+            &format!("{audio_only}[ext=m4a]/{audio_only}"),
+            None,
+            &cookies,
+        ),
+        stream_args(
+            url,
             &format!("{audio_only}[ext=m4a]/{audio_only}"),
             Some("youtube:player_client=android"),
             &cookies,
         ),
-        stream_args(
-            &url,
-            fallback_fmt,
-            Some("youtube:player_client=web_safari"),
-            &cookies,
-        ),
-        stream_args(&url, "ba/b", None, &cookies),
-    ];
+        stream_args(url, fallback_fmt, None, &cookies),
+    ]);
     let mut last_err: Option<String> = None;
     for args in attempts {
-        match run_ytdlp(&app, args, 90).await {
+        match run_ytdlp(app, args, 90).await {
             Ok(Some(stdout)) => {
                 let u = stdout
                     .lines()
@@ -340,6 +359,32 @@ async fn yt_stream(
         }
     }
     Err(last_err.unwrap_or_else(|| "yt-dlp: no playable stream".into()))
+}
+
+#[tauri::command]
+async fn yt_stream(
+    app: tauri::AppHandle,
+    id: String,
+    quality: Option<String>,
+) -> Result<String, String> {
+    resolve_stream(
+        &app,
+        &format!("https://www.youtube.com/watch?v={id}"),
+        quality.as_deref(),
+        false,
+    )
+    .await
+}
+
+/// Стрим произвольного аудио-URL (например, SoundCloud-трека) через yt-dlp.
+#[tauri::command]
+async fn dl_stream(
+    app: tauri::AppHandle,
+    url: String,
+    quality: Option<String>,
+) -> Result<String, String> {
+    // SoundCloud отдаёт прямой mp3 — предпочитаем его HLS-плейлистам.
+    resolve_stream(&app, &url, quality.as_deref(), true).await
 }
 
 fn stream_args(url: &str, fmt: &str, client: Option<&str>, cookies: &[String]) -> Vec<String> {
@@ -579,6 +624,7 @@ pub fn run() {
             app_config,
             yt_search,
             yt_stream,
+            dl_stream,
             vk_search,
             http_fetch_json,
             http_fetch_text,

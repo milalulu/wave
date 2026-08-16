@@ -128,6 +128,18 @@ export class Queue {
     this.pos = -1;
   }
 
+  /** Обновить поля всех треков очереди с данным id (редактирование тегов). */
+  replaceTrackFields(id: string, patch: Partial<Track>): boolean {
+    let changed = false;
+    for (let i = 0; i < this.tracks.length; i++) {
+      if (this.tracks[i].id === id) {
+        this.tracks[i] = { ...this.tracks[i], ...patch };
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   /** Заменить текущий трек (по индексу исходного списка), сохранив позицию и историю. */
   replaceCurrent(track: Track): Track | null {
     const curIndex = this.currentIndex();

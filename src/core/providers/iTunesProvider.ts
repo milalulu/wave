@@ -159,6 +159,7 @@ export class iTunesProvider implements MusicProvider {
       duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : undefined,
       genre: r.primaryGenreName,
       year: r.releaseDate ? new Date(r.releaseDate).getFullYear() : undefined,
+      meta: { preview: true },
     };
   }
 

@@ -33,6 +33,13 @@ interface PlayerEngineOptions {
   retries?: number;
   /** Автоплей: вызывается в конце очереди, чтобы дозаполнить её. */
   onQueueEnd?: () => Promise<Track[]> | Track[];
+  /**
+   * Авто-апгрейд превью: если загруженный поток заметно короче заявленной
+   * длительности трека (30-секундные превью iTunes/Deezer/Spotify), движок
+   * вызывает колбэк, чтобы получить полную версию (например, с YouTube),
+   * и переигрывает трек заново. null/ошибка — оставить превью как есть.
+   */
+  upgradePreview?: (track: Track) => Promise<Track | null>;
 }
 
 /**
@@ -53,6 +60,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private resolveUri?: (track: Track) => Promise<string>;
   private onQueueEnd?: () => Promise<Track[]> | Track[];
   private defaultFiller?: () => Promise<Track[]> | Track[];
+  private upgradePreview?: (track: Track) => Promise<Track | null>;
+  /** id трека, для которого уже пытались/успешно сделали апгрейд превью. */
+  private upgradedTrackId: string | null = null;
   private retries = 0;
   private maxRetries: number;
   private playSeq = 0;
@@ -68,6 +78,13 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private pauseAtEnd = false;
   /** Загружен ли источник в адаптер (иначе play() сначала резолвит URI). */
   private hasSource = false;
+  /**
+   * Восстановленная позиция для первого play() трека после restoreQueue.
+   * У треков без прямого uri (yt/soundcloud) адаптер.load() сбрасывает
+   * pendingSeek — позицию нужно применить заново после загрузки источника.
+   */
+  private restorePos = 0;
+  private restorePosTrackId: string | null = null;
 
   constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
     super();
@@ -75,6 +92,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.resolveUri = options.resolveUri;
     this.onQueueEnd = options.onQueueEnd;
     this.defaultFiller = options.onQueueEnd;
+    this.upgradePreview = options.upgradePreview;
     this.maxRetries = Math.max(0, options.retries ?? 1);
     this.queue = new Queue({ rng: options.rng });
     this.attachAdapter();
@@ -87,9 +105,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         this.duration = duration;
         this.emit("time", { position, duration });
         const remaining = duration - position;
-        if (remaining < 30 && remaining > 0) {
+        if (remaining < 60 && remaining > 0) {
           void this.preloadNext();
         }
+        void this.maybeUpgradePreview(duration);
       }),
       this.adapter.onEnded(() => this.onTrackEnded()),
       this.adapter.onError((message) => this.onLoadError(message, this.playSeq)),
@@ -149,6 +168,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.preloadedId = null;
     this.fallbackUsed = false;
     this.fallbackTrackId = null;
+    this.upgradedTrackId = null;
+    // Новая очередь — восстановленная позиция не применяется.
+    this.restorePos = 0;
+    this.restorePosTrackId = null;
     await this.playCurrent();
   }
 
@@ -166,23 +189,25 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.preloadedId = null;
     this.fallbackUsed = false;
     this.fallbackTrackId = null;
+    this.upgradedTrackId = null;
     const track = this.queue.current();
     if (!track) return;
     this.setState("paused");
     this.duration = track.duration ?? 0;
     const uri = this.directUri(track);
     if (uri) {
-      try {
-        this.adapter.load(uri);
-        this.hasSource = true;
-      } catch {
+      this.adapter.load(uri).catch(() => {
         // пере-резолвится при play()
         this.hasSource = false;
-      }
+      });
+      this.hasSource = true;
     }
-    // Позиция применяется адаптером по загрузке метаданных (pendingSeek),
-    // поэтому выставляем её и для треков без прямого uri (yt/soundcloud).
+    // Позиция применяется адаптером по загрузке метаданных (pendingSeek).
+    // У треков без прямого uri адаптер.load() при первом play() сбросит
+    // pendingSeek — поэтому запоминаем позицию и применяем её в startTrack.
     if (position > 0) {
+      this.restorePos = position;
+      this.restorePosTrackId = track.id;
       try {
         this.adapter.seek(position);
       } catch {
@@ -376,6 +401,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emitQueue();
   }
 
+  /** Обновить метаданные трека в очереди/текущем треке (редактирование тегов). */
+  updateTrack(id: string, patch: Partial<Track>): void {
+    if (this.queue.replaceTrackFields(id, patch)) this.emitQueue();
+  }
+
   clearQueue(): void {
     this.queue.clear();
     this.hasSource = false;
@@ -447,11 +477,31 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (cached) {
         this.preloadCache.delete(track.id);
       }
+      // Резолв playable-URL (yt-dlp) может занять несколько секунд — не даём
+      // stall-таймеру сработать в это время (ложный "stream stalled"), иначе
+      // движок повторно резолвит поток и трек стартует ещё дольше. Таймер
+      // перезапускаем уже после загрузки источника.
+      this.clearStallTimer();
       const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
       if (seq !== this.playSeq) return;
-      this.adapter.load(uri);
+      // В буферном (WebAudio) режиме load() ждёт завершения декодирования —
+      // до этого ничего не играет.
+      await this.adapter.load(uri);
+      if (seq !== this.playSeq) return;
       this.hasSource = true;
+      this.startStallTimer();
       this.duration = track.duration ?? 0;
+      // restoreQueue для трека без прямого uri: load() сбросил pendingSeek —
+      // возвращаем восстановленную позицию.
+      if (this.restorePosTrackId === track.id && this.restorePos > 0) {
+        try {
+          this.adapter.seek(this.restorePos);
+        } catch {
+          // позиция не критична — просто начинаем с 0
+        }
+        this.restorePosTrackId = null;
+        this.restorePos = 0;
+      }
       await this.playWithGuard();
     } catch (err) {
       this.onLoadError(err instanceof Error ? err.message : String(err), seq);
@@ -486,6 +536,37 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       },
     );
     await Promise.race([play, timeout]);
+  }
+
+  /**
+   * Авто-апгрейд 30-секундного превью до полной версии: если стрим заметно
+   * короче заявленной длительности трека, спрашиваем колбэк и переигрываем
+   * полную версию с начала. Превью продолжает играть, пока идёт поиск.
+   */
+  private async maybeUpgradePreview(streamDuration: number): Promise<void> {
+    if (!this.upgradePreview) return;
+    if (this.state !== "playing" && this.state !== "loading") return;
+    const track = this.queue.current();
+    if (!track || track.id === this.upgradedTrackId) return;
+    const declared = track.duration ?? 0;
+    if (declared <= 0) return;
+    if (!Number.isFinite(streamDuration) || streamDuration <= 0) return;
+    // Превью: реальный поток ≤ 60 с и заметно короче заявленного трека.
+    if (!(streamDuration <= 60 && declared - streamDuration >= 30)) return;
+    this.upgradedTrackId = track.id;
+    try {
+      const full = await this.upgradePreview(track);
+      if (!full) return;
+      const cur = this.queue.current();
+      if (!cur || cur.id !== track.id) return;
+      if (this.state !== "playing" && this.state !== "loading") return;
+      if (this.queue.replaceCurrent(full)) {
+        this.emitQueue();
+        await this.playCurrent();
+      }
+    } catch {
+      // Превью остаётся как есть.
+    }
   }
 
   /** Предзагрузить URI следующего трека для бесперебойного переключения. */

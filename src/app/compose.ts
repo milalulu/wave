@@ -23,15 +23,19 @@ import type { LocalSource } from "../core/providers/LocalProvider";
 import { LocalProvider } from "../core/providers/LocalProvider";
 import type { MusicProvider } from "../core/providers/MusicProvider";
 import type { SearchResults, Track } from "../core/types";
-import { activeProviders } from "./platformSettings";
+import { activeProviders, isBlockedProvider } from "./platformSettings";
+import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettings";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
 import { loadYtQuality } from "./ytQuality";
 import { loadCrossfadeMs } from "./crossfade";
+import { findTrackVariants } from "./trackVariants";
+
+/** Площадки с полным (не превью) воспроизведением для авто-апгрейда. */
+const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
 interface AppConfig {
   ytdlpPath?: string | null;
   ytdlpCookies?: string | null;
-  soundcloudClientId?: string | null;
   spotifyClientId?: string | null;
   spotifyClientSecret?: string | null;
   vkToken?: string | null;
@@ -104,9 +108,13 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
   if (hasYtDlp) {
     const youtube = new YouTubeMusicProvider(ytGateway);
     providers.push(youtube);
-  }
-  if (cfg.soundcloudClientId) {
-    providers.push(new SoundCloudProvider(httpGateway, cfg.soundcloudClientId));
+    // SoundCloud тоже через yt-dlp (scsearch + прямой mp3) — client_id не нужен.
+    providers.push(
+      new SoundCloudProvider({
+        search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
+        stream: (url) => invoke("dl_stream", { url, quality: "best" }),
+      }),
+    );
   }
   if (cfg.lastfmApiKey) {
     providers.push(new LastFmProvider(httpGateway, cfg.lastfmApiKey));
@@ -141,12 +149,28 @@ export async function composeServices(): Promise<AppServices> {
   let wave: WaveEngine;
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     resolveUri: async (track) => {
+      // Площадка в бане — трек не воспроизводим, даже если у него есть прямой
+      // uri (превью iTunes/Deezer из старой очереди): иначе бан бессмыслен.
+      if (isBlockedProvider(track.provider)) {
+        throw new Error(`provider blocked: ${track.provider}`);
+      }
       if (offlineEnabled()) {
         const local = localUriFor(track);
         if (local) return local;
       }
       const provider = providers.find((p) => p.id === track.provider);
       return provider ? provider.resolveUri(track) : track.uri;
+    },
+    // 30-секундное превью (iTunes/Deezer/Spotify) автоматически меняется на
+    // полную версию: ищем тот же трек на full-площадках (YouTube/SoundCloud).
+    upgradePreview: async (track) => {
+      try {
+        const variants = await findTrackVariants(providers, track);
+        const full = variants.find((v) => FULL_PLAYBACK_PROVIDERS.has(v.providerId));
+        return full?.track ?? null;
+      } catch {
+        return null;
+      }
     },
     onQueueEnd: async () => {
       if (!wave) return [];
@@ -213,9 +237,12 @@ export async function searchAll(
   query: string,
 ): Promise<SearchResults[]> {
   const results = await Promise.allSettled(providers.map((p) => p.search(query)));
-  return results
-    .filter((r): r is PromiseFulfilledResult<SearchResults> => r.status === "fulfilled")
-    .map((r) => r.value);
+  return filterPreviewResults(
+    results
+      .filter((r): r is PromiseFulfilledResult<SearchResults> => r.status === "fulfilled")
+      .map((r) => r.value),
+    isExcludePreviewsEnabled(),
+  );
 }
 
 /** Подобрать похожие playable-треки для радио/очереди (Last.fm + iTunes превью). */

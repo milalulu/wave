@@ -115,7 +115,9 @@ export async function syncLikes(userId: string, localLikes: string[], localTrack
     if (!track) continue;
     const remoteItem = remoteMap.get(trackId);
     if (!remoteItem || remoteItem.track.updatedAt < track.updatedAt) {
-      toUpsert.push({ trackId, track, createdAt: Date.now() });
+      // Не сбрасываем дату добавления в лайки при обновлении метаданных.
+      const createdAt = remoteItem ? new Date(remoteItem.created_at).getTime() : Date.now();
+      toUpsert.push({ trackId, track, createdAt });
     }
     remoteMap.delete(trackId);
   }
@@ -161,7 +163,9 @@ export async function syncPlaylists(userId: string, local: SyncedPlaylist[]) {
 
   for (const pl of local) {
     const r = remoteMap.get(pl.id);
-    if (!r || r.updated_at < pl.updatedAt) toUpsert.push(pl);
+    // updated_at из PostgREST — ISO-строка, локальный updatedAt — epoch-мс.
+    const remoteTs = r ? new Date(r.updated_at).getTime() : 0;
+    if (!r || remoteTs < pl.updatedAt) toUpsert.push(pl);
     remoteMap.delete(pl.id);
   }
 

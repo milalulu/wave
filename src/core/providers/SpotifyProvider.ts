@@ -48,8 +48,8 @@ function cover(images?: SpotifyImage[]): string | undefined {
 
 /**
  * Провайдер Spotify (официальный Web API, client credentials).
- * Поиск по метаданным; воспроизведение — 30-секундные preview там, где есть,
- * иначе — полный трек через YouTube-fallback (если настроен).
+ * Поиск по метаданным; воспроизведение — полная версия через YouTube-fallback
+ * (если настроен), иначе 30-секундные preview там, где есть.
  */
 export class SpotifyProvider implements MusicProvider {
   readonly id = "spotify";
@@ -87,7 +87,13 @@ export class SpotifyProvider implements MusicProvider {
         album: t.album?.name,
         coverUrl: cover(t.album?.images),
         duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
-        meta: { spotifyUrl: t.external_urls?.spotify },
+        meta: {
+          spotifyUrl: t.external_urls?.spotify,
+          // Метка «превью» ставится только когда полной версии (YouTube-fallback)
+          // нет: иначе фильтр «не искать треки-превью» выбросит полностью
+          // играбельные треки.
+          ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}),
+        },
       });
     }
     const albums: Album[] = (data.albums?.items ?? [])
@@ -113,16 +119,25 @@ export class SpotifyProvider implements MusicProvider {
   }
 
   async resolveUri(track: Track): Promise<string> {
+    // Полная версия через YouTube-fallback важнее превью: трек из поиска с
+    // preview_url и так считается «превью», пока полной версии нет.
+    if (this.config.ytFallback) {
+      const artist = track.artist ?? "";
+      const title = track.title ?? "";
+      const cacheKey = `${artist}|${title}`;
+      const cached = this.fallbackCache.get(cacheKey);
+      if (cached) return cached;
+      try {
+        const uri = await this.config.ytFallback(artist, title);
+        this.fallbackCache.set(cacheKey, uri);
+        return uri;
+      } catch {
+        // YouTube-fallback упал (нет совпадения/стрим не построился) —
+        // играем превью, если оно есть.
+      }
+    }
     if (track.uri) return track.uri;
-    if (!this.config.ytFallback) throw new Error("spotify: no playable source");
-    const artist = track.artist ?? "";
-    const title = track.title ?? "";
-    const cacheKey = `${artist}|${title}`;
-    const cached = this.fallbackCache.get(cacheKey);
-    if (cached) return cached;
-    const uri = await this.config.ytFallback(artist, title);
-    this.fallbackCache.set(cacheKey, uri);
-    return uri;
+    throw new Error("spotify: no playable source");
   }
 
   async getAlbum(_albumId: string): Promise<AlbumDetail> {

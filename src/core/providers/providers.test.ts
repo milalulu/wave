@@ -4,11 +4,12 @@ import type { YtDlpGateway } from "./YouTubeMusicProvider";
 import type { VkGateway } from "./VkProvider";
 import { DeezerProvider } from "./DeezerProvider";
 import { iTunesProvider } from "./iTunesProvider";
-import { SoundCloudProvider } from "./SoundCloudProvider";
+import { SoundCloudProvider, type SoundCloudDlpGateway } from "./SoundCloudProvider";
 import { YouTubeMusicProvider } from "./YouTubeMusicProvider";
 import { VkProvider } from "./VkProvider";
 import { LastFmProvider } from "./LastFmProvider";
 import { MusicBrainzProvider } from "./MusicBrainzProvider";
+import { SpotifyProvider } from "./SpotifyProvider";
 
 function routeHttp(routes: Record<string, (url: string) => unknown>): HttpJsonGateway {
   return {
@@ -106,36 +107,27 @@ describe("iTunesProvider", () => {
 });
 
 describe("SoundCloudProvider", () => {
-  it("ищет треки и разрешает progressive mp3", async () => {
-    const http = routeHttp({
-      "/search/tracks?q=": () => ({
-        collection: [
-          {
-            id: 42,
-            title: "SC Track",
-            user: { username: "SC Artist" },
-            artwork_url: "https://i.sndcdn.com/a-large.jpg",
-            duration: 200000,
-            access: { token: "tk" },
-          },
-        ],
-      }),
-      "/tracks/42?": () => ({
-        media: {
-          transcodings: [
-            { format: { protocol: "progressive", mime_type: "audio/mpeg" }, url: "https://stream" },
-            { format: { protocol: "hls", mime_type: "audio/mpegurl" }, url: "https://hls" },
-          ],
+  it("ищет треки через scsearch и резолвит mp3-стрим", async () => {
+    const gateway: SoundCloudDlpGateway = {
+      search: async () => [
+        {
+          id: "42",
+          title: "SC Track",
+          uploader: "SC Artist",
+          duration: 200,
+          thumbnail: "https://i.sndcdn.com/a-mini.jpg",
         },
-      }),
-      "/stream?": () => ({ url: "https://cf-media.sndcdn.com/x.mp3" }),
-    });
-    const p = new SoundCloudProvider(http, "cid");
+      ],
+      stream: async () => "https://cf-media.sndcdn.com/x.mp3",
+    };
+    const p = new SoundCloudProvider(gateway);
     const r = await p.search("test");
     expect(r.tracks[0]).toMatchObject({
+      provider: "soundcloud",
       title: "SC Track",
       artist: "SC Artist",
       coverUrl: "https://i.sndcdn.com/a-t500x500.jpg",
+      meta: { scId: "42", scUrl: "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A42" },
     });
     expect(await p.resolveUri(r.tracks[0])).toBe("https://cf-media.sndcdn.com/x.mp3");
   });
@@ -256,5 +248,112 @@ describe("MusicBrainzProvider", () => {
       duration: 180,
       meta: { noPlay: true },
     });
+  });
+});
+
+describe("SpotifyProvider", () => {
+  const spotifyHttp = (routes: Record<string, (url: string) => unknown>): HttpJsonGateway =>
+    routeHttp({
+      "/api/token": () => ({ access_token: "tok" }),
+      ...routes,
+    });
+
+  const searchBody = (preview?: string) => ({
+    tracks: {
+      items: [
+        {
+          id: "1",
+          name: "Spotify Track",
+          artists: [{ name: "Spotify Artist" }],
+          album: { name: "Album" },
+          duration_ms: 200000,
+          preview_url: preview,
+        },
+      ],
+    },
+    albums: { items: [] },
+    artists: { items: [] },
+  });
+
+  it("не метит треки превью, когда настроен YouTube-fallback", async () => {
+    const http = spotifyHttp({
+      "/v1/search?q=": () => searchBody("https://p.scdn.co/1.mp3"),
+    });
+    const p = new SpotifyProvider(http, {
+      clientId: "c",
+      clientSecret: "s",
+      ytFallback: async () => "https://yt/stream",
+    });
+    const r = await p.search("test");
+    expect(r.tracks[0].meta?.preview).toBeUndefined();
+  });
+
+  it("метит треки превью без YouTube-fallback", async () => {
+    const http = spotifyHttp({
+      "/v1/search?q=": () => searchBody("https://p.scdn.co/1.mp3"),
+    });
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    const r = await p.search("test");
+    expect(r.tracks[0].meta?.preview).toBe(true);
+  });
+
+  it("resolveUri предпочитает полную версию через ytFallback", async () => {
+    const http = spotifyHttp({});
+    const p = new SpotifyProvider(http, {
+      clientId: "c",
+      clientSecret: "s",
+      ytFallback: async () => "https://yt/full",
+    });
+    const track = {
+      id: "spotify:track:1",
+      provider: "spotify",
+      uri: "https://p.scdn.co/1.mp3",
+      title: "T",
+      artist: "A",
+    } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://yt/full");
+  });
+
+  it("resolveUri падает на превью, если ytFallback упал", async () => {
+    const http = spotifyHttp({});
+    const p = new SpotifyProvider(http, {
+      clientId: "c",
+      clientSecret: "s",
+      ytFallback: async () => {
+        throw new Error("no youtube match");
+      },
+    });
+    const track = {
+      id: "spotify:track:1",
+      provider: "spotify",
+      uri: "https://p.scdn.co/1.mp3",
+      title: "T",
+      artist: "A",
+    } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://p.scdn.co/1.mp3");
+  });
+
+  it("resolveUri кэширует результат ytFallback", async () => {
+    let calls = 0;
+    const http = spotifyHttp({});
+    const p = new SpotifyProvider(http, {
+      clientId: "c",
+      clientSecret: "s",
+      ytFallback: async () => {
+        calls += 1;
+        return `https://yt/full-${calls}`;
+      },
+    });
+    const track = { id: "spotify:track:1", provider: "spotify", title: "T", artist: "A" } as const;
+    expect(await p.resolveUri(track as never)).toBe("https://yt/full-1");
+    expect(await p.resolveUri(track as never)).toBe("https://yt/full-1");
+    expect(calls).toBe(1);
+  });
+
+  it("resolveUri бросает ошибку без источника и без fallback", async () => {
+    const http = spotifyHttp({});
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    const track = { id: "spotify:track:1", provider: "spotify", title: "T", artist: "A" } as const;
+    await expect(p.resolveUri(track as never)).rejects.toThrow("no playable source");
   });
 });

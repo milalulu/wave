@@ -28,6 +28,20 @@ describe("PlayerEngine", () => {
     expect(engine.snapshot.current?.id).toBe("b");
   });
 
+  it("updateTrack refreshes the current and queued track metadata", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    await engine.playTracks([{ ...tracks[0] }, { ...tracks[0] }, tracks[1]]);
+    engine.updateTrack("a", { title: "A*", artist: "X" });
+    expect(engine.snapshot.current?.title).toBe("A*");
+    expect(engine.snapshot.current?.artist).toBe("X");
+    const sameId = engine.snapshot.queue.filter((t) => t.id === "a");
+    expect(sameId).toHaveLength(2);
+    for (const t of sameId) {
+      expect(t.title).toBe("A*");
+    }
+  });
+
   it("stops at end of queue with repeat off", async () => {
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter);
@@ -222,6 +236,42 @@ describe("PlayerEngine", () => {
     await engine.play();
     expect(adapter.src).toBe("u://fresh");
     expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("applies restored position after first play of a track without direct uri", async () => {
+    // adapter.load() сбрасывает pendingSeek — восстановленная позиция должна
+    // примениться повторно при загрузке источника на первом play().
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => "u://resolved",
+    });
+    await engine.restoreQueue(
+      [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
+      0,
+      42,
+    );
+    expect(adapter.src).toBe("");
+    expect(adapter.getPosition()).toBe(42);
+    await engine.play();
+    expect(adapter.src).toBe("u://resolved");
+    expect(adapter.getPosition()).toBe(42);
+    expect(engine.snapshot.state).toBe("playing");
+    engine.destroy();
+  });
+
+  it("does not apply restored position to a new queue", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async () => "u://resolved",
+    });
+    await engine.restoreQueue(
+      [{ ...tracks[0], uri: "https://www.youtube.com/watch?v=x" }],
+      0,
+      42,
+    );
+    await engine.playTracks([tracks[1]]);
+    expect(adapter.getPosition()).toBe(0);
+    engine.destroy();
   });
 
   it("autoplays more tracks when queue ends", async () => {
@@ -448,5 +498,64 @@ describe("PlayerEngine resolveUri", () => {
     await engine.playTracks([tracks[0]]);
     expect(attempts).toBeGreaterThan(1);
     expect(engine.snapshot.current?.id).toBe("a");
+  });
+
+  it("upgrades a short preview stream to a full variant", async () => {
+    const adapter = new MockAudioAdapter();
+    const full = { id: "youtube:1", provider: "youtube", uri: "u://full", title: "A", duration: 200 };
+    const upgrade = vi.fn().mockResolvedValue(full);
+    const engine = new PlayerEngine(adapter, { upgradePreview: upgrade });
+    const preview: Track = {
+      id: "itunes:1",
+      provider: "itunes",
+      uri: "u://preview",
+      title: "A",
+      duration: 200,
+    };
+    await engine.playTracks([preview, tracks[1]]);
+    adapter.duration = 30;
+    adapter.tick(1);
+    await vi.waitFor(() => expect(engine.snapshot.current?.id).toBe("youtube:1"));
+    expect(upgrade).toHaveBeenCalledWith(preview);
+    expect(engine.snapshot.state).toBe("playing");
+  });
+
+  it("keeps the preview when no full variant is found and does not retry", async () => {
+    const adapter = new MockAudioAdapter();
+    const upgrade = vi.fn().mockResolvedValue(null);
+    const engine = new PlayerEngine(adapter, { upgradePreview: upgrade });
+    const preview: Track = {
+      id: "deezer:1",
+      provider: "deezer",
+      uri: "u://preview",
+      title: "B",
+      duration: 180,
+    };
+    await engine.playTracks([preview]);
+    adapter.duration = 30;
+    adapter.tick(1);
+    await vi.waitFor(() => expect(upgrade).toHaveBeenCalledTimes(1));
+    expect(engine.snapshot.current?.id).toBe("deezer:1");
+    adapter.tick(5);
+    await Promise.resolve();
+    expect(upgrade).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not upgrade a full-length stream", async () => {
+    const adapter = new MockAudioAdapter();
+    const upgrade = vi.fn();
+    const engine = new PlayerEngine(adapter, { upgradePreview: upgrade });
+    const t: Track = {
+      id: "local:1",
+      provider: "local",
+      uri: "file:///x.mp3",
+      title: "X",
+      duration: 200,
+    };
+    await engine.playTracks([t]);
+    adapter.duration = 200;
+    adapter.tick(1);
+    await Promise.resolve();
+    expect(upgrade).not.toHaveBeenCalled();
   });
 });

@@ -9,8 +9,41 @@ function getYtQuality(): string {
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let isSyncing = false;
 
-function mapTrackToSynced(track: ReturnType<typeof useApp.getState>["localTracks"][0]): SyncedTrack {
-  return {
+const SYNC_STAMP_KEY = "wave:sync-track-stamps";
+
+interface TrackStamp {
+  hash: string;
+  updatedAt: number;
+}
+
+function loadStamps(): Record<string, TrackStamp> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SYNC_STAMP_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStamps(stamps: Record<string, TrackStamp>): void {
+  try {
+    localStorage.setItem(SYNC_STAMP_KEY, JSON.stringify(stamps));
+  } catch {
+    /* переполнение localStorage — игнорируем */
+  }
+}
+
+/**
+ * updatedAt трека должен отражать момент реального изменения данных,
+ * а не момент синка: иначе локальная копия всегда «новее» и правки
+ * с другого устройства теряются. Хэш пейлоада позволяет оставлять
+ * старый updatedAt, пока данные трека не менялись.
+ */
+function mapTrackToSynced(
+  track: ReturnType<typeof useApp.getState>["localTracks"][0],
+  stamps: Record<string, TrackStamp>,
+): SyncedTrack {
+  const payload: SyncedTrack = {
     id: track.id,
     provider: track.provider,
     uri: track.uri,
@@ -23,16 +56,28 @@ function mapTrackToSynced(track: ReturnType<typeof useApp.getState>["localTracks
     genre: track.genre,
     year: track.year,
     meta: track.meta,
-    updatedAt: Date.now(),
+    updatedAt: 0,
   };
+  const hash = JSON.stringify({ ...payload, updatedAt: undefined });
+  const prev = stamps[track.id];
+  if (prev && prev.hash === hash) {
+    payload.updatedAt = prev.updatedAt;
+  } else {
+    payload.updatedAt = Date.now();
+    stamps[track.id] = { hash, updatedAt: payload.updatedAt };
+  }
+  return payload;
 }
 
-function mapPlaylistToSynced(pl: ReturnType<typeof useApp.getState>["playlists"][0]): SyncedPlaylist {
+function mapPlaylistToSynced(
+  pl: ReturnType<typeof useApp.getState>["playlists"][0],
+  stamps: Record<string, TrackStamp>,
+): SyncedPlaylist {
   return {
     id: pl.id,
     name: pl.name,
     trackIds: pl.trackIds,
-    tracks: pl.tracks?.map(mapTrackToSynced),
+    tracks: pl.tracks?.map((t) => mapTrackToSynced(t, stamps)),
     createdAt: pl.createdAt,
     updatedAt: pl.updatedAt,
     coverUrl: pl.coverUrl,
@@ -51,18 +96,26 @@ export function startSyncEngine() {
 
     try {
       const state = useApp.getState();
-      const localTracksMap = new Map(state.localTracks.map(mapTrackToSynced).map((t) => [t.id, t]));
+      const stamps = loadStamps();
+      const usedIds = new Set<string>();
+      const localTracksMap = new Map(
+        state.localTracks.map((t) => {
+          usedIds.add(t.id);
+          return [t.id, mapTrackToSynced(t, stamps)];
+        }),
+      );
       for (const pl of state.playlists) {
         if (pl.tracks) {
           for (const t of pl.tracks) {
-            if (!localTracksMap.has(t.id)) localTracksMap.set(t.id, mapTrackToSynced(t));
+            usedIds.add(t.id);
+            if (!localTracksMap.has(t.id)) localTracksMap.set(t.id, mapTrackToSynced(t, stamps));
           }
         }
       }
 
       await Promise.all([
         syncLikes(user.id, state.likedIds, localTracksMap),
-        syncPlaylists(user.id, state.playlists.map(mapPlaylistToSynced)),
+        syncPlaylists(user.id, state.playlists.map((p) => mapPlaylistToSynced(p, stamps))),
         syncSettings(user.id, {
           userId: user.id,
           crossfadeMs: state.crossfadeMs,
@@ -77,6 +130,12 @@ export function startSyncEngine() {
           updatedAt: Date.now(),
         }),
       ]);
+
+      // Чистим штампы треков, которых больше нет в локальной библиотеке/плейлистах.
+      for (const id of Object.keys(stamps)) {
+        if (!usedIds.has(id)) delete stamps[id];
+      }
+      saveStamps(stamps);
     } catch (e) {
       console.error("[Sync] failed:", e);
     } finally {
@@ -121,8 +180,9 @@ export async function pullRemoteData(userId: string) {
       }
       return pl;
     });
+    const mergedIds = new Set(mergedPlaylists.map((p) => p.id));
     for (const remote of playlists) {
-      if (!remotePlaylistMap.has(remote.id)) {
+      if (!mergedIds.has(remote.id)) {
         mergedPlaylists.push({
           id: remote.id,
           name: remote.name,

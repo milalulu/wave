@@ -4,7 +4,9 @@ export const CROSSFADE_OPTIONS = [0, 150, 300, 500, 1000];
 
 export function loadCrossfadeMs(): number {
   try {
-    const v = Number(localStorage.getItem(KEY));
+    const raw = localStorage.getItem(KEY);
+    if (raw === null) return 300;
+    const v = Number(raw);
     return CROSSFADE_OPTIONS.includes(v) ? v : 300;
   } catch {
     return 300;

@@ -21,7 +21,7 @@ function cover(thumb?: string): string | undefined {
   return thumb?.replace("hq720", "mqdefault").replace("hqdefault", "mqdefault");
 }
 
-const STREAM_TTL_MS = 20 * 60 * 1000;
+const STREAM_TTL_MS = 2 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 
 /**
