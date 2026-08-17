@@ -17,36 +17,23 @@ export interface PlayerEvents {
   ended: void;
 }
 
-/** Сколько ждать данных в состоянии "loading", прежде чем пере-резолвить поток. */
 export const STALL_TIMEOUT_MS = 12000;
 
-/** Сколько ждать разрешения adapter.play(), прежде чем двигаться дальше.
- *  HTML5-адаптер может висеть на play() бесконечно (мёртвый стрим) —
- *  движок не должен блокироваться на этом навсегда. */
 export const PLAY_START_TIMEOUT_MS = 10000;
 
 interface PlayerEngineOptions {
   rng?: () => number;
-  /** Ленивое разрешение playable-URL (например, YouTube-поток). */
+  
   resolveUri?: (track: Track) => Promise<string>;
-  /** Сколько раз пере-резолвить поток при ошибке (по умолчанию 1). */
+  
   retries?: number;
-  /** Автоплей: вызывается в конце очереди, чтобы дозаполнить её. */
+  
   onQueueEnd?: () => Promise<Track[]> | Track[];
-  /**
-   * Авто-апгрейд превью: если загруженный поток заметно короче заявленной
-   * длительности трека (30-секундные превью iTunes/Deezer/Spotify), движок
-   * вызывает колбэк, чтобы получить полную версию (например, с YouTube),
-   * и переигрывает трек заново. null/ошибка — оставить превью как есть.
-   */
+  
+
   upgradePreview?: (track: Track) => Promise<Track | null>;
 }
 
-/**
- * Стейт-машина плеера: очередь, shuffle/repeat, seek/volume/position,
- * автопереход по завершении трека. Не зависит от платформы —
- * аудио инжектируется через AudioAdapter.
- */
 export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private adapter: AudioAdapter;
   private queue: Queue;
@@ -61,7 +48,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private onQueueEnd?: () => Promise<Track[]> | Track[];
   private defaultFiller?: () => Promise<Track[]> | Track[];
   private upgradePreview?: (track: Track) => Promise<Track | null>;
-  /** id трека, для которого уже пытались/успешно сделали апгрейд превью. */
+  
   private upgradedTrackId: string | null = null;
   private retries = 0;
   private maxRetries: number;
@@ -69,20 +56,17 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private preloadCache = new Map<string, string>();
   private preloadedId: string | null = null;
   private stallTimer: number | undefined;
-  /** Авто-фолбэк на вариант (другой источник) при ошибке воспроизведения. */
+  
   private fallback?: () => Track | null;
   private fallbackUsed = false;
-  /** id трека, который "съел" фолбэк: для новой записи фолбэк разрешается снова. */
+  
   private fallbackTrackId: string | null = null;
-  /** Таймер сна «после трека»: остановить по завершении текущего трека. */
+  
   private pauseAtEnd = false;
-  /** Загружен ли источник в адаптер (иначе play() сначала резолвит URI). */
+  
   private hasSource = false;
-  /**
-   * Восстановленная позиция для первого play() трека после restoreQueue.
-   * У треков без прямого uri (yt/soundcloud) адаптер.load() сбрасывает
-   * pendingSeek — позицию нужно применить заново после загрузки источника.
-   */
+  
+
   private restorePos = 0;
   private restorePosTrackId: string | null = null;
 
@@ -126,7 +110,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emit("state", state);
   }
 
-  /** Если в "loading" долго нет данных (URL протух, стрим замёрз) — пере-резолвим. */
+  
   private startStallTimer(): void {
     this.clearStallTimer();
     this.stallTimer = globalThis.setTimeout(() => {
@@ -159,28 +143,24 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     };
   }
 
-  /** Заменить очередь и играть с указанного индекса. */
+  
   async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
     if (tracks.length === 0) return;
     this.queue.replace(tracks, startIndex);
-    // Старая очередь сброшена: предзагруженные URI следующего трека недействительны.
+    
     this.preloadCache.clear();
     this.preloadedId = null;
     this.fallbackUsed = false;
     this.fallbackTrackId = null;
     this.upgradedTrackId = null;
-    // Новая очередь — восстановленная позиция не применяется.
+    
     this.restorePos = 0;
     this.restorePosTrackId = null;
     await this.playCurrent();
   }
 
-  /**
-   * Восстановить очередь после перезапуска: текущий трек подгружается
-   * и позиция восстанавливается, но воспроизведение НЕ начинается.
-   * Прямой uri (local/деезер/itunes) прелоадится сразу, yt-поток резолвится
-   * при первом play(), чтобы не тормозить старт приложения.
-   */
+  
+
   async restoreQueue(queue: Track[], index: number, position = 0): Promise<void> {
     if (queue.length === 0) return;
     const clamped = Math.min(Math.max(index, 0), queue.length - 1);
@@ -197,21 +177,21 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const uri = this.directUri(track);
     if (uri) {
       this.adapter.load(uri).catch(() => {
-        // пере-резолвится при play()
+        
         this.hasSource = false;
       });
       this.hasSource = true;
     }
-    // Позиция применяется адаптером по загрузке метаданных (pendingSeek).
-    // У треков без прямого uri адаптер.load() при первом play() сбросит
-    // pendingSeek — поэтому запоминаем позицию и применяем её в startTrack.
+    
+    
+    
     if (position > 0) {
       this.restorePos = position;
       this.restorePosTrackId = track.id;
       try {
         this.adapter.seek(position);
       } catch {
-        // позиция не критична — просто начинаем с 0
+        
       }
     }
     this.emit("track", track);
@@ -222,9 +202,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const u = track.uri;
     if (!u) return "";
     if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("asset://"))) return "";
-    // Страница YouTube — это не поток: загрузка её в <audio> гарантированно
-    // падает с ошибкой и триггерит CORS-teardown в WebAudioAdapter, который
-    // навсегда отключает EQ-граф. Настоящий поток резолвится при первом play().
+    
+    
+    
     if (this.isYouTubePage(u)) return "";
     return u;
   }
@@ -240,7 +220,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await this.playTracks([track], 0);
   }
 
-  /** Переключить текущий трек на вариант (другая площадка) без потери истории. */
+  
   playVariant(track: Track): void {
     if (!this.queue.replaceCurrent(track)) return;
     this.emitQueue();
@@ -253,16 +233,16 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.setState("loading");
     }
     try {
-      // После restore у треков без прямого uri (yt/soundcloud/lastfm) источника
-      // в адаптере нет — резолвим и загружаем его перед play().
+      
+      
       if (this.hasSource) {
         await this.playWithGuard();
       } else {
         await this.playCurrent();
       }
     } catch (err) {
-      // play() упал (протухший/неверный src) — сразу пере-резолвим поток,
-      // не дожидаясь stall-таймера.
+      
+      
       this.onLoadError(err instanceof Error ? err.message : String(err), this.playSeq);
     }
   }
@@ -298,7 +278,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
           return;
         }
       } catch {
-        // autoplay источник недоступен — просто останавливаемся
+        
       }
       this.stopAtEnd();
     } else {
@@ -348,12 +328,24 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.adapter.setCrossfadeMs(ms);
   }
 
-  /** Остановить воспроизведение после завершения текущего трека (таймер сна). */
+  setBassBoost(db: number): void {
+    this.adapter.setBassBoost(db);
+  }
+
+  setReverb(mix: number): void {
+    this.adapter.setReverb(mix);
+  }
+
+  setStereoWidth(pan: number): void {
+    this.adapter.setStereoWidth(pan);
+  }
+
+  
   setPauseAfterTrack(on: boolean): void {
     this.pauseAtEnd = on;
   }
 
-  /** Данные спектра для визуализатора. */
+  
   getSpectrum(data: Uint8Array): void {
     this.adapter.getSpectrum(data);
   }
@@ -369,12 +361,12 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emit("repeat", mode);
   }
 
-  /** Подменить источник дозаполнения очереди (радио) или вернуть дефолт (null). */
+  
   setAutoFill(fn: (() => Promise<Track[]> | Track[]) | null): void {
     this.onQueueEnd = fn ?? this.defaultFiller;
   }
 
-  /** Установить функцию авто-фолбэка на вариант при ошибке воспроизведения. */
+  
   setFallback(fn: (() => Track | null) | null): void {
     this.fallback = fn ?? undefined;
     this.fallbackUsed = false;
@@ -401,7 +393,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emitQueue();
   }
 
-  /** Обновить метаданные трека в очереди/текущем треке (редактирование тегов). */
+  
   updateTrack(id: string, patch: Partial<Track>): void {
     if (this.queue.replaceTrackFields(id, patch)) this.emitQueue();
   }
@@ -425,8 +417,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async playCurrent(): Promise<void> {
     const track = this.queue.current();
     if (!track) return;
-    // Новый трек (другой id) — фолбэк можно использовать снова (раз за трек).
-    // Вариант того же трека не получит второй шанс — фолбэк уже был потрачен.
+    
+    
     if (track.id !== this.fallbackTrackId) {
       this.fallbackUsed = false;
     }
@@ -435,18 +427,18 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await this.startTrack(this.playSeq);
   }
 
-  /** Ошибка загрузки/стрима: пере-резолв (срок жизни URL истекает), затем error. */
+  
   private onLoadError(message: string, seq: number): void {
     if (seq !== this.playSeq || !this.queue.current()) return;
-    // Ошибка в паузе — это фоновая (например, восстановление очереди после
-    // рестарта с протухшим uri). Не трогаем машину и не начинаем играть сами.
+    
+    
     if (this.state === "paused") return;
     if (this.resolveUri && this.retries < this.maxRetries) {
       this.retries += 1;
       void this.startTrack(seq);
       return;
     }
-    // Источник недоступен — пробуем вариант на другой площадке (один раз за трек).
+    
     const current = this.queue.current();
     if (this.fallback && !this.fallbackUsed && current) {
       this.fallbackUsed = true;
@@ -461,8 +453,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.fallbackUsed = false;
     this.clearStallTimer();
     this.emit("error", message);
-    // Трек не воспроизводим (URL протух, файл удалён) — пропускаем его,
-    // чтобы плейлист не зависал в "loading" навсегда.
+    
+    
     void this.next();
   }
 
@@ -477,27 +469,27 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (cached) {
         this.preloadCache.delete(track.id);
       }
-      // Резолв playable-URL (yt-dlp) может занять несколько секунд — не даём
-      // stall-таймеру сработать в это время (ложный "stream stalled"), иначе
-      // движок повторно резолвит поток и трек стартует ещё дольше. Таймер
-      // перезапускаем уже после загрузки источника.
+      
+      
+      
+      
       this.clearStallTimer();
       const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
       if (seq !== this.playSeq) return;
-      // В буферном (WebAudio) режиме load() ждёт завершения декодирования —
-      // до этого ничего не играет.
+      
+      
       await this.adapter.load(uri);
       if (seq !== this.playSeq) return;
       this.hasSource = true;
       this.startStallTimer();
       this.duration = track.duration ?? 0;
-      // restoreQueue для трека без прямого uri: load() сбросил pendingSeek —
-      // возвращаем восстановленную позицию.
+      
+      
       if (this.restorePosTrackId === track.id && this.restorePos > 0) {
         try {
           this.adapter.seek(this.restorePos);
         } catch {
-          // позиция не критична — просто начинаем с 0
+          
         }
         this.restorePosTrackId = null;
         this.restorePos = 0;
@@ -509,13 +501,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emitQueue();
   }
 
-  /**
-   * Обёртка над adapter.play(): зависший play() (мёртвый стрим в webkit)
-   * не должен блокировать движок. Быстрый reject пробрасывается наверх
-   * (движок пере-резолвит поток), а таймаут просто пропускаем —
-   * фактическое состояние приходит через onStateChange, восстановление
-   * берёт на себя stall-таймер.
-   */
+  
+
   private async playWithGuard(): Promise<void> {
     let settled = false;
     let timer: number | undefined;
@@ -538,11 +525,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await Promise.race([play, timeout]);
   }
 
-  /**
-   * Авто-апгрейд 30-секундного превью до полной версии: если стрим заметно
-   * короче заявленной длительности трека, спрашиваем колбэк и переигрываем
-   * полную версию с начала. Превью продолжает играть, пока идёт поиск.
-   */
+  
+
   private async maybeUpgradePreview(streamDuration: number): Promise<void> {
     if (!this.upgradePreview) return;
     if (this.state !== "playing" && this.state !== "loading") return;
@@ -551,7 +535,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const declared = track.duration ?? 0;
     if (declared <= 0) return;
     if (!Number.isFinite(streamDuration) || streamDuration <= 0) return;
-    // Превью: реальный поток ≤ 60 с и заметно короче заявленного трека.
+    
     if (!(streamDuration <= 60 && declared - streamDuration >= 30)) return;
     this.upgradedTrackId = track.id;
     try {
@@ -565,11 +549,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         await this.playCurrent();
       }
     } catch {
-      // Превью остаётся как есть.
+      
     }
   }
 
-  /** Предзагрузить URI следующего трека для бесперебойного переключения. */
+  
   private async preloadNext(): Promise<void> {
     if (!this.resolveUri) return;
     const next = this.queue.peekNext();
@@ -583,19 +567,19 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
           this.adapter.preload(uri);
         }
       } catch {
-        // предзагрузка не критична
+        
       }
     }
   }
 
   private async onTrackEnded(): Promise<void> {
-    // Флаг читаем до emit: обработчики (таймер сна) могут его сбросить.
+    
     const stop = this.pauseAtEnd;
     this.emit("ended", undefined);
     if (stop) {
       this.pauseAtEnd = false;
       this.adapter.pause();
-      // У завершённого элемента pause() не эмитит событие — ставим явно.
+      
       this.setState("paused");
       return;
     }

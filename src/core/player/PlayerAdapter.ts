@@ -1,11 +1,11 @@
 import type { PlayerState } from "../types";
 
 export interface AudioAdapter {
-  /** Load a source; doesn't start playback. Resolves when the source is ready. */
+  
   load(src: string): Promise<void>;
-  /** Preload a source into a secondary element (gapless switching). */
+  
   preload(src: string): void;
-  /** Fill an array with spectrum data from the analyser (zeros if unavailable). */
+  
   getSpectrum(data: Uint8Array): void;
   play(): Promise<void>;
   pause(): void;
@@ -13,8 +13,11 @@ export interface AudioAdapter {
   setVolume(volume: number): void;
   setPlaybackRate(rate: number): void;
   setEqualizer(gains: number[]): void;
-  /** Длительность кроссфейда между треками в мс (0 — без перехода). */
+  
   setCrossfadeMs(ms: number): void;
+  setBassBoost(db: number): void;
+  setReverb(mix: number): void;
+  setStereoWidth(pan: number): void;
   getPosition(): number;
   getDuration(): number;
   onStateChange(cb: (state: PlayerState) => void): () => void;
@@ -24,7 +27,6 @@ export interface AudioAdapter {
   destroy(): void;
 }
 
-/** Фейковый адаптер для юнит-тестов: управляется вручную. */
 export class MockAudioAdapter implements AudioAdapter {
   src = "";
   state: PlayerState = "idle";
@@ -50,7 +52,7 @@ export class MockAudioAdapter implements AudioAdapter {
   }
 
   preload(_src: string): void {
-    // no-op в тестах
+    
   }
 
   getSpectrum(data: Uint8Array): void {
@@ -78,7 +80,19 @@ export class MockAudioAdapter implements AudioAdapter {
   }
 
   setCrossfadeMs(_ms: number): void {
-    // no-op в тестах
+    
+  }
+
+  setBassBoost(_db: number): void {
+    
+  }
+
+  setReverb(_mix: number): void {
+    
+  }
+
+  setStereoWidth(_pan: number): void {
+    
   }
 
   getPosition(): number {
@@ -122,7 +136,7 @@ export class MockAudioAdapter implements AudioAdapter {
     this.state = "idle";
   }
 
-  /** Тестовые помощники: */
+  
   setState(s: PlayerState): void {
     this.state = s;
     this.handlers.state?.(s);

@@ -4,12 +4,14 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import type { HistoryEntry, Track } from "../core/types";
+import type { SmartPlaylist, SmartPlaylistType } from "../core/library/SmartPlaylistGenerator";
+import { generateSmartPlaylists } from "../core/library/SmartPlaylistGenerator";
 import { buildM3U } from "../core/library/m3u";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { DownloadIcon, SearchIcon } from "./icons";
 
-type Tab = "liked" | "history" | "local" | "stats";
+type Tab = "liked" | "history" | "local" | "stats" | "smart";
 
 export function LibraryView() {
   const { t } = useI18n();
@@ -19,6 +21,7 @@ export function LibraryView() {
   const [tab, setTab] = useState<Tab>("liked");
   const [liked, setLiked] = useState<Track[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [smartPlaylists, setSmartPlaylists] = useState<SmartPlaylist[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +31,13 @@ export function LibraryView() {
     });
     void services.history.getHistory(100).then((entries) => {
       if (!cancelled) setHistory(entries);
+    });
+    void services.history.getHistory(2000).then((entries) => {
+      if (!cancelled) {
+        void services.library.getLikedTracks().then((liked) => {
+          if (!cancelled) setSmartPlaylists(generateSmartPlaylists(entries, liked));
+        });
+      }
     });
     return () => {
       cancelled = true;
@@ -48,6 +58,9 @@ export function LibraryView() {
         </button>
         <button className={`tab ${tab === "stats" ? "active" : ""}`} onClick={() => setTab("stats")}>
           {t("library").stats}
+        </button>
+        <button className={`tab ${tab === "smart" ? "active" : ""}`} onClick={() => setTab("smart")}>
+          {t("library").smart}
         </button>
       </div>
 
@@ -73,6 +86,9 @@ export function LibraryView() {
         />
       )}
       {tab === "stats" && <StatsView />}
+      {tab === "smart" && (
+        <SmartPlaylistsView playlists={smartPlaylists} />
+      )}
     </div>
   );
 }
@@ -94,8 +110,8 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
       })
     : tracks;
 
-  // Волна «сейчас играет» — только на первом вхождении трека в списке,
-  // чтобы одинаковые треки не мигали все сразу.
+  
+  
   const firstCurrent = visible.findIndex((tr) => tr.id === currentId);
 
   const exportTracks = async (format: "m3u" | "json") => {
@@ -250,4 +266,64 @@ function StatsView() {
       </section>
     </div>
   );
+}
+
+function SmartPlaylistsView({ playlists }: { playlists: SmartPlaylist[] }) {
+  const { t } = useI18n();
+  const startSmartPlaylist = useApp((s) => s.startSmartPlaylist);
+  const [loading, setLoading] = useState<SmartPlaylistType | null>(null);
+
+  if (playlists.length === 0) return <p className="muted">{t("smart").empty}</p>;
+
+  const handlePlay = async (type: SmartPlaylistType) => {
+    setLoading(type);
+    try {
+      await startSmartPlaylist(type);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="smart-playlists">
+      {playlists.map((pl) => (
+        <div key={pl.type} className="smart-card">
+          <div className="smart-card-header">
+            <span className="smart-card-icon">{pl.icon}</span>
+            <div className="smart-card-info">
+              <span className="smart-card-name">{smartLabel(t, pl.nameKey)}</span>
+              <span className="smart-card-desc">{smartLabel(t, pl.descKey)}</span>
+            </div>
+          </div>
+          <div className="smart-card-meta">
+            {pl.tracks.length} tracks
+          </div>
+          <button
+            className="btn small smart-play-btn"
+            disabled={loading !== null}
+            onClick={() => void handlePlay(pl.type)}
+          >
+            {loading === pl.type ? "..." : t("smart").play}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function smartLabel(t: ReturnType<typeof useI18n>["t"], key: string): string {
+  const s = t("smart");
+  switch (key) {
+    case "mostPlayed": return s.mostPlayed;
+    case "mostPlayedDesc": return s.mostPlayedDesc;
+    case "recentlyPlayed": return s.recentlyPlayed;
+    case "recentlyPlayedDesc": return s.recentlyPlayedDesc;
+    case "genreMix": return s.genreMix;
+    case "genreMixDesc": return s.genreMixDesc;
+    case "deepCuts": return s.deepCuts;
+    case "deepCutsDesc": return s.deepCutsDesc;
+    case "freshDiscoveries": return s.freshDiscoveries;
+    case "freshDiscoveriesDesc": return s.freshDiscoveriesDesc;
+    default: return key;
+  }
 }

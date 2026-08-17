@@ -24,6 +24,21 @@ class FakeAnalyser {
     data.fill(42);
   }
 }
+class FakeConvolver {
+  buffer: unknown = null;
+  connect(): void {}
+}
+class FakeStereoPanner {
+  pan = new FakeParam(0);
+  connect(): void {}
+}
+class FakeDecodedBuffer {
+  duration = 120;
+  private channels: Float32Array[] = [new Float32Array(0), new Float32Array(0)];
+  getChannelData(ch: number): Float32Array {
+    return this.channels[ch] ?? new Float32Array(0);
+  }
+}
 class FakeBiquad {
   type = "";
   frequency = { value: 0 };
@@ -35,6 +50,7 @@ class FakeAudioContext {
   static instances: FakeAudioContext[] = [];
   state = "suspended";
   currentTime = 0;
+  sampleRate = 44100;
   destination = {};
   elementSources: unknown[] = [];
   gains: FakeGain[] = [];
@@ -62,6 +78,15 @@ class FakeAudioContext {
   createAnalyser(): FakeAnalyser {
     this.analyser = new FakeAnalyser();
     return this.analyser;
+  }
+  createConvolver(): FakeConvolver {
+    return new FakeConvolver();
+  }
+  createStereoPanner(): FakeStereoPanner {
+    return new FakeStereoPanner();
+  }
+  createBuffer(): FakeDecodedBuffer {
+    return new FakeDecodedBuffer();
   }
   resume(): Promise<void> {
     this.resumeCount += 1;
@@ -134,11 +159,6 @@ const mk = (n: string, provider = "a"): Track => ({
   uri: `${provider}://${n}`,
 });
 
-/**
- * Регрессионный тест: при skip на трек, чей стрим не отдаёт данные
- * (play() навсегда в pending), старый элемент обязан быть загашен по
- * завершении кроссфейда — «прошлый трек продолжает играть» недопустим.
- */
 describe("PlayerEngine + WebAudioAdapter: skip на зависший стрим", () => {
   let adapter: WebAudioAdapter;
   let engine: PlayerEngine;

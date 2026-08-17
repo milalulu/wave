@@ -103,6 +103,7 @@ export interface Translations {
     history: string;
     local: string;
     stats: string;
+    smart: string;
     emptyLiked: string;
     emptyHistory: string;
     emptyLocal: string;
@@ -114,6 +115,20 @@ export interface Translations {
     periodWeek: string;
     periodMonth: string;
     periodAll: string;
+  };
+  smart: {
+    empty: string;
+    mostPlayed: string;
+    mostPlayedDesc: string;
+    recentlyPlayed: string;
+    recentlyPlayedDesc: string;
+    genreMix: string;
+    genreMixDesc: string;
+    deepCuts: string;
+    deepCutsDesc: string;
+    freshDiscoveries: string;
+    freshDiscoveriesDesc: string;
+    play: string;
   };
   playlist: {
     title: string;
@@ -131,6 +146,15 @@ export interface Translations {
     emptyHint: string;
     dropHere: string;
     tracksCount: (n: number) => string;
+    share: string;
+    shareEmail: string;
+    shareEmailPlaceholder: string;
+    sharePermission: string;
+    editor: string;
+    viewer: string;
+    sharedWith: string;
+    shareSuccess: string;
+    shareFailed: string;
   };
   settings: {
     title: string;
@@ -215,6 +239,14 @@ export interface Translations {
     crossfade: string;
     crossfadeDesc: string;
     crossfadeOff: string;
+    audioEffects: string;
+    audioEffectsDesc: string;
+    bassBoost: string;
+    bassBoostDesc: string;
+    reverb: string;
+    reverbDesc: string;
+    stereoWidth: string;
+    stereoWidthDesc: string;
     lyrics: string;
     lyricsDesc: string;
     lyricsAutoOpen: string;
@@ -426,6 +458,7 @@ export const translations: Record<Locale, Translations> = {
       history: "History",
       local: "Local Files",
       stats: "Statistics",
+      smart: "Smart",
       emptyLiked: "No liked tracks yet",
       emptyHistory: "History is empty",
       emptyLocal: "Open a music folder (sidebar → Local Files)",
@@ -437,6 +470,20 @@ export const translations: Record<Locale, Translations> = {
       periodWeek: "Week",
       periodMonth: "Month",
       periodAll: "All",
+    },
+    smart: {
+      empty: "Listen to some music first to generate smart playlists",
+      mostPlayed: "Most Played",
+      mostPlayedDesc: "Your top tracks by play count",
+      recentlyPlayed: "Recently Played",
+      recentlyPlayedDesc: "Tracks you listened to recently",
+      genreMix: "Genre Mix",
+      genreMixDesc: "A mix from your top genres",
+      deepCuts: "Deep Cuts",
+      deepCutsDesc: "Liked tracks you haven't heard in a while",
+      freshDiscoveries: "Fresh Discoveries",
+      freshDiscoveriesDesc: "One track from each of your top artists",
+      play: "Play",
     },
     playlist: {
       title: "Playlists",
@@ -454,6 +501,15 @@ export const translations: Record<Locale, Translations> = {
       emptyHint: "Create a playlist or import from file",
       dropHere: "Drop to end of playlist",
       tracksCount: (n: number) => `${n} tracks`,
+      share: "Share",
+      shareEmail: "Collaborator email",
+      shareEmailPlaceholder: "user@example.com",
+      sharePermission: "Permission",
+      editor: "Can edit",
+      viewer: "Can view",
+      sharedWith: "Shared with",
+      shareSuccess: "Playlist shared",
+      shareFailed: "User not found",
     },
     settings: {
       title: "Settings",
@@ -538,6 +594,14 @@ export const translations: Record<Locale, Translations> = {
       crossfade: "Crossfade",
       crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
       crossfadeOff: "Off",
+      audioEffects: "Audio Effects",
+      audioEffectsDesc: "Enhance your listening with bass boost, reverb and stereo width.",
+      bassBoost: "Bass Boost",
+      bassBoostDesc: "Boost low frequencies (0–15 dB).",
+      reverb: "Reverb",
+      reverbDesc: "Add room ambiance (0–100%).",
+      stereoWidth: "Stereo Width",
+      stereoWidthDesc: "Widen or narrow the stereo image.",
       lyrics: "Lyrics",
       lyricsDesc: "How the lyrics panel behaves when the track changes.",
       lyricsAutoOpen: "Auto-open lyrics",
@@ -750,6 +814,7 @@ export const translations: Record<Locale, Translations> = {
       history: "История",
       local: "Локальные файлы",
       stats: "Статистика",
+      smart: "Умные",
       emptyLiked: "Пока нет понравившихся треков",
       emptyHistory: "История пуста",
       emptyLocal: "Откройте папку с музыкой (кнопка «Локальные файлы» в сайдбаре)",
@@ -761,6 +826,20 @@ export const translations: Record<Locale, Translations> = {
       periodWeek: "Неделя",
       periodMonth: "Месяц",
       periodAll: "Всё",
+    },
+    smart: {
+      empty: "Сначала послушайте музыку — умные плейлисты появятся здесь",
+      mostPlayed: "Часто слушаемые",
+      mostPlayedDesc: "Ваши топ-треки по количеству прослушиваний",
+      recentlyPlayed: "Недавние",
+      recentlyPlayedDesc: "Треки, которые вы недавно слушали",
+      genreMix: "Микс жанров",
+      genreMixDesc: "Подборка из ваших любимых жанров",
+      deepCuts: "Глубокие cuts",
+      deepCutsDesc: "Понравившиеся треки, которые давно не слушали",
+      freshDiscoveries: "Новые открытия",
+      freshDiscoveriesDesc: "Один трек от каждого из ваших топ-исполнителей",
+      play: "Воспроизвести",
     },
     playlist: {
       title: "Плейлисты",
@@ -778,6 +857,15 @@ export const translations: Record<Locale, Translations> = {
       emptyHint: "Создайте плейлист или импортируйте из файла",
       dropHere: "Перетащите в конец плейлиста",
       tracksCount: (n: number) => `${n} треков`,
+      share: "Поделиться",
+      shareEmail: "Email участника",
+      shareEmailPlaceholder: "user@example.com",
+      sharePermission: "Права",
+      editor: "Может редактировать",
+      viewer: "Только просмотр",
+      sharedWith: "Доступ у",
+      shareSuccess: "Плейлист расшарен",
+      shareFailed: "Пользователь не найден",
     },
     settings: {
       title: "Настройки",
@@ -862,6 +950,14 @@ export const translations: Record<Locale, Translations> = {
       crossfade: "Кроссфейд",
       crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
       crossfadeOff: "Выкл",
+      audioEffects: "Аудиоэффекты",
+      audioEffectsDesc: "Улучшите звук с помощью бас-буста, реверберации и ширины стерео.",
+      bassBoost: "Бас-буст",
+      bassBoostDesc: "Усиление низких частот (0–15 дБ).",
+      reverb: "Реверберация",
+      reverbDesc: "Добавить эффект пространства (0–100%).",
+      stereoWidth: "Ширина стерео",
+      stereoWidthDesc: "Расширить или сузить стереообраз.",
       lyrics: "Тексты песен",
       lyricsDesc: "Поведение панели текстов при смене трека.",
       lyricsAutoOpen: "Автооткрытие текстов",

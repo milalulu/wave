@@ -39,6 +39,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const startWave = useApp((s) => s.startWave);
   const startRadio = useApp((s) => s.startRadio);
   const radioActive = useApp((s) => s.radioActive);
+  const seek = useApp((s) => s.seek);
 
   const track = snapshot.current;
   const liked = track ? likedIds.includes(track.id) : false;
@@ -53,6 +54,14 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
     return idx;
   }, [lyrics, position]);
 
+  const lineProgress = useMemo(() => {
+    if (!lyrics?.synced || activeIndex < 0 || !lyrics.lines[activeIndex]?.time) return 0;
+    const curr = lyrics.lines[activeIndex].time!;
+    const next = lyrics.lines[activeIndex + 1]?.time ?? duration;
+    if (next <= curr) return 1;
+    return Math.min(1, (position - curr) / (next - curr));
+  }, [lyrics, activeIndex, position, duration]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = containerRef.current;
@@ -60,6 +69,10 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
     const el = container.querySelector(`[data-line="${activeIndex}"]`);
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeIndex, lyricsOpen, lyricsAutoscroll]);
+
+  const handleLineClick = (line: { time?: number }) => {
+    if (line.time !== undefined) seek(line.time);
+  };
 
   return (
     <div className="home" ref={swipeDownRef}>
@@ -187,7 +200,9 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 <p
                   key={i}
                   data-line={i}
-                  className={`lyrics-line ${i === activeIndex ? "active" : ""}`}
+                  className={`lyrics-line ${i === activeIndex ? "active" : ""} ${line.time !== undefined ? "clickable" : ""}`}
+                  onClick={() => handleLineClick(line)}
+                  style={i === activeIndex && lyrics.synced ? { "--progress": lineProgress } as React.CSSProperties : undefined}
                 >
                   {line.text || "\u00A0"}
                 </p>

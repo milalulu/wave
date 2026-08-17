@@ -26,7 +26,7 @@ class FakeParam {
     this.value = v;
   }
   cancelScheduledValues(): void {
-    /* noop */
+    
   }
 }
 
@@ -36,24 +36,38 @@ class FakeBiquad {
   Q = { value: 0 };
   gain = new FakeParam(0);
   connect(): void {
-    /* noop */
+    
   }
 }
 
 class FakeGain {
   gain = new FakeParam(1);
   connect(): void {
-    /* noop */
+    
   }
 }
 
 class FakeAnalyser {
   fftSize = 256;
   connect(): void {
-    /* noop */
+    
   }
   getByteFrequencyData(data: Uint8Array): void {
     data.fill(42);
+  }
+}
+
+class FakeConvolver {
+  buffer: unknown = null;
+  connect(): void {
+    
+  }
+}
+
+class FakeStereoPanner {
+  pan = new FakeParam(0);
+  connect(): void {
+    
   }
 }
 
@@ -61,6 +75,7 @@ class FakeAudioContext {
   static instances: FakeAudioContext[] = [];
   state = "suspended";
   currentTime = 0;
+  sampleRate = 44100;
   destination = {};
   elementSources: unknown[] = [];
   sourcesPaused: boolean[] = [];
@@ -99,6 +114,18 @@ class FakeAudioContext {
     return this.analyser;
   }
 
+  createConvolver(): FakeConvolver {
+    return new FakeConvolver();
+  }
+
+  createStereoPanner(): FakeStereoPanner {
+    return new FakeStereoPanner();
+  }
+
+  createBuffer(_channels: number, _length: number, _sampleRate: number): FakeDecodedBuffer {
+    return new FakeDecodedBuffer();
+  }
+
   createBufferSource(): FakeBufferSource {
     const s = new FakeBufferSource();
     this.bufferSources.push(s);
@@ -124,6 +151,10 @@ class FakeAudioContext {
 
 class FakeDecodedBuffer {
   duration = 120;
+  private channels: Float32Array[] = [new Float32Array(0), new Float32Array(0)];
+  getChannelData(ch: number): Float32Array {
+    return this.channels[ch] ?? new Float32Array(0);
+  }
 }
 
 class FakeBufferSource {
@@ -133,7 +164,7 @@ class FakeBufferSource {
   stopCalls: number[] = [];
   onended: (() => void) | null = null;
   connect(): void {
-    /* noop */
+    
   }
   start(_when: number, offset: number): void {
     this.offset = offset;
@@ -146,7 +177,7 @@ class FakeBufferSource {
 class FakeAudioElement {
   static instances: FakeAudioElement[] = [];
   static broken = false;
-  /** Элемент принял источник, но метаданные так и не пришли (readyState 0). */
+  
   static stuckMetadata = false;
   src = "";
   currentSrc = "";
@@ -177,7 +208,7 @@ class FakeAudioElement {
 
   load(): void {
     this.loadCount += 1;
-    // Сломанный `<audio>` (WebKitGTK баг) молча не принимает источник.
+    
     if (!FakeAudioElement.broken) this.currentSrc = this.src;
     if (!FakeAudioElement.broken && !FakeAudioElement.stuckMetadata) this.readyState = 1;
   }
@@ -245,8 +276,8 @@ describe("WebAudioAdapter", () => {
     const ctx = lastCtx();
     expect(ctx.elementSources.length).toBe(2);
     expect(ctx.sourcesPaused).toEqual([true, true]);
-    expect(ctx.biquads.length).toBe(EQ_FREQUENCIES.length);
-    expect(ctx.gains.length).toBe(2);
+    expect(ctx.biquads.length).toBe(EQ_FREQUENCIES.length + 1);
+    expect(ctx.gains.length).toBe(4);
     expect(ctx.analyser).toBeDefined();
     adapter.destroy();
   });
@@ -336,7 +367,7 @@ describe("WebAudioAdapter", () => {
     await adapter.play();
     adapter.load("b.mp3");
     await adapter.play();
-    // во время кроссфейда неактивный элемент (el1) уже играет b.mp3
+    
     expect(instances()[1].paused).toBe(false);
     adapter.preload("c.mp3");
     expect(instances()[1].src).toBe("b.mp3");
@@ -416,20 +447,20 @@ describe("WebAudioAdapter", () => {
     const adapter = new WebAudioAdapter();
     adapter.load("a.mp3");
     await adapter.play();
-    // Кроссфейд a → b: el1 активен (gain 1), el0 в неактиве с gain 0.
+    
     adapter.load("b.mp3");
     await adapter.play();
     vi.advanceTimersByTime(CROSSFADE_MS + 100);
     const ctx = lastCtx();
     expect(ctx.gains[1].gain.value).toBe(1);
 
-    // Пауза + предзагрузка следующего (c) в el0.
+    
     adapter.pause();
     adapter.preload("c.mp3");
-    // Переключение на предзагруженный c через load()-swap (без кроссфейда).
+    
     adapter.load("c.mp3");
     await adapter.play();
-    // Бывший неактивный (gain 0) стал активным — gain обязан вернуться к 1.
+    
     expect(ctx.gains[0].gain.value).toBe(1);
     expect(ctx.gains[1].gain.value).toBe(0);
     expect(instances()[0].paused).toBe(false);
@@ -483,17 +514,17 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     await adapter.load("a.mp3");
     await adapter.play();
 
-    // Элемент так и не принял источник — через probe-интервал переключаемся.
+    
     await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
 
     const ctx = lastCtx();
-    expect(ctx.elementSources.length).toBe(0); // элементный граф разобран
+    expect(ctx.elementSources.length).toBe(0); 
     expect(ctx.bufferSources.length).toBe(1);
     expect(ctx.bufferSources[0].offset).toBe(0);
     expect(ctx.decodeCalls).toBe(1);
     expect(adapter.getDuration()).toBe(120);
     expect(states).toContain("playing");
-    // Прямой fetch заблокирован CORS — идём через встроенный прокси.
+    
     expect(String(fetchMock.mock.calls[1][0])).toContain(`${PROXY_BASE}/audio?url=`);
     adapter.destroy();
   });
@@ -572,7 +603,7 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
 
     await adapter.load("b.mp3");
     await adapter.play();
-    expect(fetchMock.mock.calls.length).toBe(fetches); // буфер не грузился заново
+    expect(fetchMock.mock.calls.length).toBe(fetches); 
     expect(adapter.getDuration()).toBe(120);
     adapter.destroy();
   });
@@ -614,11 +645,11 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     const adapter = new WebAudioAdapter();
     await adapter.load("a.mp3");
     await adapter.play();
-    // Первая проба: currentSrc принят — не переключается.
+    
     await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
     expect(lastCtx().elementSources.length).toBe(2);
     expect(lastCtx().bufferSources.length).toBe(0);
-    // Вторая проба: метаданные так и не пришли — уходим на буфер.
+    
     await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_READY_PROBE_MS - MEDIA_ELEMENT_PROBE_MS);
     const ctx = lastCtx();
     expect(ctx.elementSources.length).toBe(0);
@@ -652,23 +683,23 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     const fetchMock = stubFetch();
     FakeAudioElement.broken = true;
     const adapter = new WebAudioAdapter();
-    // Первый трек — элементный режим; проба переводит в буферный и кеширует его.
+    
     await adapter.load("a.mp3");
     await adapter.play();
     await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
-    // Дальше всё грузится уже буферным путём (LRU пополняется).
+    
     for (const u of ["b.mp3", "c.mp3", "d.mp3", "e.mp3", "f.mp3"]) {
       await adapter.load(u);
       await adapter.play();
     }
     const fetchesAfterFill = fetchMock.mock.calls.length;
 
-    // "a.mp3" вытеснен (в кеше c,d,e,f) — источник грузится заново.
+    
     await adapter.load("a.mp3");
     await adapter.play();
     expect(fetchMock.mock.calls.length).toBeGreaterThan(fetchesAfterFill);
 
-    // "f.mp3" ещё в кеше — повторный fetch не нужен.
+    
     const fetchesAfterReload = fetchMock.mock.calls.length;
     await adapter.load("f.mp3");
     await adapter.play();

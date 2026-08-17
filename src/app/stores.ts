@@ -5,6 +5,8 @@ import { listen } from "@tauri-apps/api/event";
 
 import type { AlbumDetail, ArtistDetail, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
 import type { LyricsResult } from "../core/lyrics/LyricsService";
+import type { SmartPlaylistType } from "../core/library/SmartPlaylistGenerator";
+import { generateSmartPlaylists } from "../core/library/SmartPlaylistGenerator";
 import { composeServices, radioTracks, reconfigureServices, type AppServices } from "./compose";
 import { ApiBridge } from "./bridge";
 import { bindMediaSession } from "./mediaSession";
@@ -13,9 +15,11 @@ import { bindTray } from "./tray";
 import { bindMiniBroadcast, bindMiniRemote } from "./mini";
 import { bindGlobalHotkeys } from "./hotkeys";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
+import { type SyncedPlaylist, type PlaylistShare, sharePlaylist as apiShare, removeShareByEmail, getPlaylistShares, fetchSharedPlaylists } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
+import { loadAudioEffects, saveAudioEffects } from "./audioEffects";
 import { loadTheme, saveTheme, applyTheme, onSystemThemeChange, type Theme } from "./themeStore";
 import { getCachedCover } from "../core/cover/CoverCache";
 import { clearCoverCache } from "../core/cover/CoverCache";
@@ -60,8 +64,8 @@ interface AppState {
   services: AppServices | null;
   ready: boolean;
   snapshot: PlayerSnapshot;
-  /** «Горячие» поля прогресса: обновляются каждый time-ивент отдельно от snapshot,
-   *  чтобы перерисовка при тиканье времени не дёргала всё приложение. */
+  
+
   position: number;
   duration: number;
   likedIds: string[];
@@ -75,7 +79,7 @@ interface AppState {
   reloadServices: () => Promise<void>;
   view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
   setView: (v: AppState["view"]) => void;
-  /** Стек навигации: табы сбрасывают его, под-вьюхи пушатся. */
+  
   navStack: AppState["view"][];
   goBack: () => void;
   albumDetail: AlbumDetail | null;
@@ -91,7 +95,14 @@ interface AppState {
   deletePlaylist: (id: string) => Promise<void>;
   addToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
-  reorderPlaylist: (playlistId: string, from: number, to: number) => void;  init: () => Promise<void>;
+  reorderPlaylist: (playlistId: string, from: number, to: number) => void;
+  sharedPlaylists: SyncedPlaylist[];
+  playlistShares: PlaylistShare[];
+  sharePlaylist: (playlistId: string, email: string, permission?: "editor" | "viewer") => Promise<boolean>;
+  unsharePlaylist: (playlistId: string, email: string) => Promise<void>;
+  loadShares: (playlistId: string) => Promise<void>;
+  loadSharedPlaylists: () => Promise<void>;
+  init: () => Promise<void>;
   refreshLibrary: () => Promise<void>;
   play: (tracks: Track[], index?: number) => Promise<void>;
   togglePlay: () => Promise<void>;
@@ -109,6 +120,7 @@ interface AppState {
   toggleLike: (track?: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
+  startSmartPlaylist: (type: SmartPlaylistType) => Promise<void>;
   openLocalDirectory: () => Promise<void>;
   variants: TrackVariant[];
   variantsLoading: boolean;
@@ -156,6 +168,12 @@ interface AppState {
   setLyricsAutoscroll: (enabled: boolean) => void;
   crossfadeMs: number;
   setCrossfadeMs: (ms: number) => void;
+  bassBoost: number;
+  setBassBoost: (db: number) => void;
+  reverb: number;
+  setReverb: (mix: number) => void;
+  stereoWidth: number;
+  setStereoWidth: (pan: number) => void;
 }
 
 const emptySnapshot: PlayerSnapshot = {
@@ -173,7 +191,6 @@ const emptySnapshot: PlayerSnapshot = {
   history: [],
 };
 
-/** Корневые вкладки: переход на них сбрасывает стек навигации. */
 const TAB_VIEWS: ReadonlySet<AppState["view"]> = new Set([
   "home",
   "search",
@@ -265,6 +282,8 @@ export const useApp = create<AppState>()((set, get) => ({
   playlists: [],
   selectedPlaylistId: null,
   setSelectedPlaylist: (id) => set({ selectedPlaylistId: id }),
+  sharedPlaylists: [],
+  playlistShares: [],
   loadPlaylists: async () => {
     const { services } = get();
     if (!services) return;
@@ -342,6 +361,42 @@ export const useApp = create<AppState>()((set, get) => ({
         .updatePlaylist({ ...pl, tracks: copy, trackIds, updatedAt: Date.now() })
         .catch(() => {});
     }
+  },
+
+  sharePlaylist: async (playlistId, email, permission = "editor") => {
+    const { getCurrentUser } = await import("./supabase");
+    const user = await getCurrentUser();
+    if (!user) return false;
+    const result = await apiShare(user.id, playlistId, email, permission);
+    if (result) {
+      await get().loadShares(playlistId);
+      return true;
+    }
+    return false;
+  },
+
+  unsharePlaylist: async (playlistId, email) => {
+    const { getCurrentUser } = await import("./supabase");
+    const user = await getCurrentUser();
+    if (!user) return;
+    await removeShareByEmail(user.id, playlistId, email);
+    await get().loadShares(playlistId);
+  },
+
+  loadShares: async (playlistId) => {
+    const { getCurrentUser } = await import("./supabase");
+    const user = await getCurrentUser();
+    if (!user) return;
+    const shares = await getPlaylistShares(user.id, playlistId);
+    set({ playlistShares: shares });
+  },
+
+  loadSharedPlaylists: async () => {
+    const { getCurrentUser } = await import("./supabase");
+    const user = await getCurrentUser();
+    if (!user) return;
+    const shared = await fetchSharedPlaylists(user.id);
+    set({ sharedPlaylists: shared });
   },
 
   init: () => {
@@ -448,8 +503,8 @@ export const useApp = create<AppState>()((set, get) => ({
       ...s,
       localTracks: s.localTracks.map((tr) => (tr.id === trackId ? { ...tr, ...meta } : tr)),
     }));
-    // Правки тегов должны дойти и до очереди/текущего трека, иначе
-    // PlayerBar/NowPlaying показывают старые title/artist.
+    
+    
     get().services?.engine.updateTrack(trackId, meta);
   },
 
@@ -478,6 +533,21 @@ export const useApp = create<AppState>()((set, get) => ({
     }
   },
 
+  startSmartPlaylist: async (type) => {
+    const { services } = get();
+    if (!services) return;
+    try {
+      const history = await services.history.getHistory(2000);
+      const likedTracks = await services.library.getLikedTracks();
+      const playlists = generateSmartPlaylists(history, likedTracks);
+      const target = playlists.find((p) => p.type === type);
+      if (!target || target.tracks.length === 0) throw new Error("empty");
+      await services.engine.playTracks(target.tracks);
+    } catch (e) {
+      get().notify(e instanceof Error ? e.message : String(e));
+    }
+  },
+
   downloadTrack: async (track) => {
     let dir = "";
     try {
@@ -493,19 +563,19 @@ export const useApp = create<AppState>()((set, get) => ({
           try {
             localStorage.setItem("wave-download-dir", dir);
           } catch {
-            /* ignore */
+            
           }
         }
       } catch {
-        // dialog unavailable
+        
       }
     }
     if (!dir) {
-      // Android: диалога выбора папки нет — пишем в папку загрузок приложения.
+      
       try {
         dir = await invoke<string>("app_download_dir");
       } catch {
-        /* ignore */
+        
       }
     }
     if (!dir) {
@@ -808,6 +878,32 @@ export const useApp = create<AppState>()((set, get) => ({
     set({ crossfadeMs: ms });
     get().services?.engine.setCrossfadeMs(ms);
   },
+  ...(() => {
+    const fx = loadAudioEffects();
+    return {
+      bassBoost: fx.bassBoost,
+      reverb: fx.reverb,
+      stereoWidth: fx.stereoWidth,
+    };
+  })(),
+  setBassBoost: (db) => {
+    const clamped = Math.min(Math.max(db, 0), 15);
+    set({ bassBoost: clamped });
+    get().services?.engine.setBassBoost(clamped);
+    saveAudioEffects({ bassBoost: clamped, reverb: get().reverb, stereoWidth: get().stereoWidth });
+  },
+  setReverb: (mix) => {
+    const clamped = Math.min(Math.max(mix, 0), 1);
+    set({ reverb: clamped });
+    get().services?.engine.setReverb(clamped);
+    saveAudioEffects({ bassBoost: get().bassBoost, reverb: clamped, stereoWidth: get().stereoWidth });
+  },
+  setStereoWidth: (pan) => {
+    const clamped = Math.min(Math.max(pan, -1), 1);
+    set({ stereoWidth: clamped });
+    get().services?.engine.setStereoWidth(clamped);
+    saveAudioEffects({ bassBoost: get().bassBoost, reverb: get().reverb, stereoWidth: clamped });
+  },
 }));
 
 let sleepKickTimer: number | undefined;
@@ -925,6 +1021,11 @@ async function doInit(
   services.engine.on("equalizer", () => {
     saveEqualizer(services.engine.snapshot.equalizer);
   });
+
+  const savedFx = loadAudioEffects();
+  if (savedFx.bassBoost > 0) services.engine.setBassBoost(savedFx.bassBoost);
+  if (savedFx.reverb > 0) services.engine.setReverb(savedFx.reverb);
+  if (savedFx.stereoWidth !== 0) services.engine.setStereoWidth(savedFx.stereoWidth);
 
   const savedSpeed = loadSavedSpeed();
   if (savedSpeed !== null && savedSpeed !== 1) {

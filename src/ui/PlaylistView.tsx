@@ -6,7 +6,7 @@ import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
-import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon } from "./icons";
+import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon } from "./icons";
 import { buildM3U, parseM3U } from "../core/library/m3u";
 import type { Playlist, Track } from "../core/types";
 
@@ -16,7 +16,7 @@ function parseJSON(text: string): Track[] | null {
     if (Array.isArray(data.tracks)) return data.tracks as Track[];
     if (Array.isArray(data)) return data as Track[];
   } catch {
-    /* некорректный JSON — вернём null */
+    
   }
   return null;
 }
@@ -38,6 +38,14 @@ export function PlaylistView() {
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [showShare, setShowShare] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [sharePermission, setSharePermission] = useState<"editor" | "viewer">("editor");
+  const [shareLoading, setShareLoading] = useState(false);
+  const sharePlaylist = useApp((s) => s.sharePlaylist);
+  const unsharePlaylist = useApp((s) => s.unsharePlaylist);
+  const playlistShares = useApp((s) => s.playlistShares);
+  const loadShares = useApp((s) => s.loadShares);
 
   useEffect(() => {
     if (selectedPlaylistId) {
@@ -95,6 +103,33 @@ export function PlaylistView() {
       notify(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const handleShare = async () => {
+    if (!shareEmail.trim() || !selectedPlaylistId) return;
+    setShareLoading(true);
+    try {
+      const ok = await sharePlaylist(selectedPlaylistId, shareEmail.trim(), sharePermission);
+      if (ok) {
+        setShareEmail("");
+        notify(t("playlist").shareSuccess);
+      } else {
+        notify(t("playlist").shareFailed);
+      }
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleUnshare = async (email: string) => {
+    if (!selectedPlaylistId) return;
+    await unsharePlaylist(selectedPlaylistId, email);
+  };
+
+  useEffect(() => {
+    if (showShare && selectedPlaylistId) {
+      void loadShares(selectedPlaylistId);
+    }
+  }, [showShare, selectedPlaylistId, loadShares]);
 
   const exportPlaylist = async (playlist: Playlist, format: "m3u" | "json") => {
     const tracks = playlist.tracks ?? [];
@@ -229,6 +264,9 @@ export function PlaylistView() {
                 <button className="btn" onClick={() => void exportPlaylist(selected, "json")}>
                   <DownloadIcon size={18} /> {t("playlist").exportJSON}
                 </button>
+                <button className="btn" onClick={() => setShowShare(true)}>
+                  <ShareIcon size={18} /> {t("playlist").share}
+                </button>
               </div>
             </header>
             <div className="track-list">
@@ -283,6 +321,51 @@ export function PlaylistView() {
           </section>
         )}
       </div>
+
+      {showShare && (
+        <div className="modal-overlay" onClick={() => setShowShare(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("playlist").share}</h3>
+            <div className="form-group">
+              <label>{t("playlist").shareEmail}</label>
+              <input
+                type="email"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                placeholder={t("playlist").shareEmailPlaceholder}
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>{t("playlist").sharePermission}</label>
+              <select value={sharePermission} onChange={(e) => setSharePermission(e.target.value as "editor" | "viewer")}>
+                <option value="editor">{t("playlist").editor}</option>
+                <option value="viewer">{t("playlist").viewer}</option>
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => void handleShare()} disabled={shareLoading || !shareEmail.trim()}>
+                {shareLoading ? "..." : t("playlist").share}
+              </button>
+              <button className="btn secondary" onClick={() => setShowShare(false)}>{t("common").cancel}</button>
+            </div>
+            {playlistShares.length > 0 && (
+              <div className="share-list">
+                <h4>{t("playlist").sharedWith}</h4>
+                {playlistShares.map((s) => (
+                  <div key={s.id} className="share-item">
+                    <span>{s.collaboratorEmail ?? s.collaboratorId}</span>
+                    <small>{s.permission === "editor" ? t("playlist").editor : t("playlist").viewer}</small>
+                    <button className="icon-btn danger" onClick={() => void handleUnshare(s.collaboratorEmail ?? s.collaboratorId)}>
+                      <TrashIcon size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

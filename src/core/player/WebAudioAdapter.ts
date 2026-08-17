@@ -1,60 +1,28 @@
 import type { PlayerState } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
 
-/** Частоты 10-полосного эквалайзера. */
 export const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
 
-/** Длительность кроссфейда между треками. */
 export const CROSSFADE_MS = 300;
-/** Постоянная времени сглаживания gain (де-зиппинг, чтобы не щёлкало). */
+
 export const GAIN_TAU = 0.05;
 
-/** Базовый адрес встроенного прокси (отдаёт медиа без CORS-ограничений). */
 export const PROXY_BASE = "http://127.0.0.1:8299";
-/**
- * Через столько после первой загрузки проверяем, что элемент действительно
- * принял источник. Если нет — платформа сломала `<audio>` (известный баг
- * WebKitGTK: `load()` молча ничего не грузит) и мы переключаемся на
- * WebAudio-режим (fetch + decodeAudioData).
- */
+
 export const MEDIA_ELEMENT_PROBE_MS = 1500;
-/**
- * Вторая стадия пробы: если через это время у элемента так и не появились
- * метаданные (`readyState` остался 0) — источник молча не качается (медленный/
- * мёртвый стрим, сломанный `<audio>`). Переключаемся на WebAudio-буфер.
- */
+
 export const MEDIA_ELEMENT_READY_PROBE_MS = 8000;
-/** Период эмиссии времени воспроизведения в WebAudio-режиме. */
+
 export const BUFFER_TIME_UPDATE_MS = 250;
-/** Сколько декодированных буферов держать в кеше (декадированный PCM дорог по памяти). */
+
 export const BUFFER_CACHE_MAX = 4;
 
 type StateCb = (state: PlayerState) => void;
 type TimeCb = (position: number, duration: number) => void;
 type ElementMode = "element" | "buffer";
 
-/**
- * Адаптер с двумя режимами воспроизведения.
- *
- * Основной — двухэлементный HTML5 `<audio>` + WebAudio: граф строится ОДИН раз
- * на свежих (никогда не игравших) элементах до начала воспроизведения — это
- * обходит баг WebKitGTK, где `createMediaElementSource` на уже играющем
- * элементе обрубает звук. EQ меняется изменением gain, кроссфейд — плавным
- * перетеканием между двумя элементами.
- *
- * Фолбэк — WebAudio-буфер: если через `MEDIA_ELEMENT_PROBE_MS` после первой
- * загрузки элемент так и не принял источник (`currentSrc` пуст), платформа
- * сломала `<audio>`. Тогда треки грузятся через `fetch` → `decodeAudioData` и
- * играются из `AudioBufferSourceNode`. Всё остальное (EQ, визуализатор,
- * кроссфейд, seek, громкость) сохраняется.
- *
- * Топология (обеих режимов):
- *   src0 → gain0 ─┐
- *                  ├─ EQ (10 biquad) → analyser → destination
- *   src1 → gain1 ─┘
- */
 export class WebAudioAdapter implements AudioAdapter {
-  // ---- элементный режим ----
+  
   private elements: (HTMLAudioElement | null)[] = [null, null];
   private activeIdx = 0;
   private ctx: AudioContext | null = null;
@@ -62,6 +30,15 @@ export class WebAudioAdapter implements AudioAdapter {
   private filters: BiquadFilterNode[] = [];
   private analyser: AnalyserNode | null = null;
   private graphDisabled = false;
+
+  
+  private bassBoost: BiquadFilterNode | null = null;
+  private reverbGain: GainNode | null = null;
+  private dryGain: GainNode | null = null;
+  private stereoPan: StereoPannerNode | null = null;
+  private bassBoostGain = 0;
+  private reverbMix = 0;
+  private stereoWidth = 0;
 
   private gains: number[] = [];
 
@@ -73,16 +50,16 @@ export class WebAudioAdapter implements AudioAdapter {
   private masterVolume = 1;
   private playbackRate = 1;
 
-  // ---- выбор режима ----
+  
   private mode: ElementMode = "element";
   private probed = false;
   private probeTimer: number | undefined;
   private readyProbeTimer: number | undefined;
   private pendingElementSrc: string | null = null;
-  /** Намерение играть: установлено play(), снимается pause()/загрузкой нового. */
+  
   private playRequested = false;
 
-  // ---- буферный (WebAudio) режим ----
+  
   private bufCtx: AudioContext | null = null;
   private bufSrcGains: (GainNode | null)[] = [null, null];
   private bufFilters: BiquadFilterNode[] = [];
@@ -93,6 +70,12 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufDecoding: Promise<void> | null = null;
   private bufLoading = false;
   private bufNext: AudioBuffer | null = null;
+
+  
+  private bufBassBoost: BiquadFilterNode | null = null;
+  private bufReverbGain: GainNode | null = null;
+  private bufDryGain: GainNode | null = null;
+  private bufStereoPan: StereoPannerNode | null = null;
   private bufNextUri: string | null = null;
   private bufSource: AudioBufferSourceNode | null = null;
   private bufSourceGainIdx = 0;
@@ -105,7 +88,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufPendingSeek: number | null = null;
   private timeTimer: number | undefined;
   private proxiedHosts = new Set<string>();
-  /** LRU-кеш декодированных буферов (источники грузятся повторно при возврате). */
+  
   private bufferCache = new Map<string, AudioBuffer>();
 
   private stateCb: StateCb | null = null;
@@ -137,8 +120,8 @@ export class WebAudioAdapter implements AudioAdapter {
       if (!this.elements[i]) {
         const el = new Audio();
         el.preload = "auto";
-        // CORS-режим обязателен для кросс-доменного аудио через WebAudio: без него
-        // Chromium (WebView2/Windows) отдаёт тишину, а WebKitGTK играет нормально.
+        
+        
         el.crossOrigin = "anonymous";
         el.volume = this.masterVolume;
         el.playbackRate = this.playbackRate;
@@ -169,9 +152,9 @@ export class WebAudioAdapter implements AudioAdapter {
       this.endedCb?.();
     };
     el.onerror = (): void => {
-      // CORS-ошибка (источник без Access-Control-Allow-Origin): разбираем граф —
-      // кросс-доменное аудио внутри него на Chromium глушится. Звук идёт напрямую
-      // из элемента (без EQ), источник пробуем ещё раз без CORS-режима.
+      
+      
+      
       if (isActive() && !this.graphDisabled && this.ctx && el.crossOrigin) {
         const src = el.currentSrc || el.src;
         this.teardownGraph();
@@ -220,8 +203,8 @@ export class WebAudioAdapter implements AudioAdapter {
       el.currentTime = Math.min(this.pendingSeek, Math.max(el.duration, 0));
       this.pendingSeek = 0;
     } catch {
-      // Если медиа ещё не готово к seek (нет данных/поток), отложенный seek
-      // применится при следующем loadedmetadata.
+      
+      
     }
   }
 
@@ -233,11 +216,8 @@ export class WebAudioAdapter implements AudioAdapter {
     );
   }
 
-  /**
-   * Построить персистентный граф на свежих элементах. При неудаче элементы
-   * пересоздаются (могли быть привязаны к закрытому контексту) и звук идёт
-   * напрямую через элемент — без графа.
-   */
+  
+
   private ensureGraph(): void {
     this.ensureElements();
     if (this.ctx || this.graphDisabled) return;
@@ -274,8 +254,11 @@ export class WebAudioAdapter implements AudioAdapter {
         node.connect(this.filters[i]);
         node = this.filters[i];
       }
-      node.connect(this.analyser);
-      this.analyser.connect(ctx.destination);
+      const fx = this.insertEffectNodes(ctx, node as BiquadFilterNode, this.analyser);
+      this.bassBoost = fx.bassBoost;
+      this.reverbGain = fx.reverbGain;
+      this.dryGain = fx.dryGain;
+      this.stereoPan = fx.stereoPan;
       this.fadeGains = [g0, g1];
       this.ctx = ctx;
       this.applyGains();
@@ -295,6 +278,57 @@ export class WebAudioAdapter implements AudioAdapter {
     this.fadeGains = [];
     this.filters = [];
     this.analyser = null;
+    this.bassBoost = null;
+    this.reverbGain = null;
+    this.dryGain = null;
+    this.stereoPan = null;
+  }
+
+  private static generateImpulse(ctx: AudioContext, duration = 2, decay = 2): AudioBuffer {
+    const rate = ctx.sampleRate;
+    const length = rate * duration;
+    const buffer = ctx.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return buffer;
+  }
+
+  private insertEffectNodes(
+    ctx: AudioContext,
+    lastFilter: BiquadFilterNode,
+    analyser: AnalyserNode,
+  ): { bassBoost: BiquadFilterNode; reverb: ConvolverNode; reverbGain: GainNode; dryGain: GainNode; stereoPan: StereoPannerNode } {
+    const bb = ctx.createBiquadFilter();
+    bb.type = "lowshelf";
+    bb.frequency.value = 150;
+    bb.gain.value = this.bassBoostGain;
+
+    const conv = ctx.createConvolver();
+    conv.buffer = WebAudioAdapter.generateImpulse(ctx);
+
+    const revGain = ctx.createGain();
+    revGain.gain.value = this.reverbMix;
+
+    const dryGain = ctx.createGain();
+    dryGain.gain.value = 1 - this.reverbMix * 0.5;
+
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = this.stereoWidth;
+
+    lastFilter.connect(bb);
+    bb.connect(dryGain);
+    bb.connect(conv);
+    conv.connect(revGain);
+    dryGain.connect(pan);
+    revGain.connect(pan);
+    pan.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    return { bassBoost: bb, reverb: conv, reverbGain: revGain, dryGain, stereoPan: pan };
   }
 
   private resumeCtx(): void {
@@ -312,7 +346,7 @@ export class WebAudioAdapter implements AudioAdapter {
     });
   }
 
-  /** Выровнять уровни без кроссфейда: активный элемент = 1, неактивный = 0. */
+  
   private rebalanceGains(): void {
     if (!this.ctx || this.fadeGains.length !== 2) return;
     const t = this.ctx.currentTime;
@@ -333,7 +367,7 @@ export class WebAudioAdapter implements AudioAdapter {
     this.preloadedUri = null;
   }
 
-  /** Завершить кроссфейд: пауза старого элемента, активация нового. */
+  
   private finishFade(): void {
     if (this.fadeTimer !== undefined) {
       globalThis.clearTimeout(this.fadeTimer);
@@ -374,7 +408,7 @@ export class WebAudioAdapter implements AudioAdapter {
     }
   }
 
-  // ---------------------------------------------------------------- load/play
+  
 
   async load(src: string): Promise<void> {
     if (this.mode === "buffer") {
@@ -397,8 +431,8 @@ export class WebAudioAdapter implements AudioAdapter {
     if (next && next.currentSrc === src) {
       this.swapActive();
       next.currentTime = 0;
-      // После кроссфейда неактивный элемент имеет gain 0 — без ребаланса
-      // активированный по `load()` трек будет молчать.
+      
+      
       this.rebalanceGains();
       this.scheduleProbe();
       return;
@@ -409,7 +443,7 @@ export class WebAudioAdapter implements AudioAdapter {
     this.scheduleProbe();
   }
 
-  /** Подогреть неактивный элемент следующим треком (бесшовное переключение). */
+  
   preload(src: string): void {
     if (this.mode === "buffer") {
       this.bufPreload(src);
@@ -418,8 +452,8 @@ export class WebAudioAdapter implements AudioAdapter {
     const active = this.activeElement();
     const next = this.inactiveElement();
     if (!active.currentSrc || !next) return;
-    // Неактивный элемент играет — идёт кроссфейд на него; перезаписывать
-    // src сейчас нельзя (прервёт переход). Пропускаем предзагрузку.
+    
+    
     if (!next.paused) return;
     if (this.preloadedUri === src) return;
     this.preloadedUri = src;
@@ -429,7 +463,7 @@ export class WebAudioAdapter implements AudioAdapter {
     next.load();
   }
 
-  /** Включить/переключить эквалайзер. Граф не пересоздаётся. */
+  
   setEqualizer(gains: number[]): void {
     this.gains = [...gains];
     if (this.mode === "buffer") {
@@ -437,6 +471,29 @@ export class WebAudioAdapter implements AudioAdapter {
     } else {
       this.applyGains();
     }
+  }
+
+  setBassBoost(db: number): void {
+    this.bassBoostGain = Math.min(Math.max(db, 0), 15);
+    const t = this.ctx?.currentTime ?? 0;
+    if (this.bassBoost) this.bassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
+    if (this.bufBassBoost) this.bufBassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
+  }
+
+  setReverb(mix: number): void {
+    this.reverbMix = Math.min(Math.max(mix, 0), 1);
+    const t = this.ctx?.currentTime ?? 0;
+    if (this.reverbGain) this.reverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
+    if (this.dryGain) this.dryGain.gain.setTargetAtTime(1 - this.reverbMix * 0.5, t, GAIN_TAU);
+    if (this.bufReverbGain) this.bufReverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
+    if (this.bufDryGain) this.bufDryGain.gain.setTargetAtTime(1 - this.reverbMix * 0.5, t, GAIN_TAU);
+  }
+
+  setStereoWidth(pan: number): void {
+    this.stereoWidth = Math.min(Math.max(pan, -1), 1);
+    const t = this.ctx?.currentTime ?? 0;
+    if (this.stereoPan) this.stereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
+    if (this.bufStereoPan) this.bufStereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
   }
 
   async play(): Promise<void> {
@@ -513,7 +570,7 @@ export class WebAudioAdapter implements AudioAdapter {
     return el && Number.isFinite(el.duration) ? el.duration : 0;
   }
 
-  /** Заполнить массив спектральными данными (0, если граф недоступен). */
+  
   getSpectrum(data: Uint8Array): void {
     if (this.mode === "buffer") {
       if (this.bufAnalyser && this.bufCtx) {
@@ -530,16 +587,10 @@ export class WebAudioAdapter implements AudioAdapter {
     }
   }
 
-  // ------------------------------------------------- buffer (WebAudio) режим
+  
 
-  /**
-   * Построить буферный граф. Возвращает true, если контекст создан.
-   * В отличие от элементного режима здесь два source-gain для кроссфейда и
-   * отдельный мастер-gain для громкости:
-   *   g0 ─┐
-   *       ├─ EQ → analyser → master → destination
-   *   g1 ─┘
-   */
+  
+
   private ensureBufferCtx(): boolean {
     if (this.bufCtx) return true;
     const Ctor = this.audioCtor();
@@ -568,7 +619,32 @@ export class WebAudioAdapter implements AudioAdapter {
         node.connect(this.bufFilters[i]);
         node = this.bufFilters[i];
       }
-      node.connect(this.bufAnalyser);
+
+      this.bufBassBoost = ctx.createBiquadFilter();
+      this.bufBassBoost.type = "lowshelf";
+      this.bufBassBoost.frequency.value = 150;
+      this.bufBassBoost.gain.value = this.bassBoostGain;
+
+      const bufReverb = ctx.createConvolver();
+      bufReverb.buffer = WebAudioAdapter.generateImpulse(ctx);
+
+      this.bufReverbGain = ctx.createGain();
+      this.bufReverbGain.gain.value = this.reverbMix;
+
+      this.bufDryGain = ctx.createGain();
+      this.bufDryGain.gain.value = 1 - this.reverbMix * 0.5;
+
+      this.bufStereoPan = ctx.createStereoPanner();
+      this.bufStereoPan.pan.value = this.stereoWidth;
+
+      node.connect(this.bufBassBoost);
+      this.bufBassBoost.connect(this.bufDryGain);
+      this.bufBassBoost.connect(bufReverb);
+      bufReverb.connect(this.bufReverbGain);
+      this.bufDryGain.connect(this.bufStereoPan);
+      this.bufReverbGain.connect(this.bufStereoPan);
+      this.bufStereoPan.connect(this.bufAnalyser);
+
       const master = ctx.createGain();
       master.gain.value = this.bufVolume;
       this.bufAnalyser.connect(master);
@@ -584,6 +660,10 @@ export class WebAudioAdapter implements AudioAdapter {
       this.bufSrcGains = [null, null];
       this.bufFilters = [];
       this.bufAnalyser = null;
+      this.bufBassBoost = null;
+      this.bufReverbGain = null;
+      this.bufDryGain = null;
+      this.bufStereoPan = null;
       return false;
     }
   }
@@ -597,6 +677,10 @@ export class WebAudioAdapter implements AudioAdapter {
     this.bufSrcGains = [null, null];
     this.bufFilters = [];
     this.bufAnalyser = null;
+    this.bufBassBoost = null;
+    this.bufReverbGain = null;
+    this.bufDryGain = null;
+    this.bufStereoPan = null;
   }
 
   private resumeBufCtx(): void {
@@ -618,10 +702,8 @@ export class WebAudioAdapter implements AudioAdapter {
     this.stateCb?.(state);
   }
 
-  /**
-   * Переключиться в буферный режим: элементный режим разобран, дальше всё
-   * играется из WebAudio-буферов.
-   */
+  
+
   private switchToBufferMode(): void {
     if (this.mode === "buffer") return;
     if (!this.ensureBufferCtx()) return;
@@ -638,21 +720,15 @@ export class WebAudioAdapter implements AudioAdapter {
         try {
           el.load();
         } catch {
-          /* ignore */
+          
         }
       }
     }
     this.elements = [null, null];
   }
 
-  /**
-   * Проверка здоровья элементного режима двумя стадиями. Первая (через
-   * `MEDIA_ELEMENT_PROBE_MS` после загрузки) ловит сломанный `<audio>`, который
-   * молча не принимает источник (`currentSrc` пуст). Вторая (через
-   * `MEDIA_ELEMENT_READY_PROBE_MS`) — источник принят, но метаданные так и не
-   * пришли (`readyState` 0): медленный/мёртвый стрим. В обоих случаях
-   * переключаемся на буферы и, если было намерение играть, запускаем трек.
-   */
+  
+
   private scheduleProbe(): void {
     if (this.probed) return;
     this.probed = true;
@@ -719,7 +795,7 @@ export class WebAudioAdapter implements AudioAdapter {
     return this.bufCtx.decodeAudioData(bytes);
   }
 
-  /** Достать буфер из кеша, освежив его LRU-позицию. */
+  
   private cachedBuf(src: string): AudioBuffer | undefined {
     const hit = this.bufferCache.get(src);
     if (hit) {
@@ -745,12 +821,12 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private async bufLoad(src: string): Promise<void> {
-    // Повторная загрузка того же источника — дожидаемся текущей декодировки.
+    
     if (this.bufUri === src && this.bufDecoding) {
       await this.bufDecoding;
       return;
     }
-    // Готовый буфер из кеша или предзагрузки — без повторного fetch/декодирования.
+    
     const cached = this.cachedBuf(src);
     const preloaded = this.bufNextUri === src ? this.bufNext : null;
     if (cached || preloaded) {
@@ -773,10 +849,10 @@ export class WebAudioAdapter implements AudioAdapter {
     }
     this.bufUri = src;
     this.bufLoading = true;
-    // Состояние "loading" здесь НЕ эмитим: движок уже установил его перед
-    // load(), а повторный emit перезапустил бы stall-таймер в разгар
-    // декодирования (долгая декодировка > STALL_TIMEOUT_MS давала бы ложный
-    // "stream stalled"). Играемость возвещается в bufStartPlayback.
+    
+    
+    
+    
     const decoding = this.bufFetchBytes(src)
       .then((bytes) => this.bufDecode(bytes))
       .then((audio) => {
@@ -891,7 +967,7 @@ export class WebAudioAdapter implements AudioAdapter {
         try {
           oldSource.stop(t + this.crossfadeMs / 1000 + 0.05);
         } catch {
-          /* уже завершился */
+          
         }
       }
     } else {
@@ -907,7 +983,7 @@ export class WebAudioAdapter implements AudioAdapter {
     try {
       src.stop();
     } catch {
-      /* already stopped */
+      
     }
   }
 
@@ -961,7 +1037,7 @@ export class WebAudioAdapter implements AudioAdapter {
     }
   }
 
-  // ------------------------------------------------------------- callbacks
+  
 
   onStateChange(cb: StateCb): () => void {
     this.stateCb = cb;
@@ -1012,7 +1088,7 @@ export class WebAudioAdapter implements AudioAdapter {
         try {
           el.load();
         } catch {
-          /* ignore */
+          
         }
       }
     }

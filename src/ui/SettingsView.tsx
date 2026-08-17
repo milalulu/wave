@@ -102,6 +102,12 @@ export function SettingsView() {
   const setLyricsAutoscroll = useApp((s) => s.setLyricsAutoscroll);
   const crossfadeMs = useApp((s) => s.crossfadeMs);
   const setCrossfadeMs = useApp((s) => s.setCrossfadeMs);
+  const bassBoost = useApp((s) => s.bassBoost);
+  const setBassBoost = useApp((s) => s.setBassBoost);
+  const reverb = useApp((s) => s.reverb);
+  const setReverb = useApp((s) => s.setReverb);
+  const stereoWidth = useApp((s) => s.stereoWidth);
+  const setStereoWidth = useApp((s) => s.setStereoWidth);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [localDir, setLocalDir] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
@@ -212,7 +218,7 @@ export function SettingsView() {
       const dir = localStorage.getItem("wave-local-dir");
       if (dir) setLocalDir(dir);
     } catch {
-      /* конфиг недоступен — оставим пустые поля */
+      
     }
   };
 
@@ -565,6 +571,50 @@ export function SettingsView() {
                 {ms === 0 ? t("settings").crossfadeOff : `${ms} ms`}
               </button>
             ))}
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").audioEffects} desc={t("settings").audioEffectsDesc}>
+          <div className="effects-sliders">
+            <div className="effect-slider">
+              <label>{t("settings").bassBoost}</label>
+              <input
+                type="range"
+                min={0}
+                max={15}
+                step={1}
+                value={bassBoost}
+                onChange={(e) => setBassBoost(Number(e.target.value))}
+              />
+              <span className="effect-value">{bassBoost} dB</span>
+            </div>
+            <p className="muted">{t("settings").bassBoostDesc}</p>
+            <div className="effect-slider">
+              <label>{t("settings").reverb}</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(reverb * 100)}
+                onChange={(e) => setReverb(Number(e.target.value) / 100)}
+              />
+              <span className="effect-value">{Math.round(reverb * 100)}%</span>
+            </div>
+            <p className="muted">{t("settings").reverbDesc}</p>
+            <div className="effect-slider">
+              <label>{t("settings").stereoWidth}</label>
+              <input
+                type="range"
+                min={-100}
+                max={100}
+                step={1}
+                value={Math.round(stereoWidth * 100)}
+                onChange={(e) => setStereoWidth(Number(e.target.value) / 100)}
+              />
+              <span className="effect-value">{stereoWidth > 0 ? "+" : ""}{Math.round(stereoWidth * 100)}%</span>
+            </div>
+            <p className="muted">{t("settings").stereoWidthDesc}</p>
           </div>
         </SettingsCard>
 
