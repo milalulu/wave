@@ -31,7 +31,11 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
   @Command
   fun consumeMediaAction(invoke: Invoke) {
     val action = MainActivity.consumeMediaAction()
-    invoke.resolveObject(action)
+    if (action != null) {
+      invoke.resolveObject(action)
+    } else {
+      invoke.resolve()
+    }
   }
 
   @Command
