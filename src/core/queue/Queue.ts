@@ -80,6 +80,17 @@ export class Queue {
     }
   }
 
+  insertNext(track: Track): void {
+    this.tracks.push(track);
+    const newIdx = this.tracks.length - 1;
+    if (this.current() !== null) {
+      const insertPos = this.pos + 1;
+      this.order.splice(insertPos, 0, newIdx);
+    } else {
+      this.order.push(newIdx);
+    }
+  }
+
   removeAt(trackIndex: number): Track | null {
     if (trackIndex < 0 || trackIndex >= this.tracks.length) return null;
     const currentTrack = this.current();

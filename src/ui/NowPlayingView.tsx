@@ -6,13 +6,7 @@ import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
 import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon } from "./icons";
-
-function formatTime(seconds?: number): string {
-  if (!seconds || !Number.isFinite(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { formatTime } from "../core/util/format";
 
 interface NowPlayingViewProps {
   onNavigate: (view: ViewKey) => void;

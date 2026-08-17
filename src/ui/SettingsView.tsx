@@ -797,7 +797,7 @@ export function SettingsView() {
         </SettingsCard>
 
         <SettingsCard title={t("settings").backup} desc={t("settings").backupDesc}>
-          <div className="actions-row">
+          <div className="settings-actions">
             <button
               className="btn"
               onClick={async () => {
@@ -808,7 +808,7 @@ export function SettingsView() {
                 if (!path) return;
                 try {
                   await invoke("backup_database", { path });
-                  notify(t("toasts").exportSuccess);
+                  notify(t("toasts").settingsSaved);
                 } catch (e) {
                   notify(e instanceof Error ? e.message : String(e));
                 }
@@ -834,6 +834,30 @@ export function SettingsView() {
             >
               <UploadIcon size={18} /> {t("settings").restore}
             </button>
+          </div>
+        </SettingsCard>
+        <SettingsCard title={t("shortcuts").title}>
+          <div className="shortcuts-list">
+            {([
+              ["Space", t("shortcuts").playPause],
+              ["→", t("shortcuts").next],
+              ["←", t("shortcuts").prev],
+              ["↑", t("shortcuts").volumeUp],
+              ["↓", t("shortcuts").volumeDown],
+              ["M", t("shortcuts").mute],
+              ["L", t("shortcuts").like],
+              ["S", t("shortcuts").shuffle],
+              ["/ or Ctrl+K", t("shortcuts").search],
+              ["Ctrl+Q / Ctrl+W", t("shortcuts").closeWindow],
+              ["Ctrl+Alt+Space", t("shortcuts").globalPlayPause],
+              ["Ctrl+Alt+→", t("shortcuts").globalNext],
+              ["Ctrl+Alt+←", t("shortcuts").globalPrev],
+            ] as const).map(([key, label]) => (
+              <div key={key} className="shortcut-row">
+                <kbd>{key}</kbd>
+                <span>{label}</span>
+              </div>
+            ))}
           </div>
         </SettingsCard>
       </div>

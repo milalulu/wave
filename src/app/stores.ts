@@ -115,6 +115,7 @@ interface AppState {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   addToQueue: (track: Track) => void;
+  playNext: (track: Track) => void;
   clearQueue: () => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   toggleLike: (track?: Track) => Promise<void>;
@@ -480,6 +481,9 @@ export const useApp = create<AppState>()((set, get) => ({
 
   addToQueue: (track) => {
     get().services?.engine.addToQueue(track);
+  },
+  playNext: (track) => {
+    get().services?.engine.playNext(track);
   },
 
   clearQueue: () => {
@@ -943,14 +947,46 @@ async function doInit(
   const bind = (): void => set({ snapshot: services.engine.snapshot });
   services.engine.on("state", bind);
   if (IS_ANDROID) {
-    let lastPlayback = false;
+    const syncAndroid = (playing: boolean) => {
+      const snap = services.engine.snapshot;
+      const track = snap.current;
+      void invoke("set_playback", {
+        playing,
+        title: track?.title ?? null,
+        artist: track?.artist ?? null,
+        duration: snap.duration,
+        position: snap.position,
+      }).catch(() => {});
+    };
     services.engine.on("state", (s) => {
-      const playing = s === "playing";
-      if (playing !== lastPlayback) {
-        lastPlayback = playing;
-        void invoke("set_playback", { playing }).catch(() => {});
-      }
+      syncAndroid(s === "playing");
     });
+    services.engine.on("track", () => {
+      syncAndroid(services.engine.snapshot.state === "playing");
+    });
+    let lastAndroidSync = 0;
+    services.engine.on("time", ({ position }) => {
+      const now = Date.now();
+      if (now - lastAndroidSync < 5000) return;
+      if (!services.engine.snapshot.current) return;
+      lastAndroidSync = now;
+      void invoke("set_playback", {
+        playing: services.engine.snapshot.state === "playing",
+        title: services.engine.snapshot.current?.title ?? null,
+        artist: services.engine.snapshot.current?.artist ?? null,
+        duration: services.engine.snapshot.duration,
+        position,
+      }).catch(() => {});
+    });
+    (globalThis as unknown as Record<string, unknown>).__wave_media_action = (action: string) => {
+      const engine = services.engine;
+      switch (action) {
+        case "prev": void engine.previous(); break;
+        case "next": void engine.next(); break;
+        case "play": void engine.play(); break;
+        case "pause": engine.pause(); break;
+      }
+    };
   }
   services.engine.on("track", bind);
   // Прогресс — отдельно: часто (несколько раз/с), но трогает только подписчиков position.

@@ -4,7 +4,7 @@ import type { MusicProvider } from "./MusicProvider";
 import type { HttpJsonGateway } from "./HttpGateway";
 
 const API = "https://musicbrainz.org/ws/2";
-const USER_AGENT = "Wave/0.1 (https://example.invalid; music client)";
+const USER_AGENT = "Wave/0.1.9 (https://github.com/milalulu/wave; music client)";
 
 interface MbArtistCredit {
   name?: string;

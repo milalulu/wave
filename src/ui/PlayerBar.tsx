@@ -6,6 +6,7 @@ import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { Spectrum } from "./Spectrum";
+import { formatTime } from "../core/util/format";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -29,13 +30,6 @@ import {
   VolumeIcon,
   VolumeMuteIcon,
 } from "./icons";
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 function formatRemaining(seconds: number): string {
   const h = Math.floor(seconds / 3600);

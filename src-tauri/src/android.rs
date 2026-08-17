@@ -11,18 +11,34 @@ use tauri::{
 pub struct WaveAndroid(pub PluginHandle<Wry>);
 
 #[tauri::command]
-async fn set_playback(app: tauri::AppHandle, playing: bool) -> Result<(), String> {
+async fn set_playback(
+    app: tauri::AppHandle,
+    playing: bool,
+    title: Option<String>,
+    artist: Option<String>,
+    duration: Option<f64>,
+    position: Option<f64>,
+) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         let state = app.state::<WaveAndroid>();
         state
             .0
-            .run_mobile_plugin_async::<Value>("setPlayback", json!({ "playing": playing }))
+            .run_mobile_plugin_async::<Value>(
+                "setPlayback",
+                json!({
+                    "playing": playing,
+                    "title": title,
+                    "artist": artist,
+                    "duration": duration.unwrap_or(0.0),
+                    "position": position.unwrap_or(0.0),
+                }),
+            )
             .await
             .map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "android"))]
-    let _ = (app, playing);
+    let _ = (app, playing, title, artist, duration, position);
     Ok(())
 }
 

@@ -86,14 +86,28 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
     }
 }
 
-/// Сохранить ключи API в персистентный конфиг (без env). Перезапись полным объектом.
+/// Сохранить ключи API в персистентный конфиг (без env). Мерж с существующим.
 #[tauri::command]
 fn save_app_config(app: tauri::AppHandle, config: serde_json::Value) -> Result<(), String> {
     let path = persisted_config_path(&app);
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    std::fs::write(&path, config.to_string()).map_err(|e| format!("save config: {e}"))?;
+    let merged = match std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+    {
+        Some(mut existing) => {
+            if let (Some(obj), Some(patch)) = (existing.as_object_mut(), config.as_object()) {
+                for (k, v) in patch {
+                    obj.insert(k.clone(), v.clone());
+                }
+            }
+            existing
+        }
+        None => config,
+    };
+    std::fs::write(&path, merged.to_string()).map_err(|e| format!("save config: {e}"))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -129,18 +143,10 @@ fn resolve_api_token(app: &tauri::AppHandle) -> String {
 }
 
 fn random_token() -> String {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
-    let mut h = RandomState::new().build_hasher();
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| h.write_u64(d.as_nanos() as u64))
-        .ok();
-    h.write_u64(std::process::id() as u64);
-    let a = h.finish();
-    let mut h2 = RandomState::new().build_hasher();
-    h2.write_u64(a);
-    format!("{:016x}{:016x}", a, h2.finish())
+    let mut bytes = [0u8; 32];
+    getrandom::getrandom(&mut bytes).expect("failed to generate random token");
+    use base64::Engine;
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
 #[tauri::command]
@@ -421,8 +427,12 @@ async fn http_fetch_json(
     let form_content_type = headers.iter().any(|(k, v)| {
         k.eq_ignore_ascii_case("content-type") && v.contains("x-www-form-urlencoded")
     });
-    for (k, v) in headers {
-        builder = builder.header(k, v);
+    let blocked = ["cookie", "authorization", "x-api-token", "set-cookie"];
+    for (k, v) in &headers {
+        if blocked.iter().any(|b| k.eq_ignore_ascii_case(b)) {
+            continue;
+        }
+        builder = builder.header(k.as_str(), v.as_str());
     }
     if let Some(b) = body {
         if let Some(obj) = b.as_object() {
@@ -471,8 +481,12 @@ async fn http_fetch_text(
         "DELETE" => client.delete(parsed.clone()),
         _ => return Err(format!("unsupported method {method}")),
     };
-    for (k, v) in headers {
-        builder = builder.header(k, v);
+    let blocked = ["cookie", "authorization", "x-api-token", "set-cookie"];
+    for (k, v) in &headers {
+        if blocked.iter().any(|b| k.eq_ignore_ascii_case(b)) {
+            continue;
+        }
+        builder = builder.header(k.as_str(), v.as_str());
     }
     if let Some(b) = body {
         builder = builder.json(&b);
@@ -798,8 +812,9 @@ fn wave_db_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
 
 #[tauri::command]
 fn backup_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let safe = resolve_safe_path(&app, &path, true)?;
     let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
-    std::fs::copy(&db, &path)
+    std::fs::copy(&db, &safe)
         .map_err(|e| format!("backup failed: {e}"))
         .map(|_| ())
 }
@@ -1087,9 +1102,10 @@ const MUSIC_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "flac", "ogg", "opus", "wav",
 /// Рекурсивный обход папки: возвращает музыкальные файлы
 /// с тегами (ID3/FLAC/MP4…) и длительностью, если они есть.
 #[tauri::command]
-fn list_music_files(dir: String) -> Vec<serde_json::Value> {
+fn list_music_files(dir: String, app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let safe = resolve_safe_path(&app, &dir, false)?;
     let mut out = Vec::new();
-    let mut stack = vec![std::path::PathBuf::from(&dir)];
+    let mut stack = vec![safe];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
@@ -1108,7 +1124,7 @@ fn list_music_files(dir: String) -> Vec<serde_json::Value> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
 fn file_meta(path: &std::path::Path) -> serde_json::Value {
@@ -1137,13 +1153,15 @@ fn file_meta(path: &std::path::Path) -> serde_json::Value {
                 json["album"] = serde_json::Value::String(album);
             }
             if let Some(picture) = tag.pictures().first() {
-                use base64::Engine;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(picture.data());
-                let mime = picture
-                    .mime_type()
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| "image/jpeg".to_string());
-                json["cover"] = serde_json::Value::String(format!("data:{mime};base64,{b64}"));
+                if picture.data().len() <= 200_000 {
+                    use base64::Engine;
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(picture.data());
+                    let mime = picture
+                        .mime_type()
+                        .map(|m| m.to_string())
+                        .unwrap_or_else(|| "image/jpeg".to_string());
+                    json["cover"] = serde_json::Value::String(format!("data:{mime};base64,{b64}"));
+                }
             }
         }
         let duration = tagged.properties().duration().as_secs();
@@ -1168,8 +1186,9 @@ struct AudioTags {
 
 /// Прочитать текущие теги файла (для окна редактирования тегов).
 #[tauri::command]
-fn read_audio_tags(path: String) -> Result<AudioTags, String> {
-    let tagged = lofty::read_from_path(&path).map_err(|e| format!("read {path}: {e}"))?;
+fn read_audio_tags(path: String, app: tauri::AppHandle) -> Result<AudioTags, String> {
+    let safe = resolve_safe_path(&app, &path, false)?;
+    let tagged = lofty::read_from_path(&safe).map_err(|e| format!("read {path}: {e}"))?;
     let mut tags = AudioTags {
         title: String::new(),
         artist: String::new(),
@@ -1222,10 +1241,12 @@ fn write_audio_tags(
     genre: String,
     year: Option<u32>,
     track_number: Option<u32>,
+    app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let safe = resolve_safe_path(&app, &path, true)?;
     use lofty::tag::items::Timestamp;
     use lofty::tag::Accessor;
-    let mut tagged = lofty::read_from_path(&path).map_err(|e| format!("read {path}: {e}"))?;
+    let mut tagged = lofty::read_from_path(&safe).map_err(|e| format!("read {path}: {e}"))?;
     let tag = if let Some(t) = tagged.primary_tag_mut() {
         t
     } else if let Some(t) = tagged.first_tag_mut() {
@@ -1259,7 +1280,7 @@ fn write_audio_tags(
         tag.set_track(t);
     }
     tagged
-        .save_to_path(&path, lofty::config::WriteOptions::default())
+        .save_to_path(&safe, lofty::config::WriteOptions::default())
         .map_err(|e| format!("write {path}: {e}"))?;
     Ok(())
 }

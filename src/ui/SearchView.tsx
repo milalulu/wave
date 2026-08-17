@@ -162,7 +162,19 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="muted">{t("common").loading}</p>}
+      {loading && (
+        <div className="skeleton-results">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skeleton-row">
+              <div className="skeleton-cover" />
+              <div className="skeleton-text">
+                <div className="skeleton-line w80" />
+                <div className="skeleton-line w50" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {results && (
         <Results
           results={results}

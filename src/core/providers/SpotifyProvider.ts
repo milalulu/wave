@@ -51,6 +51,7 @@ export class SpotifyProvider implements MusicProvider {
   readonly name = "Spotify";
 
   private token: string | null = null;
+  private tokenExpiresAt = 0;
   private fallbackCache = new Map<string, string>();
 
   constructor(
@@ -135,16 +136,83 @@ export class SpotifyProvider implements MusicProvider {
     throw new Error("spotify: no playable source");
   }
 
-  async getAlbum(_albumId: string): Promise<AlbumDetail> {
-    throw new Error("spotify provider: no album detail yet");
+  async getAlbum(albumId: string): Promise<AlbumDetail> {
+    const realId = albumId.replace(/^spotify:album:/, "");
+    const token = await this.accessToken();
+    const { status, body } = await this.http.json(
+      "GET",
+      `${API}/albums/${realId}`,
+      undefined,
+      { Authorization: `Bearer ${token}` },
+    );
+    if (status !== 200) throw new Error(`spotify album failed: ${status}`);
+    const a = body as SpotifyAlbum & { tracks?: { items?: SpotifyTrack[] } };
+    return {
+      album: {
+        id: albumId,
+        provider: this.id,
+        title: a.name ?? "",
+        artist: a.artists?.[0]?.name,
+        coverUrl: cover(a.images),
+        year: a.release_date ? new Date(a.release_date).getFullYear() : undefined,
+        trackCount: a.total_tracks,
+      },
+      tracks: (a.tracks?.items ?? [])
+        .filter((t) => t?.id && t.name)
+        .map((t) => ({
+          id: `spotify:track:${t.id}`,
+          provider: this.id,
+          uri: t.preview_url ?? "",
+          title: t.name ?? "",
+          artist: t.artists?.[0]?.name,
+          album: a.name,
+          coverUrl: cover(a.images),
+          duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
+          meta: { spotifyUrl: t.external_urls?.spotify, ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}) },
+        })),
+    };
   }
 
-  async getArtist(_artistId: string): Promise<ArtistDetail> {
-    throw new Error("spotify provider: no artist detail yet");
+  async getArtist(artistId: string): Promise<ArtistDetail> {
+    const realId = artistId.replace(/^spotify:artist:/, "");
+    const token = await this.accessToken();
+    const { status, body } = await this.http.json(
+      "GET",
+      `${API}/artists/${realId}/top-tracks?market=US`,
+      undefined,
+      { Authorization: `Bearer ${token}` },
+    );
+    if (status !== 200) throw new Error(`spotify artist failed: ${status}`);
+    const data = body as { tracks?: SpotifyTrack[] };
+    const firstTrack = data.tracks?.[0];
+    const artistName = firstTrack?.artists?.[0]?.name ?? "";
+    const artistImage = firstTrack?.album?.images;
+    return {
+      artist: {
+        id: artistId,
+        provider: this.id,
+        name: artistName,
+        coverUrl: cover(artistImage),
+      },
+      topTracks: (data.tracks ?? [])
+        .filter((t) => t?.id && t.name)
+        .map((t) => ({
+          id: `spotify:track:${t.id}`,
+          provider: this.id,
+          uri: t.preview_url ?? "",
+          title: t.name ?? "",
+          artist: t.artists?.[0]?.name,
+          album: t.album?.name,
+          coverUrl: cover(t.album?.images),
+          duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
+          meta: { spotifyUrl: t.external_urls?.spotify, ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}) },
+        })),
+      albums: [],
+    };
   }
 
   private async accessToken(): Promise<string> {
-    if (this.token) return this.token;
+    if (this.token && Date.now() < this.tokenExpiresAt) return this.token;
     const auth = `Basic ${btoa(`${this.config.clientId}:${this.config.clientSecret}`)}`;
     const { status, body } = await this.http.json(
       "POST",
@@ -156,8 +224,11 @@ export class SpotifyProvider implements MusicProvider {
       },
     );
     if (status !== 200) throw new Error(`spotify token failed: ${status}`);
-    this.token = (body as { access_token?: string }).access_token ?? null;
+    const data = body as { access_token?: string; expires_in?: number };
+    this.token = data.access_token ?? null;
     if (!this.token) throw new Error("spotify: no access_token");
+    const expiresIn = data.expires_in ?? 3600;
+    this.tokenExpiresAt = Date.now() + (expiresIn - 60) * 1000;
     return this.token;
   }
 }

@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await signInOAuthDesktop(provider);
             return;
           case "android":
-            throw new Error("OAuth: недоступен на Android — используйте email и пароль");
+            throw new Error("OAuth is not available on Android — use email and password");
           default:
             
             {

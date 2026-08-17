@@ -7,7 +7,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   deezer: "Deezer",
   lastfm: "Last.fm",
   musicbrainz: "MusicBrainz",
-  local: "Локально",
+  local: "Local",
 };
 
 export function providerLabel(id: string): string {

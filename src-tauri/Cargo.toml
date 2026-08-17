@@ -1,6 +1,6 @@
 [package]
 name = "wave"
-version = "0.1.8"
+version = "0.1.9"
 description = "Wave — музыкальный клиент"
 authors = ["velvett"]
 edition = "2021"
@@ -32,5 +32,6 @@ lofty = "0.25.0"
 md5 = "0.8.1"
 sha2 = "0.10"
 base64 = "0.22"
+getrandom = "0.2"
 zbus = { version = "4", default-features = false, features = ["tokio"] }
 async-trait = "0.1"

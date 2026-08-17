@@ -92,6 +92,9 @@ export class ApiBridge {
       case "queue.add":
         this.queueAdd(payload);
         return { ok: true };
+      case "queue.insertNext":
+        this.queueInsertNext(payload);
+        return { ok: true };
       case "queue.clear":
         engine.clearQueue();
         return { ok: true };
@@ -152,6 +155,13 @@ export class ApiBridge {
     const track = payload.track as unknown as Track;
     if (track) {
       this.services.engine.addToQueue(track, Boolean(payload.play));
+    }
+  }
+
+  private queueInsertNext(payload: Record<string, unknown>): void {
+    const track = payload.track as unknown as Track;
+    if (track) {
+      this.services.engine.playNext(track);
     }
   }
 

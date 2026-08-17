@@ -220,6 +220,15 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await this.playTracks([track], 0);
   }
 
+  async playNext(track: Track): Promise<void> {
+    const hasCurrent = this.queue.current() !== null;
+    this.queue.insertNext(track);
+    this.emitQueue();
+    if (!hasCurrent) {
+      await this.playCurrent();
+    }
+  }
+
   
   playVariant(track: Track): void {
     if (!this.queue.replaceCurrent(track)) return;

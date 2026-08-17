@@ -220,6 +220,7 @@ export interface Translations {
     hasAccount: string;
     signInInstead: string;
     signOut: string;
+    oauthUnavailableAndroid: string;
     back: string;
     loading: string;
     emailPassword: string;
@@ -269,6 +270,22 @@ export interface Translations {
     diagSize: (bytes: number) => string;
     diagPath: string;
     diagDatabase: string;
+  };
+  shortcuts: {
+    title: string;
+    playPause: string;
+    next: string;
+    prev: string;
+    volumeUp: string;
+    volumeDown: string;
+    mute: string;
+    like: string;
+    shuffle: string;
+    search: string;
+    closeWindow: string;
+    globalPlayPause: string;
+    globalNext: string;
+    globalPrev: string;
   };
   queue: {
     title: string;
@@ -325,6 +342,7 @@ export interface Translations {
     play: string;
     shuffle: string;
     addToQueue: string;
+    playNext: string;
     addToPlaylist: string;
     like: string;
     unlike: string;
@@ -575,6 +593,7 @@ export const translations: Record<Locale, Translations> = {
       hasAccount: "Already have an account?",
       signInInstead: "Sign In",
       signOut: "Sign Out",
+      oauthUnavailableAndroid: "OAuth is not available on Android — use email and password",
       back: "Back",
       loading: "Loading…",
       emailPassword: "Email / Password",
@@ -627,6 +646,22 @@ export const translations: Record<Locale, Translations> = {
           : `${(bytes / 1024).toFixed(1)} KB`,
       diagPath: "Path",
       diagDatabase: "Database",
+    },
+    shortcuts: {
+      title: "Keyboard Shortcuts",
+      playPause: "Play / Pause",
+      next: "Next track",
+      prev: "Previous track",
+      volumeUp: "Volume up",
+      volumeDown: "Volume down",
+      mute: "Mute / Unmute",
+      like: "Like current track",
+      shuffle: "Toggle shuffle",
+      search: "Open search",
+      closeWindow: "Close window",
+      globalPlayPause: "Global play / pause",
+      globalNext: "Global next track",
+      globalPrev: "Global previous track",
     },
     queue: {
       title: "Queue",
@@ -683,6 +718,7 @@ export const translations: Record<Locale, Translations> = {
       play: "Play",
       shuffle: "Shuffle",
       addToQueue: "Add to queue",
+      playNext: "Play next",
       addToPlaylist: "Add to playlist",
       like: "Like",
       unlike: "Unlike",
@@ -931,6 +967,7 @@ export const translations: Record<Locale, Translations> = {
       hasAccount: "Уже есть аккаунт?",
       signInInstead: "Войти",
       signOut: "Выйти",
+      oauthUnavailableAndroid: "OAuth недоступен на Android — используйте email и пароль",
       back: "Назад",
       loading: "Загрузка…",
       emailPassword: "Email / Пароль",
@@ -983,6 +1020,22 @@ export const translations: Record<Locale, Translations> = {
           : `${(bytes / 1024).toFixed(1)} КБ`,
       diagPath: "Путь",
       diagDatabase: "База данных",
+    },
+    shortcuts: {
+      title: "Горячие клавиши",
+      playPause: "Воспроизведение / Пауза",
+      next: "Следующий трек",
+      prev: "Предыдущий трек",
+      volumeUp: "Громкость +",
+      volumeDown: "Громкость -",
+      mute: "Включить / Выключить звук",
+      like: "Нравится текущий трек",
+      shuffle: "Перемешать",
+      search: "Открыть поиск",
+      closeWindow: "Закрыть окно",
+      globalPlayPause: "Глобальное воспроизведение / пауза",
+      globalNext: "Глобальный следующий трек",
+      globalPrev: "Глобальный предыдущий трек",
     },
     queue: {
       title: "Очередь",
@@ -1039,6 +1092,7 @@ export const translations: Record<Locale, Translations> = {
       play: "Играть",
       shuffle: "Перемешать",
       addToQueue: "В очередь",
+      playNext: "Следующим",
       addToPlaylist: "В плейлист",
       like: "Нравится",
       unlike: "Убрать",

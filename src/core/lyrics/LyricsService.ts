@@ -28,7 +28,7 @@ interface LrclibHit {
 }
 
 const API = "https://lrclib.net";
-const UA = "Wave/0.1 (music client; https://github.com/velvett/wave)";
+const UA = "Wave/0.1.9 (music client; https://github.com/milalulu/wave)";
 
 export function parseSyncedLyrics(lrc: string): LyricsLine[] {
   const lines: LyricsLine[] = [];

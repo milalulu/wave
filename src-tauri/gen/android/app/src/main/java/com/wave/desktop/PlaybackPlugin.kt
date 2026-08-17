@@ -17,12 +17,14 @@ import java.io.File
 import java.io.FileOutputStream
 
 @InvokeArg
-data class SetPlaybackArgs(var playing: Boolean = false)
+data class SetPlaybackArgs(
+  var playing: Boolean = false,
+  var title: String? = null,
+  var artist: String? = null,
+  var duration: Double = 0.0,
+  var position: Double = 0.0,
+)
 
-/**
- * Плагин фонового воспроизведения (foreground service + wake lock)
- * и импорта локальных файлов через SAF.
- */
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
   private val activityRef: Activity = activity
 
@@ -31,9 +33,23 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
     val args = invoke.parseArgs(SetPlaybackArgs::class.java)
     if (args.playing) {
       requestNotificationPermission()
-      PlaybackService.start(activityRef)
+      PlaybackService.update(
+        activityRef,
+        true,
+        args.title,
+        args.artist,
+        (args.duration * 1000).toLong(),
+        (args.position * 1000).toLong(),
+      )
     } else {
-      PlaybackService.stop(activityRef)
+      PlaybackService.update(
+        activityRef,
+        false,
+        args.title,
+        args.artist,
+        (args.duration * 1000).toLong(),
+        (args.position * 1000).toLong(),
+      )
     }
     invoke.resolve()
   }
@@ -78,7 +94,6 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
         val url = "http://asset.localhost/" + Uri.encode(target.absolutePath)
         paths.add(url)
       } catch (_: Exception) {
-        // пропускаем непрочитанные файлы
       }
     }
     invoke.resolveObject(paths)

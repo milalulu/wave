@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">"Wave"</string>
     <string name="main_activity_title">"Wave"</string>
-    <string name="playback_notification">"Воспроизведение…"</string>
-    <string name="playback_channel_name">"Воспроизведение"</string>
+    <string name="playback_notification">"Playing…"</string>
+    <string name="playback_channel_name">"Playback"</string>
+    <string name="prev">"Previous"</string>
+    <string name="next">"Next"</string>
 </resources>

@@ -22,7 +22,7 @@ export interface LocalSource {
 
 export class LocalProvider implements MusicProvider {
   readonly id = "local";
-  readonly name = "Локальные файлы";
+  readonly name = "Local Files";
 
   private dir: string | null = null;
   private tracks: Track[] = [];

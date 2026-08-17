@@ -34,6 +34,7 @@ export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDrag
   const toggleLike = useApp((s) => s.toggleLike);
   const play = useApp((s) => s.play);
   const addToQueue = useApp((s) => s.addToQueue);
+  const playNext = useApp((s) => s.playNext);
   const addToPlaylist = useApp((s) => s.addToPlaylist);
   const removeFromPlaylist = useApp((s) => s.removeFromPlaylist);
   const selectedPlaylistId = useApp((s) => s.selectedPlaylistId);
@@ -182,6 +183,9 @@ export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDrag
           </button>
           <button onClick={() => { addToQueue(track); setMenuOpen(false); }}>
             {t("common").addToQueue}
+          </button>
+          <button onClick={() => { playNext(track); setMenuOpen(false); }}>
+            {t("common").playNext}
           </button>
           <button onClick={() => { void startRadio(track); setMenuOpen(false); }}>
             <RadioIcon size={14} /> {t("player").radio}
