@@ -2,6 +2,7 @@ import { EventEmitter } from "../util/EventEmitter";
 import type { PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
 import { Queue } from "../queue/Queue";
+import { validateStreamUrl } from "../util/validateUrl";
 
 export interface PlayerEvents {
   state: PlayerState;
@@ -26,6 +27,8 @@ interface PlayerEngineOptions {
   
   resolveUri?: (track: Track) => Promise<string>;
   
+  invalidateStream?: (trackId: string) => void;
+  
   retries?: number;
   
   onQueueEnd?: () => Promise<Track[]> | Track[];
@@ -45,6 +48,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private duration = 0;
   private detach: (() => void)[] = [];
   private resolveUri?: (track: Track) => Promise<string>;
+  private invalidateStream?: (trackId: string) => void;
   private onQueueEnd?: () => Promise<Track[]> | Track[];
   private defaultFiller?: () => Promise<Track[]> | Track[];
   private upgradePreview?: (track: Track) => Promise<Track | null>;
@@ -74,6 +78,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     super();
     this.adapter = adapter;
     this.resolveUri = options.resolveUri;
+    this.invalidateStream = options.invalidateStream;
     this.onQueueEnd = options.onQueueEnd;
     this.defaultFiller = options.onQueueEnd;
     this.upgradePreview = options.upgradePreview;
@@ -442,6 +447,15 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     
     
     if (this.state === "paused") return;
+
+    const isMediaError = message.startsWith("audio error code");
+    if (isMediaError) {
+      const track = this.queue.current();
+      if (track && this.invalidateStream) {
+        this.invalidateStream(track.id);
+      }
+    }
+
     if (this.resolveUri && this.retries < this.maxRetries) {
       this.retries += 1;
       void this.startTrack(seq);
@@ -485,8 +499,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.clearStallTimer();
       const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
       if (seq !== this.playSeq) return;
-      
-      
+
+      await validateStreamUrl(uri);
       await this.adapter.load(uri);
       if (seq !== this.playSeq) return;
       this.hasSource = true;

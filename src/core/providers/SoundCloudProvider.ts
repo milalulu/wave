@@ -81,6 +81,39 @@ export class SoundCloudProvider implements MusicProvider {
     }
   }
 
+  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
+    if (!artist) return [];
+    try {
+      const query = track ? `${artist} ${track}` : `${artist} music`;
+      const entries = await this.gateway.search(query, 10);
+      return entries.map((e) => ({
+        id: `soundcloud:track:${e.id}`,
+        provider: this.id,
+        uri: `soundcloud:track:${e.id}`,
+        title: e.title ?? "Unknown",
+        artist: e.uploader,
+        coverUrl: cover(e.thumbnail),
+        duration: e.duration ? Math.round(e.duration) : undefined,
+        meta: { scId: e.id, scUrl: trackUrl(e.id) },
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getSimilarArtists(artist: string): Promise<string[]> {
+    const results = await this.gateway.search(artist, 10);
+    const names = new Set<string>();
+    for (const r of results) {
+      if (r.uploader && r.uploader !== artist) names.add(r.uploader);
+    }
+    return [...names].slice(0, 8);
+  }
+
+  async getArtistTopTracks(artist: string): Promise<Track[]> {
+    return this.getSimilarTracks(artist, "");
+  }
+
   async getAlbum(_albumId: string): Promise<AlbumDetail> {
     throw new Error("soundcloud provider: no albums");
   }

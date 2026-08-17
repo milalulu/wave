@@ -169,7 +169,18 @@ export class WebAudioAdapter implements AudioAdapter {
         }
         return;
       }
-      if (isActive()) this.errorCb?.(`audio error code ${el.error?.code ?? "unknown"}`);
+      if (isActive()) {
+        const code = el.error?.code ?? 0;
+        const msg =
+          code === 1
+            ? "playback aborted"
+            : code === 2
+              ? "network error — stream may have expired, retrying"
+              : code === 3
+                ? "audio decode error — format may be unsupported"
+                : "stream rejected — try setting WAVE_YTDLP_COOKIES=browser:chrome";
+        this.errorCb?.(msg);
+      }
     };
     el.ontimeupdate = (): void => {
       if (isActive()) this.emitTime();

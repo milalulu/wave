@@ -337,7 +337,25 @@ async fn resolve_stream(
             Some("youtube:player_client=android"),
             &cookies,
         ),
+        stream_args(
+            url,
+            &format!("{audio_only}[ext=m4a]/{audio_only}"),
+            Some("youtube:player_client=ios"),
+            &cookies,
+        ),
+        stream_args(
+            url,
+            &format!("{audio_only}[ext=m4a]/{audio_only}"),
+            Some("youtube:player_client=mweb"),
+            &cookies,
+        ),
         stream_args(url, fallback_fmt, None, &cookies),
+        stream_args(
+            url,
+            fallback_fmt,
+            Some("youtube:player_client=android"),
+            &cookies,
+        ),
     ]);
     let mut last_err: Option<String> = None;
     for args in attempts {
@@ -849,12 +867,13 @@ fn looks_like_wave_db(path: &std::path::Path) -> Result<(), String> {
 
 #[tauri::command]
 fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let safe = resolve_safe_path(&app, &path, false)?;
     let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
-    looks_like_wave_db(std::path::Path::new(&path))?;
+    looks_like_wave_db(&safe)?;
     if let Some(dir) = db.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    std::fs::copy(&path, &db)
+    std::fs::copy(&safe, &db)
         .map_err(|e| format!("restore failed: {e}"))
         .map(|_| ())
 }
@@ -1015,6 +1034,7 @@ fn is_youtube_page_url(url: &str) -> bool {
 
 /// Простое скачивание файла по прямой ссылке (без yt-dlp).
 async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
+    use futures_util::StreamExt;
     let redacted = crate::http::redact_url(url);
     let res = crate::http::client()
         .get(url)
@@ -1024,18 +1044,23 @@ async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
     if !res.status().is_success() {
         return Err(format!("download {redacted}: HTTP {}", res.status()));
     }
-    let bytes = res
-        .bytes()
-        .await
-        .map_err(|e| format!("download {redacted}: {e}"))?;
-    if bytes.is_empty() {
-        return Err(format!("download {redacted}: empty response"));
-    }
     if let Some(dir) = std::path::Path::new(output_path).parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     let tmp = format!("{output_path}.part");
-    std::fs::write(&tmp, &bytes).map_err(|e| format!("write {tmp}: {e}"))?;
+    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("create {tmp}: {e}"))?;
+    let mut stream = res.bytes_stream();
+    let mut total: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("download {redacted}: {e}"))?;
+        std::io::Write::write_all(&mut file, &chunk)
+            .map_err(|e| format!("write {tmp}: {e}"))?;
+        total += chunk.len() as u64;
+    }
+    if total == 0 {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("download {redacted}: empty response"));
+    }
     if std::path::Path::new(output_path).exists() {
         std::fs::remove_file(output_path).map_err(|e| format!("remove {output_path}: {e}"))?;
     }

@@ -7,20 +7,25 @@ interface CoverEntry {
   at: number;
 }
 
-function read(): Record<string, CoverEntry> {
+let memCache: Map<string, CoverEntry> | null = null;
+
+function ensureMemCache(): Map<string, CoverEntry> {
+  if (memCache) return memCache;
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, CoverEntry>;
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, CoverEntry>;
+    memCache = new Map(Object.entries(raw));
   } catch {
-    return {};
+    memCache = new Map();
   }
+  return memCache;
 }
 
-function write(map: Record<string, CoverEntry>): void {
+function write(map: Map<string, CoverEntry>): void {
   try {
     const now = Date.now();
     const clean: Record<string, CoverEntry> = {};
     let size = 0;
-    for (const [url, e] of Object.entries(map)) {
+    for (const [url, e] of map) {
       if (now - e.at > TTL) continue;
       clean[url] = e;
       size += e.data.length;
@@ -40,12 +45,13 @@ function write(map: Record<string, CoverEntry>): void {
 }
 
 export function getCachedCover(url: string): string | null {
-  const e = read()[url];
+  const e = ensureMemCache().get(url);
   if (!e || Date.now() - e.at > TTL) return null;
   return e.data;
 }
 
 export function clearCoverCache(): void {
+  memCache = null;
   try {
     localStorage.removeItem(KEY);
   } catch {
@@ -60,9 +66,9 @@ export async function cacheCover(url: string): Promise<string | null> {  try {
     if (!blob.type.startsWith("image/")) return null;
     const data = await blobToDataUrl(blob);
     if (data.length < 100) return null;
-    const map = read();
-    map[url] = { data, at: Date.now() };
-    write(map);
+    const cache = ensureMemCache();
+    cache.set(url, { data, at: Date.now() });
+    write(cache);
     return data;
   } catch {
     return null;

@@ -6039,6 +6039,7 @@ dependencies = [
  "async-trait",
  "axum",
  "base64 0.22.1",
+ "futures-util",
  "getrandom 0.2.17",
  "lofty",
  "md5",

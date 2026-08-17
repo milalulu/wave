@@ -160,6 +160,12 @@ export async function composeServices(): Promise<AppServices> {
       const provider = providers.find((p) => p.id === track.provider);
       return provider ? provider.resolveUri(track) : track.uri;
     },
+    invalidateStream: (trackId) => {
+      const match = trackId.match(/^([^:]+):/);
+      if (!match) return;
+      const provider = providers.find((p) => p.id === match[1]);
+      provider?.invalidateStream?.(trackId);
+    },
     
     
     upgradePreview: async (track) => {
@@ -256,17 +262,22 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
     const extra = top.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
     if (extra.length > 0) candidates = [...candidates, ...extra];
   }
-  const itunes = services.providers.find((p) => p.id === "itunes");
+
+  const audioProviders = services.providers.filter(
+    (p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local",
+  );
+
   const resolved = await Promise.allSettled(
     candidates.map(async (c) => {
       if (c.meta?.noPlay !== true && c.uri) return c;
-      if (!itunes) return null;
-      try {
-        const res = await itunes.search(`${c.artist ?? ""} ${c.title}`.trim());
-        return res.tracks[0] ?? null;
-      } catch {
-        return null;
+      for (const p of audioProviders) {
+        try {
+          const results = await p.search(`${c.artist ?? ""} ${c.title}`.trim());
+          const match = results.tracks[0];
+          if (match && match.uri) return match;
+        } catch {}
       }
+      return null;
     }),
   );
   const seen = new Set<string>([seed.id]);

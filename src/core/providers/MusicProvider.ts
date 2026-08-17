@@ -5,6 +5,7 @@ export interface MusicProvider {
   readonly name: string;
   search(query: string): Promise<SearchResults>;
   resolveUri(track: Track): Promise<string>;
+  invalidateStream?(trackId: string): void;
   getAlbum(albumId: string): Promise<AlbumDetail>;
   getArtist(artistId: string): Promise<ArtistDetail>;
   

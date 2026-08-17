@@ -230,19 +230,38 @@ export class WaveEngine {
       }
     };
 
+    const collectSimilar = async (artist: string, track: string) => {
+      const results = await Promise.allSettled(
+        this.providers
+          .filter((p) => typeof p.getSimilarTracks === "function")
+          .map((p) => p.getSimilarTracks?.(artist, track) ?? Promise.resolve([])),
+      );
+      for (const r of results) {
+        if (r.status !== "fulfilled") continue;
+        for (const t of r.value) {
+          if (t.meta?.noPlay || seen.has(t.id) || !this.blockFilter(t)) continue;
+          seen.add(t.id);
+          out.push(t);
+        }
+      }
+    };
+
     const top = [...genres.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
     const queries: string[] = top.map(([genre]) => genre);
 
-    const topArtist = [...artistCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (topArtist) {
-      const similar = await this.fetchSimilarArtists(topArtist);
-      queries.push(...similar.slice(0, 4));
+    const topArtists = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    for (const [artist] of topArtists) {
+      const similar = await this.fetchSimilarArtists(artist);
+      queries.push(...similar.slice(0, 3));
     }
 
     
     await Promise.all(queries.map((q) => collect(q)));
 
-    return out.slice(0, limit * 2);
+    const topTracks = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+    await Promise.all(topTracks.map(([artist]) => collectSimilar(artist, "")));
+
+    return out.slice(0, limit * 3);
   }
 
   private async fetchSimilarArtists(artist: string): Promise<string[]> {

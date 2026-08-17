@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import type { Track } from "../core/types";
 import { useApp } from "../app/stores";
@@ -26,9 +26,9 @@ interface TrackRowProps {
   onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }
 
-export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
+export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
   const { t } = useI18n();
-  const snapshot = useApp((s) => s.snapshot);
+  const isCurrentTrack = useApp((s) => nowPlaying !== undefined ? nowPlaying : s.snapshot.current?.id === track.id);
   const likedIds = useApp((s) => s.likedIds);
   const playlists = useApp((s) => s.playlists);
   const toggleLike = useApp((s) => s.toggleLike);
@@ -46,7 +46,7 @@ export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDrag
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [editingTags, setEditingTags] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isCurrent = nowPlaying !== undefined ? nowPlaying : snapshot.current?.id === track.id;
+  const isCurrent = isCurrentTrack;
   const liked = likedIds.includes(track.id);
   const noPlay = track.meta?.noPlay === true;
   const canDownload = !noPlay && Boolean(track.meta?.url ?? track.meta?.audioUrl ?? track.uri);
@@ -244,4 +244,4 @@ export function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDrag
       {editingTags && <TagEditor track={track} onClose={() => setEditingTags(false)} />}
     </div>
   );
-}
+});

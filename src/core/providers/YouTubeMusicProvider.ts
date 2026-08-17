@@ -68,6 +68,14 @@ export class YouTubeMusicProvider implements MusicProvider {
     return url;
   }
 
+  invalidateStream(trackId: string): void {
+    const fromId = trackId.split(":").pop();
+    if (!fromId) return;
+    const quality = loadYtQuality();
+    const key = `${fromId}:${quality}`;
+    this.streamCache.delete(key);
+  }
+
   private prune<K>(cache: Map<K, { at: number }>, ttl: number): void {
     if (cache.size <= 64) return;
     const now = Date.now();
@@ -86,5 +94,38 @@ export class YouTubeMusicProvider implements MusicProvider {
 
   async getArtist(_artistId: string): Promise<ArtistDetail> {
     throw new Error("youtube provider: no artists");
+  }
+
+  async getSimilarTracks(artist: string, _track: string): Promise<Track[]> {
+    if (!artist) return [];
+    try {
+      const entries = await this.gateway.search(`${artist} music`, 10);
+      return entries.map((e) => ({
+        id: `youtube:track:${e.id}`,
+        provider: this.id,
+        uri: `https://www.youtube.com/watch?v=${e.id}`,
+        title: e.title,
+        artist: e.uploader,
+        coverUrl: cover(e.thumbnail),
+        duration: e.duration ?? undefined,
+        meta: { ytId: e.id },
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getSimilarArtists(artist: string): Promise<string[]> {
+    if (!artist) return [];
+    try {
+      const entries = await this.gateway.search(`${artist} similar artist`, 8);
+      return entries.map((e) => e.uploader ?? "").filter((n) => n && n !== artist).slice(0, 8);
+    } catch {
+      return [];
+    }
+  }
+
+  async getArtistTopTracks(artist: string): Promise<Track[]> {
+    return this.getSimilarTracks(artist, "");
   }
 }

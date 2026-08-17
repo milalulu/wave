@@ -37,6 +37,7 @@ export class DeezerProvider implements MusicProvider {
   constructor(private http: HttpJsonGateway) {}
 
   private resolveCache = new Map<string, { url: string; at: number }>();
+  private similarCache = new Map<string, { tracks: Track[]; at: number }>();
   private static readonly CACHE_TTL_MS = 10 * 60 * 1000;
 
   async search(query: string): Promise<SearchResults> {
@@ -99,7 +100,101 @@ export class DeezerProvider implements MusicProvider {
     const a = body as DzArtist & { nb_album?: number };
     const artist = this.artist(a);
     if (!artist) throw new Error(`deezer artist not found: ${artistIdValue}`);
-    return { artist, topTracks: [], albums: [] };
+    const topTracks = await this.getArtistTopTracks(a.name ?? "");
+    return { artist, topTracks, albums: [] };
+  }
+
+  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
+    const cacheKey = `${artist}|${track}`;
+    const hit = this.similarCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < DeezerProvider.CACHE_TTL_MS) return hit.tracks;
+    try {
+      const trackId = await this.findTrackId(artist, track);
+      if (!trackId) return [];
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/track/${trackId}/related`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return [];
+      const data = (body as { data?: DzTrack[] }).data ?? [];
+      const tracks = data.map((t) => this.track(t)).filter((t): t is Track => t !== null);
+      this.similarCache.set(cacheKey, { tracks, at: Date.now() });
+      return tracks;
+    } catch {
+      return [];
+    }
+  }
+
+  async getSimilarArtists(artist: string): Promise<string[]> {
+    try {
+      const artistId = await this.findArtistId(artist);
+      if (!artistId) return [];
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/artist/${artistId}/related`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return [];
+      const data = (body as { data?: DzArtist[] }).data ?? [];
+      return data.map((a) => a.name ?? "").filter((n) => n && n !== artist).slice(0, 8);
+    } catch {
+      return [];
+    }
+  }
+
+  async getArtistTopTracks(artist: string): Promise<Track[]> {
+    try {
+      const artistId = await this.findArtistId(artist);
+      if (!artistId) return [];
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/artist/${artistId}/top?limit=10`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return [];
+      const data = (body as { data?: DzTrack[] }).data ?? [];
+      return data.map((t) => this.track(t)).filter((t): t is Track => t !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  private async findTrackId(artist: string, track: string): Promise<number | null> {
+    try {
+      const q = encodeURIComponent(`${artist} ${track}`);
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/search?q=${q}&limit=1`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return null;
+      const data = (body as { data?: DzTrack[] }).data ?? [];
+      return data[0]?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async findArtistId(name: string): Promise<number | null> {
+    try {
+      const q = encodeURIComponent(name);
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/search/artist?q=${q}&limit=1`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return null;
+      const data = (body as { data?: DzArtist[] }).data ?? [];
+      return data[0]?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private track(t: DzTrack): Track | null {

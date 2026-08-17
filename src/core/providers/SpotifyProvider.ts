@@ -53,11 +53,31 @@ export class SpotifyProvider implements MusicProvider {
   private token: string | null = null;
   private tokenExpiresAt = 0;
   private fallbackCache = new Map<string, string>();
+  private similarCache = new Map<string, { tracks: Track[]; at: number }>();
+  private similarArtistsCache = new Map<string, { names: string[]; at: number }>();
+  private static readonly SIMILAR_TTL_MS = 10 * 60 * 1000;
 
   constructor(
     private http: HttpJsonGateway,
     private config: SpotifyConfig,
   ) {}
+
+  private toTrack(t: SpotifyTrack, albumName?: string, albumImages?: SpotifyImage[]): Track {
+    return {
+      id: `spotify:track:${t.id}`,
+      provider: this.id,
+      uri: t.preview_url ?? "",
+      title: t.name ?? "",
+      artist: t.artists?.[0]?.name,
+      album: albumName ?? t.album?.name,
+      coverUrl: cover(albumImages ?? t.album?.images),
+      duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
+      meta: {
+        spotifyUrl: t.external_urls?.spotify,
+        ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}),
+      },
+    };
+  }
 
   async search(query: string): Promise<SearchResults> {
     const token = await this.accessToken();
@@ -74,23 +94,7 @@ export class SpotifyProvider implements MusicProvider {
     const tracks: Track[] = [];
     for (const t of data.tracks?.items ?? []) {
       if (!t.id || !t.name) continue;
-      tracks.push({
-        id: `spotify:track:${t.id}`,
-        provider: this.id,
-        uri: t.preview_url ?? "",
-        title: t.name,
-        artist: t.artists?.[0]?.name,
-        album: t.album?.name,
-        coverUrl: cover(t.album?.images),
-        duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
-        meta: {
-          spotifyUrl: t.external_urls?.spotify,
-          
-          
-          
-          ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}),
-        },
-      });
+      tracks.push(this.toTrack(t));
     }
     const albums: Album[] = (data.albums?.items ?? [])
       .filter((a) => a?.id && a.name)
@@ -159,17 +163,7 @@ export class SpotifyProvider implements MusicProvider {
       },
       tracks: (a.tracks?.items ?? [])
         .filter((t) => t?.id && t.name)
-        .map((t) => ({
-          id: `spotify:track:${t.id}`,
-          provider: this.id,
-          uri: t.preview_url ?? "",
-          title: t.name ?? "",
-          artist: t.artists?.[0]?.name,
-          album: a.name,
-          coverUrl: cover(a.images),
-          duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
-          meta: { spotifyUrl: t.external_urls?.spotify, ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}) },
-        })),
+        .map((t) => this.toTrack(t, a.name, a.images)),
     };
   }
 
@@ -196,19 +190,122 @@ export class SpotifyProvider implements MusicProvider {
       },
       topTracks: (data.tracks ?? [])
         .filter((t) => t?.id && t.name)
-        .map((t) => ({
-          id: `spotify:track:${t.id}`,
-          provider: this.id,
-          uri: t.preview_url ?? "",
-          title: t.name ?? "",
-          artist: t.artists?.[0]?.name,
-          album: t.album?.name,
-          coverUrl: cover(t.album?.images),
-          duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
-          meta: { spotifyUrl: t.external_urls?.spotify, ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}) },
-        })),
+        .map((t) => this.toTrack(t)),
       albums: [],
     };
+  }
+
+  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
+    const cacheKey = `${artist}|${track}`;
+    const hit = this.similarCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < SpotifyProvider.SIMILAR_TTL_MS) return hit.tracks;
+    try {
+      const token = await this.accessToken();
+      const params = new URLSearchParams({ market: "US", limit: "20" });
+      if (track) {
+        const trackId = await this.findTrackId(track, artist, token);
+        if (trackId) params.set("seed_tracks", trackId);
+      } else if (artist) {
+        const artistId = await this.findArtistId(artist, token);
+        if (artistId) params.set("seed_artists", artistId);
+      }
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/recommendations?${params.toString()}`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return [];
+      const data = body as { tracks?: SpotifyTrack[] };
+      const tracks = (data.tracks ?? [])
+        .filter((t) => t?.id && t.name)
+        .map((t) => this.toTrack(t));
+      this.similarCache.set(cacheKey, { tracks, at: Date.now() });
+      return tracks;
+    } catch {
+      return [];
+    }
+  }
+
+  async getSimilarArtists(artist: string): Promise<string[]> {
+    const hit = this.similarArtistsCache.get(artist);
+    if (hit && Date.now() - hit.at < SpotifyProvider.SIMILAR_TTL_MS) return hit.names;
+    try {
+      const token = await this.accessToken();
+      const artistId = await this.findArtistId(artist, token);
+      if (!artistId) return [];
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/artists/${artistId}/related-artists?limit=10`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return [];
+      const data = body as { artists?: SpotifyArtist[] };
+      const names = (data.artists ?? [])
+        .map((a) => a.name ?? "")
+        .filter((n) => n && n !== artist)
+        .slice(0, 8);
+      this.similarArtistsCache.set(artist, { names, at: Date.now() });
+      return names;
+    } catch {
+      return [];
+    }
+  }
+
+  async getArtistTopTracks(artist: string): Promise<Track[]> {
+    try {
+      const token = await this.accessToken();
+      const artistId = await this.findArtistId(artist, token);
+      if (!artistId) return [];
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/artists/${artistId}/top-tracks?market=US`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return [];
+      const data = body as { tracks?: SpotifyTrack[] };
+      return (data.tracks ?? [])
+        .filter((t) => t?.id && t.name)
+        .slice(0, 10)
+        .map((t) => this.toTrack(t));
+    } catch {
+      return [];
+    }
+  }
+
+  private async findTrackId(title: string, artist: string, token: string): Promise<string | null> {
+    try {
+      const q = `track:${title} artist:${artist}`;
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/search?q=${encodeURIComponent(q)}&type=track&limit=1`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return null;
+      const data = body as { tracks?: { items?: SpotifyTrack[] } };
+      return data.tracks?.items?.[0]?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async findArtistId(name: string, token: string): Promise<string | null> {
+    try {
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/search?q=${encodeURIComponent(name)}&type=artist&limit=1`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return null;
+      const data = body as { artists?: { items?: SpotifyArtist[] } };
+      return data.artists?.items?.[0]?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private async accessToken(): Promise<string> {
