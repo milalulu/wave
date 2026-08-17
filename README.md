@@ -13,14 +13,14 @@
 
 | Платформа | Установщик |
 |---|---|
-| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_x64-setup.exe) |
-| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_amd64.deb) |
-| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.8-1.x86_64.rpm) |
-| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.8_amd64.AppImage) |
-| **Android** | [APK (universal, arm64 + armv7)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk) |
+| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_x64-setup.exe) |
+| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_amd64.deb) |
+| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.9-1.x86_64.rpm) |
+| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_amd64.AppImage) |
+| **Android** | [APK (arm64)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk) |
 | **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
 
-> Обновления внутри приложения устанавливаются автоматически (Tauri updater). Android APK собирается и публикуется без секретов (debug-подпись); для Play Store нужен keystore. macOS пока не собирается.
+> Обновления внутри приложения устанавливаются автоматически (Tauri updater). Android APK собирается с debug-подписью; для Play Store нужен keystore. macOS (universal) собирается без нотаризации (при первом запуске потребуется `xattr -dr com.apple.quarantine /Applications/Wave.app`).
 > Ссылки ведут на последний релиз; при выпуске новой версии обновите имя файла в URL (номер версии входит в имя файла).
 
 ---
@@ -30,15 +30,17 @@
 | Категория | Детали |
 |---|---|
 | **Поиск** | iTunes, YouTube Music (через yt-dlp), SoundCloud, Deezer, MusicBrainz, Last.fm, Spotify (preview), VK, локальные файлы |
-| **Воспроизведение** | Очередь, shuffle/repeat, громкость, сик, переключение треков, медиаклавиши (MPRIS); авто-фолбэк на другой источник при ошибке загрузки |
+| **Воспроизведение** | Очередь, shuffle/repeat, громкость, сик, переключение треков, медиаклавиши (MPRIS); авто-фолбэк на другой источник при ошибке загрузки; **Play Next** (вставить следующим в очередь) |
 | **Моя волна** | Персональный микс на основе лайков, истории, топ-жанров; кандидаты со всех провайдеров; блокировка отдельных треков и артистов |
 | **Варианты трека** | Musixmatch-стиль: тот же трек на других площадках (сортировка по предпочтениям), «Похожие треки» в очередь |
 | **Лайки / История** | SQLite-персистентность, синхронизация между запусками |
 | **Локальные файлы** | Рекурсивное сканирование папки, чтение ID3/FLAC/MP4 тегов (lofty), длительность |
 | **HTTP API** | REST endpoints для управления плеером, поиска, волны, вариантов, источников, «похожих», лайков — для Jarvis / внешних скриптов |
 | **Тексты песен** | LRCLIB (синхронизированные LRC + обычные) |
-| **Настройки (UI)** | Ввод токенов провайдеров, выбор папки локальных файлов, тема, язык; блокировка/порядок источников, сброс кешей, проверка всех площадок |
+| **Настройки (UI)** | Ввод токенов провайдеров, выбор папки локальных файлов, тема, язык; блокировка/порядок источников, сброс кешей, проверка всех площадок; **горячие клавиши** |
 | **Интернационализация** | English (default) / Русский |
+| **Android** | MediaSession + foreground service + notification (play/pause/prev/next), arm64 + armv7 APK |
+| **Безопасность** | Path sandboxing, фильтрация заголовков (cookie/auth), крипто-рандом, merge конфига, оптимизация обложек (> 200KB) |
 
 ---
 
@@ -48,20 +50,30 @@
 src/
 ├── core/                 # Music Core — независимый от Tauri TS-ядер
 │   ├── player/           # PlayerEngine, адаптеры (WebAudioAdapter)
-│   ├── queue/            # Queue (shuffle/repeat/history)
+│   ├── queue/            # Queue (shuffle/repeat/history, insertNext)
 │   ├── library/          # WaveEngine, HistoryService, LibraryService
 │   ├── database/         # Storage интерфейс + SqliteStorage
 │   ├── providers/        # MusicProvider + реализации (iTunes, YouTube, SC, Deezer, MB, LF, Spotify, VK, Local)
+│   ├── lyrics/           # LyricsService (LRCLIB)
+│   ├── util/             # formatTime и другие утилиты
+│   ├── i18n.ts           # Интернационализация (EN/RU)
 │   └── types.ts          # Track, Album, Artist, SearchResults...
 ├── app/                  # Tauri-слой: compose, bridge, stores, SqliteStorage
 ├── ui/                   # React компоненты (Sidebar, PlayerBar, Views…)
 ├── main.tsx              # Entry, error forwarding
-└── styles.css            # Global styles, dark theme
+└── styles.css            # Global styles, dark theme, skeletons
 src-tauri/
 ├── src/
-│   ├── lib.rs            # Commands: app_config, yt_search, yt_stream, vk_search, http_fetch_json, list_music_files
+│   ├── lib.rs            # Commands: app_config, yt_search, yt_stream, vk_search, http_fetch_json, list_music_files, path sandboxing, config merge, header filtering, cover art cap
+│   ├── android.rs        # Android MediaSession control (set_playback, consume_media_action)
 │   └── http/             # axum HTTP server + auth middleware (token)
 └── Cargo.toml
+src-tauri/gen/android/    # Android (Tauri mobile)
+├── app/src/main/java/com/wave/desktop/
+│   ├── MainActivity.kt       # Tauri activity + media action queue
+│   ├── PlaybackService.kt    # Foreground service + MediaSession + notification
+│   └── PlaybackPlugin.kt     # Tauri plugin: set_playback, consume_media_action
+└── app/build.gradle.kts  # compileSdk=36, minSdk=24, media:1.7.0
 ```
 
 **Принцип:** бизнес-логика в `core/` (чистый TS, тестируется в Node), Tauri-специфика — только в `app/` и `src-tauri/`.
@@ -74,11 +86,12 @@ src-tauri/
 
 | Инструмент | Версия | Установка |
 |---|---|---|
-| Node.js | 20+ | `nvm install 20` |
-| pnpm | 9+ | `corepack enable && corepack prepare pnpm@latest --activate` |
+| Node.js | 24+ | `nvm install 24` |
+| pnpm | 11+ | `corepack enable && corepack prepare pnpm@latest --activate` |
 | Rust | 1.75+ | `rustup default stable` |
 | yt-dlp | 2024+ | `pipx install yt-dlp` или скачать бинарник в `~/.local/bin/yt-dlp` |
 | (Linux) WebKit2GTK | 2.40+ | `sudo apt install libwebkit2gtk-4.1-dev` / `pacman -S webkit2gtk-4.1` |
+| (Android) JDK 17 | 17+ | Android SDK + `cargo-ndk` |
 
 > **Важно:** на Wayland запускайте с переменными окружения:
 > ```bash
@@ -88,7 +101,7 @@ src-tauri/
 ### Сборка и запуск
 
 ```bash
-git clone https://github.com/yourname/wave
+git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
 pnpm tauri dev          # разработка
@@ -100,8 +113,8 @@ pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
 CI собирает установщики автоматически при пуше git-тега `v*`:
 
 ```bash
-git tag v0.1.6
-git push origin v0.1.6
+git tag v0.1.9
+git push origin v0.1.9
 ```
 
 Релиз создаётся как **черновик** — проверьте артефакты и опубликуйте вручную. Для подписи сборок задайте в настройках репозитория (Settings → Secrets and variables → Actions) секреты:
@@ -111,7 +124,7 @@ git push origin v0.1.6
 | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Подпись пакетов автообновления (`tauri signer generate`). Без них `latest.json` не создаётся, приложение просто не видит обновлений. |
 | `WIN_CERTIFICATE` (.pfx в base64), `WIN_CERTIFICATE_PASSWORD` | Подпись Windows (убирает предупреждение SmartScreen). Дополнительно укажите `certificateThumbprint` в `bundle.windows` `src-tauri/tauri.conf.json`. |
 
-macOS-сборки пока отключены (нет Developer ID-сертификата). Когда он появится: верните `macos-latest` в матрицу `release.yml` и шаги импорта Apple-сертификата; секреты подписи/нотаризации — `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
+macOS-сборки собираются на `macos-latest` (universal-apple-darwin). Без Developer ID-сертификата нотаризация пропускается — приложение требует ручного снятия quarantine. Для подписи/нотаризации задайте секреты: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
 
 **Внимание:** ключ подписи генерируется один раз и хранится только у вас (`TAURI_SIGNING_PRIVATE_KEY`). При его утере автообновление перестанет работать — придётся генерировать новый ключ и менять `pubkey` в `tauri.conf.json`. Не коммитьте приватный ключ в репозиторий.
 
@@ -224,13 +237,18 @@ MIT License — см. [LICENSE](LICENSE).
 - [x] Lyrics (LRCLIB)
 - [x] Track variants (Musixmatch-style) + «Similar» to queue
 - [x] My Wave blocking (tracks/artists), auto-fallback on load errors
+- [x] **Play Next** queue action (context menu + stores)
+- [x] **Keyboard shortcuts** cheat sheet (Settings)
+- [x] **Loading skeletons** (Search view)
+- [x] **Android** — MediaSession, notification controls, foreground service
+- [x] Security: path sandboxing, header filtering, cryptographic RNG, config merge
+- [x] Cover art optimization (skip base64 for > 200KB images)
 - [ ] **Albums/Artists UI** (view tracks, bio)
 - [ ] **User playlists** (create, M3U import/export, drag-to-queue)
-- [ ] **MPRIS / media keys** + system notifications
+- [ ] **MPRIS / media keys** + system notifications (desktop)
 - [ ] **Last.fm scrobbling** (now playing + scrobble)
 - [ ] **Radio by track** from external sources (not just library wave)
 - [ ] Cross-platform (Windows/macOS asset paths, yt-dlp discovery)
-- [ ] Android (Capacitor / Tauri mobile)
 
 ---
 
