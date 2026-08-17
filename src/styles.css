@@ -2348,20 +2348,24 @@ input[type="range"]::-webkit-slider-thumb {
    ========================================================= */
 @media (max-width: 720px) {
   .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto auto;
-    grid-template-areas:
-      "topbar"
-      "content"
-      "miniplayer"
-      "nav";
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
   }
 
-  /* Десктоп-хром прячется, мобильный — показывается (переключение только на CSS) */
+  /* Десктоп-хром полностью убираем из потока — none + absolute гарантируют,
+     что ни один элемент не занимает место в grid/flex */
   .sidebar,
   .player-bar {
-    display: none;
+    display: none !important;
+    position: absolute;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    overflow: hidden;
   }
+
   .mobile-topbar,
   .bottom-nav,
   .mini-player {
@@ -2370,7 +2374,8 @@ input[type="range"]::-webkit-slider-thumb {
 
   /* ----- Верхняя панель ----- */
   .mobile-topbar {
-    grid-area: topbar;
+    order: -3;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -2390,7 +2395,8 @@ input[type="range"]::-webkit-slider-thumb {
 
   /* ----- Нижняя навигация ----- */
   .bottom-nav {
-    grid-area: nav;
+    order: 2;
+    flex-shrink: 0;
     display: flex;
     align-items: stretch;
     padding: 2px 2px max(2px, env(safe-area-inset-bottom));
@@ -2421,7 +2427,8 @@ input[type="range"]::-webkit-slider-thumb {
 
   /* ----- Мини-плеер ----- */
   .mini-player {
-    grid-area: miniplayer;
+    order: 1;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 2px;
@@ -2517,7 +2524,12 @@ input[type="range"]::-webkit-slider-thumb {
 
   /* ----- Content ----- */
   .content {
-    grid-area: content;
+    grid-area: auto;
+    order: 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 12px 12px 20px;
     padding-top: max(12px, env(safe-area-inset-top));
   }
