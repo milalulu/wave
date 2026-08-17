@@ -139,7 +139,7 @@ class PlaybackService : Service() {
     val sessionToken = mediaSession?.sessionToken
     if (sessionToken != null) {
       builder.setStyle(
-        androidx.media.app.NotificationCompat.MediaStyle()
+        androidx.media.app.NotificationCompat.MediaStyle(builder)
           .setMediaSession(sessionToken)
           .setShowActionsInCompactView(0, 1, 2)
       )
