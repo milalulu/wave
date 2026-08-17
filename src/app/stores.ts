@@ -987,6 +987,15 @@ async function doInit(
         case "pause": engine.pause(); break;
       }
     };
+    const pollMediaAction = () => {
+      void invoke<string | null>("consume_media_action").then((action) => {
+        if (action) {
+          const handler = (globalThis as unknown as Record<string, unknown>).__wave_media_action as ((a: string) => void) | undefined;
+          handler?.(action);
+        }
+      }).catch(() => {});
+    };
+    setInterval(pollMediaAction, 2000);
   }
   services.engine.on("track", bind);
   // Прогресс — отдельно: часто (несколько раз/с), но трогает только подписчиков position.

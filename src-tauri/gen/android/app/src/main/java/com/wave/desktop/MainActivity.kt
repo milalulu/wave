@@ -3,6 +3,7 @@ package com.wave.desktop
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -14,16 +15,14 @@ class MainActivity : TauriActivity() {
     super.onNewIntent(intent)
     val action = intent.getStringExtra("media_action")
     if (action != null) {
-      val js = when (action) {
-        "prev" -> "window.__wave_media_action?.('prev')"
-        "next" -> "window.__wave_media_action?.('next')"
-        "play" -> "window.__wave_media_action?.('play')"
-        "pause" -> "window.__wave_media_action?.('pause')"
-        else -> null
-      }
-      if (js != null) {
-        webView?.evaluateJavascript(js, null)
-      }
+      pendingMediaActions.add(action)
     }
+  }
+
+  companion object {
+    val pendingMediaActions = ConcurrentLinkedQueue<String>()
+
+    @JvmStatic
+    fun consumeMediaAction(): String? = pendingMediaActions.poll()
   }
 }

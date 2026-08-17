@@ -39,8 +39,8 @@ class PlaybackService : Service() {
     val playing = intent?.getBooleanExtra(EXTRA_PLAYING, false) ?: false
     val title = intent?.getStringExtra(EXTRA_TITLE)
     val artist = intent?.getStringExtra(EXTRA_ARTIST)
-    val duration = intent?.getLongExtra(EXTRA_DURATION, 0L)
-    val position = intent?.getLongExtra(EXTRA_POSITION, 0L)
+    val duration = intent?.getLongExtra(EXTRA_DURATION, 0L) ?: 0L
+    val position = intent?.getLongExtra(EXTRA_POSITION, 0L) ?: 0L
     updateMediaSession(playing, title, artist, duration, position)
     startInForeground(playing, title, artist)
     if (playing) acquireWakeLock() else releaseWakeLock()
@@ -102,18 +102,10 @@ class PlaybackService : Service() {
       PendingIntent.FLAG_IMMUTABLE,
     )
 
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PREV).apply {
-      setPackage(packageName)
-    }, RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PAUSE).apply {
-      setPackage(packageName)
-    }, RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PLAY).apply {
-      setPackage(packageName)
-    }, RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_NEXT).apply {
-      setPackage(packageName)
-    }, RECEIVER_NOT_EXPORTED)
+    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PREV), RECEIVER_NOT_EXPORTED)
+    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PAUSE), RECEIVER_NOT_EXPORTED)
+    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PLAY), RECEIVER_NOT_EXPORTED)
+    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_NEXT), RECEIVER_NOT_EXPORTED)
 
     val displayTitle = title ?: getString(R.string.app_name)
     val displayArtist = artist ?: getString(R.string.playback_notification)

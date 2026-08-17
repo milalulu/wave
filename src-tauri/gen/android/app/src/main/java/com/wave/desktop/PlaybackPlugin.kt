@@ -29,6 +29,12 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
   private val activityRef: Activity = activity
 
   @Command
+  fun consumeMediaAction(invoke: Invoke) {
+    val action = MainActivity.consumeMediaAction()
+    invoke.resolveObject(action)
+  }
+
+  @Command
   fun setPlayback(invoke: Invoke) {
     val args = invoke.parseArgs(SetPlaybackArgs::class.java)
     if (args.playing) {

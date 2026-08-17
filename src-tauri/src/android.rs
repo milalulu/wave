@@ -43,6 +43,25 @@ async fn set_playback(
 }
 
 #[tauri::command]
+async fn consume_media_action(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let state = app.state::<WaveAndroid>();
+        let action = state
+            .0
+            .run_mobile_plugin_async::<Option<String>>("consumeMediaAction", Value::Null)
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(action);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
+#[tauri::command]
 async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_os = "android")]
     {
@@ -63,7 +82,7 @@ async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> 
 
 pub fn init() -> TauriPlugin<Wry> {
     PluginBuilder::new("wave_android")
-        .invoke_handler(tauri::generate_handler![set_playback, pick_local_audio])
+        .invoke_handler(tauri::generate_handler![set_playback, pick_local_audio, consume_media_action])
         .setup(|_app, _api| {
             #[cfg(target_os = "android")]
             {
