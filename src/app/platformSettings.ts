@@ -1,4 +1,4 @@
-/** Настройки источников: какие площадки отключены и в каком порядке предпочтений. */
+
 
 import type { SearchResults } from "../core/types";
 
@@ -8,13 +8,8 @@ const BLOCKED_TRACKS_KEY = "wave-blocked-tracks";
 const BLOCKED_ARTISTS_KEY = "wave-blocked-artists";
 const EXCLUDE_PREVIEWS_KEY = "wave-exclude-previews";
 
-/**
- * Площадки, которые отдают только 30-секундные превью (полный трек не играет).
- * Используется как запасной признак для треков из старых очередей/кеша без meta.
- */
 const PREVIEW_ONLY_PROVIDERS = new Set(["itunes", "deezer"]);
 
-/** Известные площадки (для UI настроек и фильтрации). */
 export const KNOWN_PROVIDERS = [
   "itunes",
   "deezer",
@@ -64,17 +59,11 @@ export function isBlockedProvider(id: string): boolean {
   return getBlockedProviders().includes(id);
 }
 
-/**
- * Трек, который можно сыграть только как превью (не полностью): либо явно
- * помечен провайдером (meta.preview), либо площадка принципиально отдаёт
- * только превью (iTunes/Deezer).
- */
 export function isPreviewTrack(track: { provider: string; meta?: Record<string, unknown> }): boolean {
   if (track.meta?.preview === true) return true;
   return PREVIEW_ONLY_PROVIDERS.has(track.provider);
 }
 
-/** Не искать треки, которые не могут проиграться полностью (превью). Включено по умолчанию. */
 export function isExcludePreviewsEnabled(): boolean {
   try {
     return localStorage.getItem(EXCLUDE_PREVIEWS_KEY) !== "0";
@@ -87,14 +76,10 @@ export function setExcludePreviewsEnabled(enabled: boolean): void {
   try {
     localStorage.setItem(EXCLUDE_PREVIEWS_KEY, enabled ? "1" : "0");
   } catch {
-    /* ignore */
+    
   }
 }
 
-/**
- * Отфильтровать результаты поиска от треков-превью, если фильтр включён.
- * Альбомы и артисты не трогаем — они не проигрываются как превью.
- */
 export function filterPreviewResults(
   results: SearchResults[],
   excludePreviews: boolean,
@@ -106,13 +91,11 @@ export function filterPreviewResults(
   });
 }
 
-/** Отфильтровать список объектов провайдеров, убрав заблокированные. */
 export function filterProviders<T extends { id: string }>(providers: T[]): T[] {
   const blocked = new Set(getBlockedProviders());
   return providers.filter((p) => !blocked.has(p.id));
 }
 
-/** Отсортировать провайдеров по предпочтениям (не указанные — в конце, в текущем порядке). */
 export function orderProviders<T extends { id: string }>(providers: T[], preferred?: string[]): T[] {
   const order = preferred ?? getPreferredProviders();
   if (!order || order.length === 0) return [...providers];
@@ -127,12 +110,10 @@ export function orderProviders<T extends { id: string }>(providers: T[], preferr
   });
 }
 
-/** Список провайдеров с учётом блокировки и порядка предпочтений. */
 export function activeProviders<T extends { id: string }>(providers: T[]): T[] {
   return orderProviders(filterProviders(providers));
 }
 
-/** Треки, которые нельзя включать в «Мою волну». */
 export function getBlockedTrackIds(): string[] {
   return readArray(BLOCKED_TRACKS_KEY);
 }
@@ -141,7 +122,6 @@ export function isTrackBlocked(id: string): boolean {
   return getBlockedTrackIds().includes(id);
 }
 
-/** Переключить блокировку трека в волне. Возвращает новое состояние (true = заблокирован). */
 export function toggleBlockedTrack(id: string): boolean {
   const next = getBlockedTrackIds();
   const i = next.indexOf(id);
@@ -157,7 +137,6 @@ export function toggleBlockedTrack(id: string): boolean {
   return blocked;
 }
 
-/** Артисты, которых нельзя включать в «Мою волну» (нормализованы в lowercase). */
 export function getBlockedArtists(): string[] {
   return readArray(BLOCKED_ARTISTS_KEY);
 }
@@ -167,7 +146,6 @@ export function isArtistBlocked(name?: string): boolean {
   return getBlockedArtists().includes(name.trim().toLocaleLowerCase());
 }
 
-/** Переключить блокировку артиста в волне. Возвращает новое состояние (true = заблокирован). */
 export function toggleBlockedArtist(name: string): boolean {
   const norm = name.trim().toLocaleLowerCase();
   if (!norm) return false;

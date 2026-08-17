@@ -4,10 +4,6 @@ import type { Storage } from "../core/database/Storage";
 
 const DB_NAME = "sqlite:wave.db";
 
-/**
- * SQLite-реализация Storage для desktop (Tauri plugin-sql).
- * Лайки/альбомы/артисты/история переживают перезапуск приложения.
- */
 export class SqliteStorage implements Storage {
   private dbPromise: Promise<Database>;
 

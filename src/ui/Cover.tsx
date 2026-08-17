@@ -7,10 +7,6 @@ interface CoverProps {
   alt?: string;
 }
 
-/**
- * Обложка с оффлайн-кэшем: при загрузке картинка копируется в data-URL
- * (localStorage), при повторном показе/без сети используется кэш.
- */
 export function Cover({ src, className, alt }: CoverProps) {
   const [resolved, setResolved] = useState<string | null>(null);
 

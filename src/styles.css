@@ -55,14 +55,12 @@ body {
   height: 100%;
 }
 
-/* Мобильный хром рендерится всегда, но виден только на узких экранах */
 .mobile-topbar,
 .bottom-nav,
 .mini-player {
   display: none;
 }
 
-/* ---------- Mini player window (mini.html) ---------- */
 .mini-window {
   display: flex;
   align-items: center;
@@ -164,7 +162,6 @@ body {
   opacity: 0.85;
 }
 
-/* ---------- Sidebar ---------- */
 .sidebar {
   grid-area: sidebar;
   display: flex;
@@ -234,7 +231,6 @@ body {
   font-weight: 600;
 }
 
-/* ---------- Content ---------- */
 .content {
   grid-area: content;
   overflow-y: auto;
@@ -258,7 +254,6 @@ h2 {
   font-size: 18px;
 }
 
-/* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -366,7 +361,6 @@ h2 {
   }
 }
 
-/* ---------- Mini player ---------- */
 .player-bar.mini {
   grid-template-columns: auto 1fr auto auto;
   gap: 14px;
@@ -419,7 +413,6 @@ h2 {
   height: 40px;
 }
 
-/* ---------- Player bar ---------- */
 .player-bar {
   grid-area: player;
   display: grid;
@@ -520,7 +513,6 @@ h2 {
   gap: 6px;
 }
 
-/* ---------- Sleep timer ---------- */
 .sleep-menu-wrap {
   position: relative;
   display: flex;
@@ -589,7 +581,6 @@ h2 {
   color: var(--accent);
 }
 
-/* ---------- Track variants (Musixmatch-style) ---------- */
 .player-variants-wrap {
   position: relative;
   display: flex;
@@ -773,7 +764,6 @@ input[type="range"]::-webkit-slider-thumb {
   border: 2px solid #fff;
 }
 
-/* ---------- Track list ---------- */
 .track-list {
   display: flex;
   flex-direction: column;
@@ -807,7 +797,6 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(124, 92, 255, 0.1);
 }
 
-/* ---------- Playlist view ---------- */
 .playlist-split {
   display: flex;
   gap: 16px;
@@ -1115,7 +1104,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-variant-numeric: tabular-nums;
 }
 
-/* equalizer animation */
 .eq {
   display: inline-flex;
   gap: 2px;
@@ -1149,7 +1137,6 @@ input[type="range"]::-webkit-slider-thumb {
   }
 }
 
-/* ---------- Search ---------- */
 .search-box {
   display: flex;
   align-items: center;
@@ -1297,7 +1284,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 12px;
 }
 
-/* ---------- Home / Wave ---------- */
 .home {
   display: flex;
   flex-direction: column;
@@ -1442,7 +1428,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 12.5px;
 }
 
-/* ---------- Home (main) ---------- */
 .home-main {
   display: flex;
   flex-direction: column;
@@ -1569,7 +1554,6 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: auto;
 }
 
-/* ---------- Stats ---------- */
 .stats-view .stats-summary {
   display: flex;
   gap: 16px;
@@ -1618,6 +1602,66 @@ input[type="range"]::-webkit-slider-thumb {
 .period-tabs button.active {
   color: var(--accent);
   background: rgba(124, 92, 255, 0.15);
+}
+
+.smart-playlists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.smart-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.smart-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.smart-card-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.smart-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.smart-card-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.smart-card-desc {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smart-card-meta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.smart-play-btn {
+  flex-shrink: 0;
 }
 
 .lyrics {
@@ -1670,6 +1714,16 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 15px;
   line-height: 1.5;
   transition: color 0.15s, background 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.lyrics-line.clickable {
+  cursor: pointer;
+}
+
+.lyrics-line.clickable:hover {
+  background: rgba(124, 92, 255, 0.08);
 }
 
 .lyrics-line.active {
@@ -1678,6 +1732,17 @@ input[type="range"]::-webkit-slider-thumb {
   font-weight: 600;
 }
 
+.lyrics-line.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: calc(var(--progress, 0) * 100%);
+  background: var(--accent);
+  border-radius: 1px;
+  transition: width 0.1s linear;
+}
 
 .wave-hero {
   display: flex;
@@ -1715,7 +1780,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 13px;
 }
 
-/* ---------- Tabs ---------- */
 .tabs {
   display: flex;
   gap: 4px;
@@ -2078,6 +2142,51 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 12px;
 }
 
+.effects-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.effect-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.effect-slider label {
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 100px;
+}
+
+.effect-slider input[type="range"] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+
+.effect-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.effect-value {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 40px;
+  text-align: right;
+}
+
 .source-block {
   margin-top: 18px;
 }
@@ -2260,7 +2369,6 @@ input[type="range"]::-webkit-slider-thumb {
   word-break: break-word;
 }
 
-/* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -2320,6 +2428,60 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: 6px;
 }
 
+.modal select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.share-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.share-list h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.share-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.share-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-item small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .tag-editor {
   align-items: stretch;
 }
@@ -2343,9 +2505,6 @@ input[type="range"]::-webkit-slider-thumb {
   min-width: 0;
 }
 
-/* =========================================================
-   Mobile layout (Android / narrow screens)
-   ========================================================= */
 @media (max-width: 720px) {
   .app {
     display: flex;
@@ -2354,8 +2513,8 @@ input[type="range"]::-webkit-slider-thumb {
     overflow: hidden;
   }
 
-  /* Десктоп-хром полностью убираем из потока — none + absolute гарантируют,
-     что ни один элемент не занимает место в grid/flex */
+  
+
   .sidebar,
   .player-bar {
     display: none !important;
@@ -2372,7 +2531,7 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
   }
 
-  /* ----- Верхняя панель ----- */
+  
   .mobile-topbar {
     order: -3;
     flex-shrink: 0;
@@ -2393,7 +2552,7 @@ input[type="range"]::-webkit-slider-thumb {
     flex: 1;
   }
 
-  /* ----- Нижняя навигация ----- */
+  
   .bottom-nav {
     order: 2;
     flex-shrink: 0;
@@ -2425,7 +2584,7 @@ input[type="range"]::-webkit-slider-thumb {
     font-weight: 600;
   }
 
-  /* ----- Мини-плеер ----- */
+  
   .mini-player {
     order: 1;
     flex-shrink: 0;
@@ -2522,7 +2681,7 @@ input[type="range"]::-webkit-slider-thumb {
     background: color-mix(in srgb, var(--text) 10%, transparent);
   }
 
-  /* ----- Content ----- */
+  
   .content {
     grid-area: auto;
     order: 0;
@@ -2553,7 +2712,7 @@ input[type="range"]::-webkit-slider-thumb {
     height: 52px;
   }
 
-  /* ----- Полноэкранный «Сейчас играет» ----- */
+  
   .content-nowplaying {
     position: fixed;
     inset: 0;
@@ -2602,7 +2761,7 @@ input[type="range"]::-webkit-slider-thumb {
     max-height: 42vh;
   }
 
-  /* ----- Главная ----- */
+  
   .home-hero {
     flex-direction: column;
     align-items: flex-start;
@@ -2626,7 +2785,7 @@ input[type="range"]::-webkit-slider-thumb {
     flex-wrap: wrap;
   }
 
-  /* ----- Настройки ----- */
+  
   .settings-topbar {
     position: static;
   }
@@ -2649,7 +2808,7 @@ input[type="range"]::-webkit-slider-thumb {
     justify-content: center;
   }
 
-  /* ----- Ландшафт: компактные панели, плеер по горизонтали ----- */
+  
   @media (orientation: landscape) {
     .mobile-topbar {
       padding: max(6px, env(safe-area-inset-top)) 8px 4px;
@@ -2710,12 +2869,10 @@ input[type="range"]::-webkit-slider-thumb {
   }
 }
 
-/* ----- Кнопка сворачивания полноэкранного плеера (mobile) ----- */
 .np-collapse {
   display: none;
 }
 
-/* ----- Диагностика ----- */
 .diag-card .setting-row {
   font-size: 13px;
 }
@@ -2756,7 +2913,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 12px;
 }
 
-/* Account card styles */
 .account-info .account-header {
   display: flex;
   align-items: center;
@@ -2835,10 +2991,6 @@ input[type="range"]::-webkit-slider-thumb {
   text-decoration: underline;
 }
 
-/* =========================================================
-   Touch polish: на тач-устройствах нет «залипающих» ховеров,
-   вместо них — pressed-состояния (:active).
-   ========================================================= */
 @media (hover: none), (pointer: coarse) {
   .nav-item:hover {
     background: transparent;
@@ -2946,7 +3098,7 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--bg-elev);
   }
 
-  /* На таче кнопки контекстного меню видны всегда, а не по наведению */
+  
   .playlist-item .icon-btn,
   .playlist-item:hover .icon-btn {
     opacity: 1;

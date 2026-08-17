@@ -10,13 +10,11 @@ export interface ScSearchResult {
   thumbnail?: string;
 }
 
-/** Поиск и стрим SoundCloud через yt-dlp (client_id / Artist Pro не нужны). */
 export interface SoundCloudDlpGateway {
   search(query: string, limit: number): Promise<ScSearchResult[]>;
   stream(url: string): Promise<string>;
 }
 
-/** Стрим-URL (подписанный) годен не вечно — кэшируем с TTL. */
 const STREAM_TTL_MS = 20 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 
@@ -29,10 +27,6 @@ function trackUrl(id: string): string {
   return `https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A${id}`;
 }
 
-/**
- * Провайдер SoundCloud через yt-dlp: поиск `scsearch` + прямой mp3-стрим.
- * Не зависит от client_id и не требует Artist Pro.
- */
 export class SoundCloudProvider implements MusicProvider {
   readonly id = "soundcloud";
   readonly name = "SoundCloud";

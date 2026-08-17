@@ -115,7 +115,7 @@ export async function syncLikes(userId: string, localLikes: string[], localTrack
     if (!track) continue;
     const remoteItem = remoteMap.get(trackId);
     if (!remoteItem || remoteItem.track.updatedAt < track.updatedAt) {
-      // Не сбрасываем дату добавления в лайки при обновлении метаданных.
+      
       const createdAt = remoteItem ? new Date(remoteItem.created_at).getTime() : Date.now();
       toUpsert.push({ trackId, track, createdAt });
     }
@@ -163,7 +163,7 @@ export async function syncPlaylists(userId: string, local: SyncedPlaylist[]) {
 
   for (const pl of local) {
     const r = remoteMap.get(pl.id);
-    // updated_at из PostgREST — ISO-строка, локальный updatedAt — epoch-мс.
+    
     const remoteTs = r ? new Date(r.updated_at).getTime() : 0;
     if (!r || remoteTs < pl.updatedAt) toUpsert.push(pl);
     remoteMap.delete(pl.id);
@@ -231,4 +231,149 @@ export async function registerDevice(userId: string, device: Omit<UserDevice, "u
 export async function fetchUserDevices(userId: string): Promise<UserDevice[]> {
   const { data } = await supabase.from("user_devices").select("*").eq("user_id", userId);
   return data ?? [];
+}
+
+export interface PlaylistShare {
+  id: string;
+  playlistId: string;
+  ownerId: string;
+  collaboratorId: string;
+  permission: "editor" | "viewer";
+  createdAt: number;
+  collaboratorEmail?: string;
+}
+
+export async function sharePlaylist(
+  ownerId: string,
+  playlistId: string,
+  collaboratorEmail: string,
+  permission: "editor" | "viewer" = "editor",
+): Promise<PlaylistShare | null> {
+  const { data: profiles, error: lookupError } = await supabase
+    .from("auth.users")
+    .select("id")
+    .eq("email", collaboratorEmail)
+    .limit(1);
+
+  if (lookupError || !profiles || profiles.length === 0) return null;
+
+  const collaboratorId = profiles[0].id;
+  if (collaboratorId === ownerId) return null;
+
+  const { data, error } = await supabase
+    .from("playlist_shares")
+    .upsert({
+      playlist_id: playlistId,
+      owner_id: ownerId,
+      collaborator_id: collaboratorId,
+      permission,
+    }, { onConflict: "playlist_id,owner_id,collaborator_id" })
+    .select("id, playlist_id, owner_id, collaborator_id, permission, created_at")
+    .single();
+
+  if (error) return null;
+  return {
+    id: data.id,
+    playlistId: data.playlist_id,
+    ownerId: data.owner_id,
+    collaboratorId: data.collaborator_id,
+    permission: data.permission as "editor" | "viewer",
+    createdAt: new Date(data.created_at).getTime(),
+    collaboratorEmail,
+  };
+}
+
+export async function removeShare(shareId: string): Promise<void> {
+  await supabase.from("playlist_shares").delete().eq("id", shareId);
+}
+
+export async function removeShareByEmail(
+  ownerId: string,
+  playlistId: string,
+  collaboratorEmail: string,
+): Promise<void> {
+  const { data: profiles } = await supabase
+    .from("auth.users")
+    .select("id")
+    .eq("email", collaboratorEmail)
+    .limit(1);
+
+  if (!profiles || profiles.length === 0) return;
+
+  await supabase
+    .from("playlist_shares")
+    .delete()
+    .eq("playlist_id", playlistId)
+    .eq("owner_id", ownerId)
+    .eq("collaborator_id", profiles[0].id);
+}
+
+export async function getPlaylistShares(
+  ownerId: string,
+  playlistId: string,
+): Promise<PlaylistShare[]> {
+  const { data } = await supabase
+    .from("playlist_shares")
+    .select("id, playlist_id, owner_id, collaborator_id, permission, created_at")
+    .eq("owner_id", ownerId)
+    .eq("playlist_id", playlistId);
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    playlistId: r.playlist_id,
+    ownerId: r.owner_id,
+    collaboratorId: r.collaborator_id,
+    permission: r.permission as "editor" | "viewer",
+    createdAt: new Date(r.created_at).getTime(),
+  }));
+}
+
+export async function getMySharedPlaylists(userId: string): Promise<PlaylistShare[]> {
+  const { data } = await supabase
+    .from("playlist_shares")
+    .select("id, playlist_id, owner_id, collaborator_id, permission, created_at")
+    .eq("collaborator_id", userId);
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    playlistId: r.playlist_id,
+    ownerId: r.owner_id,
+    collaboratorId: r.collaborator_id,
+    permission: r.permission as "editor" | "viewer",
+    createdAt: new Date(r.created_at).getTime(),
+  }));
+}
+
+export async function fetchSharedPlaylists(userId: string): Promise<SyncedPlaylist[]> {
+  const { data: shares } = await supabase
+    .from("playlist_shares")
+    .select("playlist_id, owner_id")
+    .eq("collaborator_id", userId);
+
+  if (!shares || shares.length === 0) return [];
+
+  const results: SyncedPlaylist[] = [];
+
+  for (const share of shares) {
+    const { data } = await supabase
+      .from("user_playlists")
+      .select("id, name, track_ids, tracks, created_at, updated_at, cover_url")
+      .eq("user_id", share.owner_id)
+      .eq("id", share.playlist_id)
+      .single();
+
+    if (data) {
+      results.push({
+        id: `shared:${share.owner_id}:${data.id}`,
+        name: data.name,
+        trackIds: data.track_ids,
+        tracks: data.tracks as SyncedTrack[] | undefined,
+        createdAt: new Date(data.created_at).getTime(),
+        updatedAt: new Date(data.updated_at).getTime(),
+        coverUrl: data.cover_url ?? undefined,
+      });
+    }
+  }
+
+  return results;
 }

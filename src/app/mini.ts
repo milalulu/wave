@@ -2,13 +2,6 @@ import { listen, emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { AppServices } from "./compose";
 
-/**
- * Плавающее mini-player окно (`mini.html`, отдельный webview).
- *
- * - Главное окно транслирует состояние плеера событием `mini-state`;
- * - mini-окно отвечает командой `mini-command` (playpause/next/previous/seek),
- *   а при показе запрашивает свежее состояние командой `getState`.
- */
 export interface MiniState {
   title: string;
   artist: string;
@@ -70,7 +63,6 @@ export function bindMiniRemote(services: AppServices): () => void {
   return () => unlisten?.();
 }
 
-/** Открыть mini-player из главного окна (создан скрытым в tauri.conf.json). */
 export async function openMiniPlayerWindow(): Promise<void> {
   try {
     const mini = await WebviewWindow.getByLabel("mini-player");
@@ -78,6 +70,6 @@ export async function openMiniPlayerWindow(): Promise<void> {
     await mini.show();
     await mini.setFocus();
   } catch {
-    // нет Tauri (web) — вызывающий код сам подберёт fallback
+    
   }
 }

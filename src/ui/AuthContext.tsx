@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           case "android":
             throw new Error("OAuth: недоступен на Android — используйте email и пароль");
           default:
-            // Браузер (pnpm dev): обычный редирект работает.
+            
             {
               const { error } = await supabase.auth.signInWithOAuth({
                 provider,

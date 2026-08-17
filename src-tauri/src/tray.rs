@@ -1,7 +1,4 @@
-//! System tray: быстрые управление плеером и показ/скрытие окна без MPRIS.
-//!
-//! Пункты меню шлют событие `tray-command` (как `mpris-command`), а фронтенд
-//! разбирает его и дергает движок (см. `src/app/tray.ts`).
+
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -42,7 +39,6 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-/// Запустить трей (не на Android).
 pub fn start(app: &tauri::App) {
     let mut builder = TrayIconBuilder::with_id("wave-tray")
         .tooltip("Wave")
@@ -59,8 +55,8 @@ pub fn start(app: &tauri::App) {
                 serde_json::json!({ "action": action }),
             );
             if action == "quit" {
-                // Даём фронтенду время закрыть окно (сохранить состояние),
-                // после чего гарантированно выходим.
+                
+                
                 let app = app.clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(600));

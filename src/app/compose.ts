@@ -30,7 +30,6 @@ import { loadYtQuality } from "./ytQuality";
 import { loadCrossfadeMs } from "./crossfade";
 import { findTrackVariants } from "./trackVariants";
 
-/** Площадки с полным (не превью) воспроизведением для авто-апгрейда. */
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
 interface AppConfig {
@@ -102,13 +101,13 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
   const musicbrainz = new MusicBrainzProvider(httpGateway);
   const local = new LocalProvider(localSource);
   providers.push(itunes, deezer, musicbrainz, local);
-  // yt-dlp есть на десктопе (ставится автоматически) либо задан вручную
-  // (Android: путь к бинарю из Termux/root-сборки в настройках).
+  
+  
   const hasYtDlp = !IS_ANDROID || Boolean(cfg.ytdlpPath);
   if (hasYtDlp) {
     const youtube = new YouTubeMusicProvider(ytGateway);
     providers.push(youtube);
-    // SoundCloud тоже через yt-dlp (scsearch + прямой mp3) — client_id не нужен.
+    
     providers.push(
       new SoundCloudProvider({
         search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
@@ -145,12 +144,12 @@ export async function composeServices(): Promise<AppServices> {
   const cfg = await invoke<AppConfig>("app_config");
   const { providers, local } = buildProviders(cfg);
 
-  // eslint-disable-next-line prefer-const -- волна назначается позже, т.к. используется в замыкании onQueueEnd выше
+  // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     resolveUri: async (track) => {
-      // Площадка в бане — трек не воспроизводим, даже если у него есть прямой
-      // uri (превью iTunes/Deezer из старой очереди): иначе бан бессмыслен.
+      
+      
       if (isBlockedProvider(track.provider)) {
         throw new Error(`provider blocked: ${track.provider}`);
       }
@@ -161,8 +160,8 @@ export async function composeServices(): Promise<AppServices> {
       const provider = providers.find((p) => p.id === track.provider);
       return provider ? provider.resolveUri(track) : track.uri;
     },
-    // 30-секундное превью (iTunes/Deezer/Spotify) автоматически меняется на
-    // полную версию: ищем тот же трек на full-площадках (YouTube/SoundCloud).
+    
+    
     upgradePreview: async (track) => {
       try {
         const variants = await findTrackVariants(providers, track);
@@ -178,10 +177,10 @@ export async function composeServices(): Promise<AppServices> {
         const waveTracks = await wave.generateWave(10);
         if (waveTracks.length > 0) return waveTracks;
       } catch {
-        // ignore
+        
       }
-      // Волна пуста (мало лайков/истории) — автопродолжение похожими треками
-      // последнего сыгранного трека из внешних источников.
+      
+      
       const last = engine.snapshot.current;
       if (!last) return [];
       try {
@@ -202,19 +201,14 @@ export async function composeServices(): Promise<AppServices> {
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
   engine.on("track", (track) => {
-    // restoreQueue() при старте тоже эмитит "track", но это не прослушивание:
-    // в этот момент state === "paused". Такие записи в историю не пишем,
-    // иначе каждый запуск приложения дублирует последний трек.
+    
+    
+    
     if (track && engine.snapshot.state !== "paused") void history.recordPlay(track);
   });
   return { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
 }
 
-/**
- * Применить сохранённый конфиг без перезапуска: провайдеры пересобираются
- * in-place (движок и волна держат ссылку на тот же массив), скробблер/лирикс
- * обновляются на лету. Возвращает новый wrapper-объект для перерисовки.
- */
 export async function reconfigureServices(services: AppServices): Promise<AppServices> {
   const cfg = await invoke<AppConfig>("app_config");
   const { providers: next, local: nextLocal } = buildProviders(cfg);
@@ -245,7 +239,6 @@ export async function searchAll(
   );
 }
 
-/** Подобрать похожие playable-треки для радио/очереди (Last.fm + iTunes превью). */
 export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {
   const similar = await Promise.allSettled(
     services.providers
@@ -253,7 +246,7 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
       .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "") ?? Promise.resolve([])),
   );
   let candidates = similar.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  // Если похожих треков мало — докидываем топ-треки артиста.
+  
   if (candidates.length < 6 && seed.artist) {
     const top = await Promise.allSettled(
       services.providers

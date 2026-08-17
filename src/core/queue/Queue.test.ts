@@ -82,11 +82,11 @@ describe("Queue", () => {
     const q = new Queue({ rng: () => 0 });
     q.replace(tracks);
     q.setShuffle(true);
-    // order после replace+shuffle с rng=0: [b, c, a], pos=2 (текущий a)
+    
     expect(q.current()?.id).toBe("a");
     q.append(tracks[0]);
     expect(q.current()?.id).toBe("a");
-    // новый трек (idx 3) вставлен в несыгранный хвост (после pos=2)
+    
     expect(q.positionOf(3)).toBeGreaterThanOrEqual(3);
   });
 

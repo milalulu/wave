@@ -53,8 +53,8 @@ function App() {
   const scrollMemory = useRef(new Map<string, number>());
   const prevViewRef = useRef<ViewKey | null>(null);
 
-  // Память позиции прокрутки по вьюхам: перед переключением сохраняем позицию
-  // текущей вьюхи, при возврате восстанавливаем.
+  
+  
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -70,15 +70,15 @@ function App() {
     void init();
   }, [init]);
 
-  // Стабильные ссылки для обработчиков, зарегистрированных один раз.
+  
   const goBackRef = useRef(goBack);
   useEffect(() => {
     goBackRef.current = goBack;
   });
   useEdgeSwipeBack(() => goBackRef.current());
 
-  // Системная кнопка «назад» на Android: сворачиваем nowPlaying / уходим по
-  // стеку, на корневом табе — закрываем приложение.
+  
+  
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void onBackButtonPress(() => {
@@ -98,9 +98,9 @@ function App() {
     };
   }, []);
 
-  // NowPlayingView зовёт onNavigate("home") для сворачивания (только мобайл) и
-  // onNavigate("search") из пустого состояния. "home" трактуем как «назад»,
-  // остальные вьюхи — обычная навигация.
+  
+  
+  
   const handleNowPlayingNavigate = (target: ViewKey) => {
     if (target === "home") goBack();
     else setView(target);

@@ -3,7 +3,6 @@ import type { AlbumDetail, ArtistDetail } from "../types";
 import type { HttpJsonGateway } from "./HttpGateway";
 import type { MusicProvider } from "./MusicProvider";
 
-/** Фолбэк на голый fetch, если шлюз не инжектирован (webview-окружение). */
 const defaultFetchGateway: HttpJsonGateway = {
   json: async (_method, url) => {
     const res = await fetch(url);
@@ -51,9 +50,6 @@ function artistId(r: ITunesResult): string | null {
   return r.artistId ? `itunes:artist:${r.artistId}` : null;
 }
 
-/**
- * Провайдер iTunes: поиск и 30-секундные превью — реальное аудио без ключей.
- */
 export class iTunesProvider implements MusicProvider {
   readonly id = "itunes";
   readonly name = "iTunes";
@@ -101,7 +97,7 @@ export class iTunesProvider implements MusicProvider {
         return result.previewUrl;
       }
     } catch {
-      // сеть недоступна — отдаём старый URL, движок пере-резолвит позже
+      
     }
     return track.uri;
   }

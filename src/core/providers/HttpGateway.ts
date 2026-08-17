@@ -1,4 +1,4 @@
-/** CORS-безопасный HTTP-вызов (в webview fetch заблокирован для многих API). */
+
 export interface HttpJsonGateway {
   json(
     method: "GET" | "POST" | "PUT" | "DELETE",

@@ -22,10 +22,6 @@ interface BridgeRequest {
   payload?: Record<string, unknown>;
 }
 
-/**
- * Клиентская часть моста: Rust (axum) эмитит `api-request`, мы исполняем
- * действие в Music Core и отвечаем командой `api_respond`.
- */
 export class ApiBridge {
   private unlisten: UnlistenFn | null = null;
 

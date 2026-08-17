@@ -1,9 +1,5 @@
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../types";
 
-/**
- * Абстракция локального хранилища. Desktop-реализация — SQLite
- * (в src/app), в тестах и Node — MemoryStorage. Ядро не знает про SQL.
- */
 export interface Storage {
   init(): Promise<void>;
   isLiked(trackId: string): Promise<boolean>;

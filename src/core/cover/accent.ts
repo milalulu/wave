@@ -55,7 +55,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Доминирующий цвет обложки → акцентная пара (accent/accent-2). */
 export async function accentFromImage(src: string): Promise<AccentColors | null> {
   try {
     const img = await loadImage(src);
@@ -71,7 +70,7 @@ export async function accentFromImage(src: string): Promise<AccentColors | null>
     try {
       data = ctx.getImageData(0, 0, w, h).data;
     } catch {
-      return null; // CORS-tainted canvas
+      return null; 
     }
     let r = 0;
     let g = 0;
@@ -122,7 +121,7 @@ export function saveAccent(colors: AccentColors | null): void {
     if (colors) localStorage.setItem(ACCENT_KEY, JSON.stringify(colors));
     else localStorage.removeItem(ACCENT_KEY);
   } catch {
-    /* localStorage недоступен — молча игнорируем */
+    
   }
 }
 
@@ -139,6 +138,6 @@ export function setAccentEnabled(enabled: boolean): void {
     if (enabled) localStorage.setItem(ACCENT_ENABLED_KEY, "1");
     else localStorage.setItem(ACCENT_ENABLED_KEY, "0");
   } catch {
-    /* localStorage недоступен — молча игнорируем */
+    
   }
 }

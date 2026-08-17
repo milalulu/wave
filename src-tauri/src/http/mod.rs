@@ -3,9 +3,6 @@ pub mod server;
 
 use std::net::IpAddr;
 
-/// Единый HTTP-клиент с таймаутами (используется во всех местах сети:
-/// tools, lastfm, http_fetch_*, vk_search). GitHub переадресует загрузки
-/// на S3 — редиректы включены по умолчанию.
 pub fn client() -> &'static reqwest::Client {
     use std::sync::OnceLock;
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -44,7 +41,7 @@ fn ip_allowed(ip: IpAddr) -> bool {
 }
 
 /// Валидация URL перед запросом из renderer'а: только http(s) и хосты,
-/// резолвящиеся в разрешённые адреса.
+
 pub async fn validate_http_url(url: &str) -> Result<reqwest::Url, String> {
     let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
     let scheme = parsed.scheme();
@@ -78,8 +75,6 @@ pub async fn validate_http_url(url: &str) -> Result<reqwest::Url, String> {
     Ok(parsed)
 }
 
-/// URL без query/fragment для сообщений об ошибках — не светим токены
-/// (client_id/подписанные ссылки) в логах.
 pub fn redact_url(url: &str) -> String {
     match reqwest::Url::parse(url) {
         Ok(u) => {

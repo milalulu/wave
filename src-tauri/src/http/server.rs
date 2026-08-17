@@ -13,8 +13,6 @@ use tauri::AppHandle;
 
 use super::bridge::BridgeHandle;
 
-/// Постоянно-временное сравнение секретов: не даёт утечки длины/префикса
-/// через тайминги при сверке X-Api-Token.
 fn constant_time_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
@@ -181,8 +179,6 @@ async fn bridge_call(state: &ServerState, action: &str, payload: Value) -> Respo
     }
 }
 
-/// CDN, отдающие аудио без CORS-заголовков (WebView не может их дёрнуть
-/// напрямую из WebAudio). Всё остальное адресно не проксируем.
 const MEDIA_HOST_ALLOWLIST: [&str; 10] = [
     ".googlevideo.com",
     ".sndcdn.com",
@@ -206,9 +202,6 @@ fn media_host_allowed(url: &str) -> bool {
         .any(|suffix| host == suffix.trim_start_matches('.') || host.ends_with(suffix))
 }
 
-/// Прокси аудио для WebAudio: байты прогоняются через локальный сервер,
-/// который отдаёт их с `Access-Control-Allow-Origin: *`. Без токена —
-/// рендер его не знает; защита от SSRF — validate_http_url + allowlist CDN.
 async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response {
     let Some(url) = params.get("url") else {
         return (StatusCode::BAD_REQUEST, "missing url").into_response();

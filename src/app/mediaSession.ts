@@ -1,10 +1,5 @@
 import type { AppServices } from "./compose";
 
-/**
- * Интеграция с ОС через navigator.mediaSession: мультимедиа-клавиши,
- * метаданные в системном медиа-центре (Windows/macOS/Linux), position state.
- * Тихий фолбэк, если браузер не поддерживает.
- */
 export function bindMediaSession(
   services: AppServices,
   actions: {
@@ -29,7 +24,7 @@ export function bindMediaSession(
           artwork: track.coverUrl ? [{ src: track.coverUrl, sizes: "256x256" }] : [],
         });
       } catch {
-        /* ignore */
+        
       }
     }
     ms.playbackState = snap.state === "playing" ? "playing" : "paused";
@@ -40,7 +35,7 @@ export function bindMediaSession(
         playbackRate: 1,
       });
     } catch {
-      /* ignore */
+      
     }
   };
 
@@ -62,7 +57,7 @@ export function bindMediaSession(
     ms.setActionHandler("seekbackward", (d) => onSeek(d));
     ms.setActionHandler("seekforward", (d) => onSeek(d));
   } catch {
-    /* не поддерживается */
+    
   }
 
   services.engine.on("state", refresh);

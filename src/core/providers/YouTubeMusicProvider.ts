@@ -11,7 +11,6 @@ export interface YtSearchResult {
   thumbnail?: string;
 }
 
-/** Платформенный запуск yt-dlp (инжектируется из приложения). */
 export interface YtDlpGateway {
   search(query: string, limit: number): Promise<YtSearchResult[]>;
   stream(videoId: string, quality?: YtQuality): Promise<string>;
@@ -24,13 +23,6 @@ function cover(thumb?: string): string | undefined {
 const STREAM_TTL_MS = 2 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 
-/**
- * Провайдер YouTube/YouTube Music: поиск и поток через yt-dlp.
- * uri трека — watch-URL, реальный аудио-поток разрешается лениво
- * в resolveUri (движок вызывает его перед загрузкой).
- * Поток-URL и результаты поиска кэшируются (TTL), чтобы не гонять
- * процесс yt-dlp на каждое переключение трека.
- */
 export class YouTubeMusicProvider implements MusicProvider {
   readonly id = "youtube";
   readonly name = "YouTube Music";

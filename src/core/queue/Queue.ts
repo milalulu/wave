@@ -4,10 +4,6 @@ export interface QueueOptions {
   rng?: () => number;
 }
 
-/**
- * Очередь воспроизведения: порядок проигрывания, история, перемешивание.
- * `next()`/`previous()` не оборачиваются (repeat — забота PlayerEngine).
- */
 export class Queue {
   private tracks: Track[] = [];
   private history: Track[] = [];
@@ -45,7 +41,7 @@ export class Queue {
     return this.tracks[this.order[this.pos]] ?? null;
   }
 
-  /** Индекс текущего трека в исходном списке. */
+  
   currentIndex(): number {
     if (this.pos < 0 || this.pos >= this.order.length) return -1;
     return this.order[this.pos];
@@ -73,8 +69,8 @@ export class Queue {
     const newIdx = this.tracks.length - 1;
     const hasCurrent = this.current() !== null;
     if (hasCurrent && this.shuffle) {
-      // В shuffle новый трек встаёт на случайную позицию в несыгранном хвосте,
-      // чтобы доливка очереди не перетасовывала уже выстроенный порядок.
+      
+      
       const tailStart = this.pos + 1;
       const count = this.order.length - tailStart + 1;
       const insertPos = tailStart + Math.floor(this.rng() * count);
@@ -104,7 +100,7 @@ export class Queue {
     return removed;
   }
 
-  /** Переместить трек по индексу исходного списка; текущий трек остаётся на месте. */
+  
   move(fromIndex: number, toIndex: number): void {
     if (fromIndex < 0 || fromIndex >= this.tracks.length) return;
     if (toIndex < 0 || toIndex >= this.tracks.length) return;
@@ -128,7 +124,7 @@ export class Queue {
     this.pos = -1;
   }
 
-  /** Обновить поля всех треков очереди с данным id (редактирование тегов). */
+  
   replaceTrackFields(id: string, patch: Partial<Track>): boolean {
     let changed = false;
     for (let i = 0; i < this.tracks.length; i++) {
@@ -140,7 +136,7 @@ export class Queue {
     return changed;
   }
 
-  /** Заменить текущий трек (по индексу исходного списка), сохранив позицию и историю. */
+  
   replaceCurrent(track: Track): Track | null {
     const curIndex = this.currentIndex();
     if (curIndex < 0 || curIndex >= this.tracks.length) return null;
@@ -168,7 +164,7 @@ export class Queue {
     return this.current();
   }
 
-  /** Посмотреть следующий трек без продвижения позиции. */
+  
   peekNext(): Track | null {
     if (this.pos < 0 || this.pos >= this.order.length) return null;
     if (this.pos + 1 >= this.order.length) return null;
@@ -199,7 +195,7 @@ export class Queue {
     return this.current();
   }
 
-  /** Позиция трека (по индексу исходного списка) в текущем порядке проигрывания. */
+  
   positionOf(trackIndex: number): number {
     return this.order.indexOf(trackIndex);
   }

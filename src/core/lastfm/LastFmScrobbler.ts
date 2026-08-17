@@ -4,7 +4,7 @@ import type { PlayerState, Track } from "../types";
 
 const MIN_SCROBBLE_SECONDS = 30;
 const NOW_PLAYING_DEBOUNCE_MS = 30_000;
-/** Максимальный разрыв между time-событиями, засчитываемый в прослушивание. */
+
 const TICK_GAP_MS = 30_000;
 
 interface Session {
@@ -15,15 +15,6 @@ interface Session {
   lastNowPlaying: number;
 }
 
-/**
- * Скробблинг Last.fm: подписка на события плеера.
- * - Now playing — при смене трека (с дебаунсом).
- * - Scrobble — по правилу Last.fm: >= 50% длительности ИЛИ >= 4 минут,
- *   при завершении трека или переходе на следующий.
- * Прослушанное время копится по реальным тикам (wall-clock) в состоянии
- * "playing", чтобы перемотка вперёд/назад не засчитывалась как прослушивание.
- * Сама отправка происходит в Rust (подписанные запросы), здесь — только логика.
- */
 export class LastFmScrobbler {
   private current: Session | null = null;
   private stopped = false;
@@ -101,7 +92,7 @@ export class LastFmScrobbler {
     return !!s.track.duration && s.track.duration >= MIN_SCROBBLE_SECONDS;
   }
 
-  /** Порог скроббла в мс: 50% длительности ИЛИ 4 минуты, но не больше длительности. */
+  
   private threshold(duration: number): number {
     return Math.min(duration, Math.max(240, duration / 2)) * 1000;
   }

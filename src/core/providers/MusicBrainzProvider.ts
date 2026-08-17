@@ -23,10 +23,6 @@ interface MbRecording {
   releases?: MbRelease[];
 }
 
-/**
- * Провайдер MusicBrainz: открытая метаданная база (без ключа).
- * Аудио не стримится — треки помечаются meta.noPlay.
- */
 export class MusicBrainzProvider implements MusicProvider {
   readonly id = "musicbrainz";
   readonly name = "MusicBrainz";

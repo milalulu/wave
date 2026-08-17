@@ -82,7 +82,7 @@ describe("PlayerEngine", () => {
     engine.setPauseAfterTrack(true);
     adapter.end();
     await flush();
-    // Не переходит на следующий трек, очередь сохранена, флаг сброшен.
+    
     expect(engine.snapshot.current?.id).toBe("a");
     expect(engine.snapshot.state).toBe("paused");
     adapter.end();
@@ -166,8 +166,8 @@ describe("PlayerEngine", () => {
   });
 
   it("track event state differs: paused on restore, loading on real play", async () => {
-    // История пишется из события "track"; на restore она не должна считаться
-    // прослушиванием (state === "paused"), а на реальном старте — должна.
+    
+    
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter);
     const states: PlayerState[] = [];
@@ -217,9 +217,9 @@ describe("PlayerEngine", () => {
       0,
       30,
     );
-    // Страница YouTube — не поток: прелоад сломал бы элемент и EQ-граф (CORS).
+    
     expect(adapter.src).toBe("");
-    // Seek позиции всё равно передаётся в адаптер (применится по загрузке).
+    
     expect(adapter.getPosition()).toBe(30);
     engine.destroy();
   });
@@ -239,8 +239,8 @@ describe("PlayerEngine", () => {
   });
 
   it("applies restored position after first play of a track without direct uri", async () => {
-    // adapter.load() сбрасывает pendingSeek — восстановленная позиция должна
-    // примениться повторно при загрузке источника на первом play().
+    
+    
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter, {
       resolveUri: async () => "u://resolved",

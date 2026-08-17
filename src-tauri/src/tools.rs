@@ -4,8 +4,6 @@ use tauri::Manager;
 
 const YTDLP_RELEASE: &str = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
 
-/// Кэш резолва системного yt-dlp: не спавним `yt-dlp --version` на каждый
-/// поиск/стрим (config() вызывается из каждого запуска yt-dlp).
 static YTDLP_LOOKUP: OnceLock<Mutex<Option<Option<String>>>> = OnceLock::new();
 
 fn ytdlp_lookup() -> &'static Mutex<Option<Option<String>>> {

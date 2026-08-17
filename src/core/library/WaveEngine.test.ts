@@ -82,8 +82,8 @@ describe("SmartWaveSource", () => {
       candidates: [],
     };
     const wave = source.generate(4, ctx);
-    // Третий пик: вес x3 пересчитан от базы (0.4*0.5 = 0.2), а не от
-    // уже урезанного (0.4 -> 0.08), поэтому X3 выбирается раньше Y1.
+    
+    
     expect(wave.map((t) => t.id)).toEqual(["x1", "x2", "x3", "y1"]);
   });
 

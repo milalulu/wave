@@ -35,7 +35,7 @@ function write(map: Record<string, CoverEntry>): void {
     }
     localStorage.setItem(KEY, JSON.stringify(clean));
   } catch {
-    /* переполнение/приватный режим — игнорируем */
+    
   }
 }
 
@@ -45,16 +45,14 @@ export function getCachedCover(url: string): string | null {
   return e.data;
 }
 
-/** Полностью очистить кэш обложек. */
 export function clearCoverCache(): void {
   try {
     localStorage.removeItem(KEY);
   } catch {
-    /* игнорируем */
+    
   }
 }
 
-/** Загрузить обложку в data-URL и положить в кэш (оффлайн). */
 export async function cacheCover(url: string): Promise<string | null> {  try {
     const res = await fetch(url);
     if (!res.ok) return null;

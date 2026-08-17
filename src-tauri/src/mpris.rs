@@ -1,8 +1,4 @@
-//! MPRIS (Media Player Remote Interfacing Specification) через DBus (zbus).
-//!
-//! Регистрирует `org.mpris.MediaPlayer2.Wave` на `/org/mpris/MediaPlayer2`.
-//! Состояние приходит из фронтенда командой `mpris_update`, а команды
-//! (Play/Pause/Next/…) уходят обратно событием `mpris-command`.
+
 
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -67,7 +63,6 @@ fn position_usec(state: &MprisState) -> i64 {
     (state.position.saturating_mul(1_000_000)).min(i64::MAX as u64) as i64
 }
 
-/// Обернуть значение в вариант (`v`-тип) для `a{sv}`.
 fn var<T: Into<Value<'static>>>(value: T) -> Value<'static> {
     Value::Value(Box::new(value.into()))
 }
@@ -281,7 +276,6 @@ fn emit_num<T: serde::Serialize>(action: &str, value: T) {
     }
 }
 
-/// Запустить DBus-сервис MPRIS (не на Android).
 pub fn start(app: AppHandle) {
     let _ = APP.set(app);
     std::thread::Builder::new()
@@ -335,9 +329,6 @@ pub fn start(app: AppHandle) {
         .expect("failed to spawn wave-mpris thread");
 }
 
-/// Обновить состояние плеера из фронтенда и уведомить DE (PropertiesChanged).
-/// Вызывается из кросс-платформенной команды `mpris_update` (lib.rs), чтобы
-/// не дублировать генерацию `#[tauri::command]` для одного имени.
 pub async fn mpris_update(
     app: tauri::AppHandle,
     state_json: serde_json::Value,

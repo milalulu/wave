@@ -2,20 +2,16 @@ import type { MusicProvider } from "../core/providers/MusicProvider";
 import type { Track } from "../core/types";
 import { getPreferredProviders } from "./platformSettings";
 
-/** Вариант текущего трека на другой площадке. */
 export interface TrackVariant {
   providerId: string;
   track: Track;
 }
 
-/** Площадки, которые не дают playable-превью через поиск по названию. */
 const NO_VARIANT_SOURCES = new Set(["local", "musicbrainz"]);
 
-/** Кеш вариантов по track.id (чтобы не долбить поиск на каждом треке). */
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, { at: number; variants: TrackVariant[] }>();
 
-/** Очистить кеш вариантов (после смены источников/вручную). */
 export function clearVariantsCache(): void {
   cache.clear();
 }
@@ -24,7 +20,6 @@ function norm(s?: string): string {
   return (s ?? "").trim().toLocaleLowerCase();
 }
 
-/** Совпадает ли найденный трек с текущим (название + исполнитель). */
 export function isVariantOf(variant: Track, track: Track): boolean {
   const vt = norm(variant.title);
   const tt = norm(track.title);
@@ -36,10 +31,6 @@ export function isVariantOf(variant: Track, track: Track): boolean {
   return true;
 }
 
-/**
- * Найти тот же трек на других площадках (Musixmatch-подобные варианты).
- * Исключаются заблокированные источники и текущая площадка.
- */
 export async function findTrackVariants(
   providers: MusicProvider[],
   track: Track,

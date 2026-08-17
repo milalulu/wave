@@ -1,10 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 
-/**
- * Свайп назад от левого края экрана (Android/iOS паттерн).
- * Срабатывает только на touch-устройствах: mouse не эмитит TouchEvents.
- */
 export function useEdgeSwipeBack(onBack: () => void): void {
   const onBackRef = useRef(onBack);
 
@@ -46,11 +42,6 @@ export function useEdgeSwipeBack(onBack: () => void): void {
   }, []);
 }
 
-/**
- * Свайп вниз на элементе (используется для сворачивания «Сейчас играет»).
- * Срабатывает только когда контент прокручен вверх. Возвращает ref,
- * который нужно повесить на корневой элемент вьюхи.
- */
 export function useSwipeDown<T extends HTMLElement>(onSwipe: () => void): RefObject<T | null> {
   const ref = useRef<T | null>(null);
   const onSwipeRef = useRef(onSwipe);

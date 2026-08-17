@@ -15,6 +15,6 @@ export function saveYtQuality(q: YtQuality): void {
   try {
     localStorage.setItem(KEY, q);
   } catch {
-    /* игнорируем переполнение localStorage */
+    
   }
 }

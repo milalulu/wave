@@ -40,7 +40,7 @@ function pushLog(message: string): void {
   try {
     useApp.getState().pushLog(message);
   } catch {
-    /* store ещё не инициализирован — игнорируем */
+    
   }
   invoke("log_frontend", { message }).catch(() => {});
 }

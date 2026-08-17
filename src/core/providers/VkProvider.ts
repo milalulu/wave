@@ -2,7 +2,6 @@ import type { SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
 
-/** Платформенный вызов vk.com/al_audio.php (инжектируется из приложения). */
 export interface VkGateway {
   search(query: string, count: number): Promise<unknown>;
 }
@@ -16,10 +15,6 @@ interface VkAudio {
   artist: string;
 }
 
-/**
- * Провайдер VK через неофициальный al_audio.php. Структура ответа
- * меняется, поэтому треки извлекаются толерантным обходом JSON-дерева.
- */
 export class VkProvider implements MusicProvider {
   readonly id = "vk";
   readonly name = "VK";

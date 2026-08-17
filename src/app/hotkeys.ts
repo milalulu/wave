@@ -3,10 +3,6 @@ import type { AppServices } from "./compose";
 
 type Action = () => void;
 
-/**
- * Глобальные (системные) хоткеи через tauri-plugin-global-shortcut.
- * Только Ctrl+Alt+комбо: медиа-клавиши уже обрабатываются MPRIS/mediaSession.
- */
 export function bindGlobalHotkeys(services: AppServices): () => void {
   const engine = services.engine;
   const vol = (delta: number): void => {
@@ -25,7 +21,7 @@ export function bindGlobalHotkeys(services: AppServices): () => void {
 
   for (const [shortcut, action] of shortcuts) {
     register(shortcut, () => action()).catch(() => {
-      /* shortcut занят или недоступен — пропускаем */
+      
     });
   }
 

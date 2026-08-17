@@ -26,11 +26,13 @@ vi.mock("@tauri-apps/plugin-global-shortcut", () => ({
 const fetchRemoteLikesMock = vi.fn();
 const fetchRemotePlaylistsMock = vi.fn();
 const fetchRemoteSettingsMock = vi.fn();
+const fetchSharedPlaylistsMock = vi.fn();
 
 vi.mock("./supabase", () => ({
   fetchRemoteLikes: (...args: unknown[]) => fetchRemoteLikesMock(...args),
   fetchRemotePlaylists: (...args: unknown[]) => fetchRemotePlaylistsMock(...args),
   fetchRemoteSettings: (...args: unknown[]) => fetchRemoteSettingsMock(...args),
+  fetchSharedPlaylists: (...args: unknown[]) => fetchSharedPlaylistsMock(...args),
   syncLikes: vi.fn(),
   syncPlaylists: vi.fn(),
   syncSettings: vi.fn(),
@@ -60,6 +62,7 @@ beforeEach(() => {
   fetchRemoteLikesMock.mockResolvedValue([]);
   fetchRemotePlaylistsMock.mockResolvedValue([]);
   fetchRemoteSettingsMock.mockResolvedValue(null);
+  fetchSharedPlaylistsMock.mockResolvedValue([]);
 });
 
 describe("pullRemoteData", () => {

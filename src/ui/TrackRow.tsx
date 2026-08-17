@@ -18,7 +18,7 @@ function formatDuration(seconds?: number): string {
 interface TrackRowProps {
   track: Track;
   index?: number;
-  /** Явно пометить строку как играющую сейчас (иначе — совпадение id с текущим треком). */
+  
   nowPlaying?: boolean;
   onDragStart?: (e: DragEvent<HTMLDivElement>, track: Track) => void;
   onDrop?: (e: DragEvent<HTMLDivElement>, track: Track) => void;

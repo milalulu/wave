@@ -7,12 +7,6 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
 use tokio::time::timeout;
 
-/// Мост между Rust-стороной (axum HTTP API) и TS-ядром в webview.
-///
-/// Схема: HTTP-хендлер вызывает `Bridge::request(action, payload)`.
-/// Rust эмитит событие `api-request` во frontend, TS-ядро обрабатывает
-/// запрос и отвечает командой `api_respond(id, value)`, после чего
-/// oneshot-канал разрешается и HTTP-хендлер возвращает JSON.
 #[derive(Default)]
 pub struct Bridge {
     next_id: AtomicU64,

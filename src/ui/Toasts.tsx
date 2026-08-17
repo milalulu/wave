@@ -1,6 +1,5 @@
 import { useApp } from "../app/stores";
 
-/** Всплывающие уведомления об ошибках/событиях. */
 export function Toasts() {
   const notices = useApp((s) => s.notices);
   const dismiss = useApp((s) => s.dismissNotice);

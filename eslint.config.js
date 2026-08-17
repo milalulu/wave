@@ -12,6 +12,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/purity": "off",
+      "no-empty": ["error", { allowEmptyCatch: true }],
     },
   },
 );

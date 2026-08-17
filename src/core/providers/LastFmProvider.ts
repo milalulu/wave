@@ -49,10 +49,6 @@ function bigImage(images?: LfmImage[]): string | undefined {
   return found?.["#text"] || undefined;
 }
 
-/**
- * Провайдер Last.fm (метаданные, API key из конфига). Аудио не стримится —
- * треки помечаются meta.noPlay и исключаются из воспроизведения.
- */
 export class LastFmProvider implements MusicProvider {
   readonly id = "lastfm";
   readonly name = "Last.fm";
@@ -163,7 +159,7 @@ export class LastFmProvider implements MusicProvider {
     }
   }
 
-  /** Топ-треки артиста (для радио, когда похожих треков мало). */
+  
   async getArtistTopTracks(artist: string): Promise<Track[]> {
     try {
       const res = await this.callWithParams<{ toptracks?: { track?: LfmTrack[] } }>(

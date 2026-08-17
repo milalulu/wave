@@ -9,14 +9,9 @@ function toLoopStatus(repeat: RepeatMode): string {
   return "None";
 }
 
-/**
- * Интеграция с MPRIS (Linux): публикует состояние плеера через
- * команду `mpris_update` и обрабатывает команды из DE (play/pause/next…),
- * приходящие через событие `mpris-command`.
- */
 export function bindMpris(services: AppServices): () => void {
-  // Событие time тикает несколько раз в секунду — не спамим DBus,
-  // пушим состояние позиции не чаще раза в секунду.
+  
+  
   let lastPush = 0;
   const push = (force: boolean): void => {
     const now = Date.now();
@@ -61,8 +56,8 @@ export function bindMpris(services: AppServices): () => void {
       case "previous":
         void engine.previous();
         break;
-      // MPRIS Seek(offset) — относительный сдвиг в микросекундах (спецификация),
-      // а SetPosition — абсолютная позиция в микросекундах.
+      
+      
       case "seek":
         if (typeof value === "number") {
           engine.seek(Math.max(0, engine.snapshot.position + value / 1_000_000));
@@ -71,7 +66,7 @@ export function bindMpris(services: AppServices): () => void {
       case "setPosition":
         if (typeof value === "number") engine.seek(value / 1_000_000);
         break;
-      // MPRIS Volume приходит в диапазоне 0.0–1.0 (f64).
+      
       case "setVolume":
         if (typeof value === "number") engine.setVolume(Math.max(0, Math.min(1, value)));
         break;

@@ -24,6 +24,6 @@ export function saveEqualizer(gains: number[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(gains));
   } catch {
-    /* игнорируем переполнение localStorage */
+    
   }
 }

@@ -1,8 +1,5 @@
 use serde_json::json;
 
-/// Скробблинг Last.fm: подписанные запросы (md5) к audioscrobbler.
-/// Креды берутся из env (WAVE_LASTFM_API_KEY / _SECRET / _SESSION_KEY)
-/// или из персистентного конфига (Настройки → API keys).
 pub struct LastFmCreds {
     pub api_key: String,
     pub api_secret: String,
@@ -17,7 +14,6 @@ fn env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.trim().is_empty())
 }
 
-/// Креды: env имеет приоритет над сохранённым конфигом.
 pub fn creds(app: &tauri::AppHandle) -> Option<LastFmCreds> {
     let persisted = crate::read_persisted_config(app);
     let get = |key: &str| env(key).or_else(|| crate::get_string(&persisted, key));
@@ -28,8 +24,6 @@ pub fn creds(app: &tauri::AppHandle) -> Option<LastFmCreds> {
     })
 }
 
-/// Скробблинг настроен и включён. Выключить можно через
-/// WAVE_LASTFM_SCROBBLE_ENABLED=0 (env или конфиг).
 pub fn scrobble_enabled(app: &tauri::AppHandle) -> bool {
     if creds(app).is_none() {
         return false;
@@ -43,8 +37,6 @@ pub fn scrobble_enabled(app: &tauri::AppHandle) -> bool {
     )
 }
 
-/// Подписанный POST на audioscrobbler. Подпись = md5(конкатенация
-/// «name+value» всех параметров (кроме format/api_sig) в алфавитном порядке + secret).
 pub async fn lfm_post(
     method: &str,
     params: &[(String, String)],

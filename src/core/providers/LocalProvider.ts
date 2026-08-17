@@ -12,19 +12,14 @@ export interface LocalFileMeta {
   cover?: string;
 }
 
-/** Платформенная часть локальных файлов (инжектируется из приложения). */
 export interface LocalSource {
   pickDirectory(): Promise<string | null>;
   listMusicFiles(dir: string): Promise<LocalFileMeta[]>;
   toUri(path: string): string;
-  /** SAF-выбор аудиофайлов (Android): возвращает playable asset-URLs. */
+  
   pickAudioFiles?(): Promise<string[]>;
 }
 
-/**
- * Локальный провайдер: файлы с диска через диалог выбора папки.
- * uri трека — уже playable asset-URL (преобразует LocalSource.toUri).
- */
 export class LocalProvider implements MusicProvider {
   readonly id = "local";
   readonly name = "Локальные файлы";

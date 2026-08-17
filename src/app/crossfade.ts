@@ -17,6 +17,6 @@ export function saveCrossfadeMs(ms: number): void {
   try {
     localStorage.setItem(KEY, String(ms));
   } catch {
-    /* игнорируем переполнение localStorage */
+    
   }
 }

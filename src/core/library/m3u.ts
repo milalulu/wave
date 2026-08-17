@@ -26,7 +26,6 @@ export function localPathFromUri(uri: string): string | null {
   return null;
 }
 
-/** Сборка M3U: EXTINF (длительность, артист - трек) + путь/URL. */
 export function buildM3U(tracks: Track[]): string {
   const lines = ["#EXTM3U"];
   for (const t of tracks) {
@@ -42,7 +41,6 @@ export function buildM3U(tracks: Track[]): string {
   return lines.join("\n");
 }
 
-/** Разбор M3U в локальные треки (пути из файла). */
 export function parseM3U(text: string, toUri: LocalUriFn = assetSchemeLocalUri): Track[] {
   const tracks: Track[] = [];
   let pending: { duration?: number; label?: string } | null = null;

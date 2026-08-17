@@ -187,8 +187,8 @@ function Results({
   const tracks = results.flatMap((r) => r.tracks);
   const albums = results.flatMap((r) => r.albums);
   const artists = results.flatMap((r) => r.artists);
-  // Треки скрыты фильтром превью, но альбомы/исполнители нашлись — объясняем,
-  // почему список треков пуст (иначе поиск выглядит «молча пустым»).
+  
+  
   const previewsHidden = excludePreviews && tracks.length === 0 && (albums.length > 0 || artists.length > 0);
 
   return (

@@ -16,8 +16,6 @@ use serde::Serialize;
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
-/// Лимит одновременных yt-dlp процессов (стрим/поиск/обновление).
-/// Прелоад следующего трека + текущий стрим + радио не должны плодить процессы.
 static YTDLP_SLOTS: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
 
 fn ytdlp_slots() -> &'static tokio::sync::Semaphore {
@@ -308,8 +306,8 @@ async fn resolve_stream(
     let cookies = ytdlp_cookies_args(app);
     let mut attempts: Vec<Vec<String>> = vec![];
     if prefer_progressive {
-        // SoundCloud: прямой mp3 (cf-media) вместо HLS-плейлиста — плеер (WebAudio)
-        // играет только протокол http, поэтому просим его в первую очередь.
+        
+        
         attempts.push(stream_args(
             url,
             &format!("{audio_only}[protocol=http]/{audio_only}[ext=mp3]/{audio_only}"),
@@ -318,9 +316,9 @@ async fn resolve_stream(
         ));
     }
     attempts.extend([
-        // Дефолтный клиент стабильно отдаёт m4a/opus; android/web_safari с
-        // текущими версиями yt-dlp отвечают "format not available" и лишь
-        // добавляют ~6 секунд к каждой загрузке трека.
+        
+        
+        
         stream_args(
             url,
             &format!("{audio_only}[ext=m4a]/{audio_only}"),
@@ -345,7 +343,7 @@ async fn resolve_stream(
                     .find(|l| !l.trim().is_empty())
                     .map(|l| l.trim().to_string());
                 if let Some(u) = u {
-                    // HLS/DASH манифесты (m3u8/mpd) WebView2 не играет — пробуем дальше.
+                    
                     if !u.contains(".m3u8") && !u.contains(".mpd") && !u.is_empty() {
                         return Ok(u);
                     }
@@ -376,14 +374,13 @@ async fn yt_stream(
     .await
 }
 
-/// Стрим произвольного аудио-URL (например, SoundCloud-трека) через yt-dlp.
 #[tauri::command]
 async fn dl_stream(
     app: tauri::AppHandle,
     url: String,
     quality: Option<String>,
 ) -> Result<String, String> {
-    // SoundCloud отдаёт прямой mp3 — предпочитаем его HLS-плейлистам.
+    
     resolve_stream(&app, &url, quality.as_deref(), true).await
 }
 
@@ -651,15 +648,11 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-/// Перезапустить приложение (после установки обновления).
 #[tauri::command]
 fn relaunch(app: tauri::AppHandle) {
     app.restart();
 }
 
-/// Обновить состояние MPRIS. Реальный MPRIS живёт только на Linux;
-/// на остальных платформах команда существует как no-op, чтобы
-/// invoke_handler компилировался для всех таргетов.
 #[tauri::command]
 async fn mpris_update(app: tauri::AppHandle, state_json: serde_json::Value) -> Result<(), String> {
     #[cfg(target_os = "linux")]

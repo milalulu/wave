@@ -5,11 +5,6 @@ import { supabase } from "./supabase";
 
 export type OAuthProvider = "google" | "github";
 
-/**
- * Фиксированные порты локального OAuth-сервера. Должны быть добавлены в
- * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
- * (http://127.0.0.1:12121, .../12122, .../12123).
- */
 const OAUTH_PORTS = [12121, 12122, 12123];
 const OAUTH_TIMEOUT_MS = 180_000;
 
@@ -18,11 +13,6 @@ export function oauthSupported(): "desktop" | "browser" | "android" {
   return /android/i.test(navigator.userAgent) ? "android" : "desktop";
 }
 
-/**
- * OAuth на десктопе: поднимаем временный localhost-сервер, открываем
- * браузер с PKCE-ссылкой, ловим редирект с `code` и обмениваем его на сессию.
- * Промис резолвится после установления сессии.
- */
 export async function signInOAuthDesktop(provider: OAuthProvider): Promise<void> {
   const port = await start({ ports: OAUTH_PORTS });
   const redirectTo = `http://127.0.0.1:${port}`;

@@ -6,7 +6,7 @@ import type { HttpJsonGateway } from "./HttpGateway";
 export interface SpotifyConfig {
   clientId: string;
   clientSecret: string;
-  /** Ленивый поиск playable-трека на YouTube (для полноценного воспроизведения без preview). */
+  
   ytFallback?: (artist: string, title: string) => Promise<string>;
 }
 
@@ -46,11 +46,6 @@ function cover(images?: SpotifyImage[]): string | undefined {
   return images?.find((i) => i.url)?.url;
 }
 
-/**
- * Провайдер Spotify (официальный Web API, client credentials).
- * Поиск по метаданным; воспроизведение — полная версия через YouTube-fallback
- * (если настроен), иначе 30-секундные preview там, где есть.
- */
 export class SpotifyProvider implements MusicProvider {
   readonly id = "spotify";
   readonly name = "Spotify";
@@ -89,9 +84,9 @@ export class SpotifyProvider implements MusicProvider {
         duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
         meta: {
           spotifyUrl: t.external_urls?.spotify,
-          // Метка «превью» ставится только когда полной версии (YouTube-fallback)
-          // нет: иначе фильтр «не искать треки-превью» выбросит полностью
-          // играбельные треки.
+          
+          
+          
           ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}),
         },
       });
@@ -119,8 +114,8 @@ export class SpotifyProvider implements MusicProvider {
   }
 
   async resolveUri(track: Track): Promise<string> {
-    // Полная версия через YouTube-fallback важнее превью: трек из поиска с
-    // preview_url и так считается «превью», пока полной версии нет.
+    
+    
     if (this.config.ytFallback) {
       const artist = track.artist ?? "";
       const title = track.title ?? "";
@@ -132,8 +127,8 @@ export class SpotifyProvider implements MusicProvider {
         this.fallbackCache.set(cacheKey, uri);
         return uri;
       } catch {
-        // YouTube-fallback упал (нет совпадения/стрим не построился) —
-        // играем превью, если оно есть.
+        
+        
       }
     }
     if (track.uri) return track.uri;

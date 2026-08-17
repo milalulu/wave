@@ -27,7 +27,7 @@ function applyTheme(): void {
   try {
     theme = localStorage.getItem("wave:theme");
   } catch {
-    // localStorage недоступен — остаёмся на тёмной теме
+    
   }
   let dark = theme !== "light";
   if (theme === "system") {

@@ -22,7 +22,7 @@ export function setOfflineEnabled(on: boolean): void {
   try {
     localStorage.setItem(OFF_KEY, on ? "1" : "0");
   } catch {
-    /* ignore */
+    
   }
 }
 
@@ -43,7 +43,7 @@ export function registerDownload(file: string, artist?: string, title?: string):
     files.push({ file, artist, title });
     localStorage.setItem(DL_KEY, JSON.stringify(files));
   } catch {
-    /* ignore */
+    
   }
 }
 
@@ -54,7 +54,7 @@ export function unregisterDownload(file: string): void {
       JSON.stringify(downloadedFiles().filter((f) => f.file !== file)),
     );
   } catch {
-    /* ignore */
+    
   }
 }
 
@@ -64,12 +64,11 @@ const norm = (s: string): string =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
-/** Найти локальный файл для трека (по артисту+названию). */
 export function localUriFor(track: Track): string | null {
   const title = norm(track.title);
   const artist = norm(track.artist ?? "");
   const files = downloadedFiles();
-  // Точное совпадение по названию (+ артист, если у файла и трека он есть).
+  
   const exact = files.filter((f) => {
     const ft = norm(f.title ?? "");
     const fa = norm(f.artist ?? "");
@@ -77,8 +76,8 @@ export function localUriFor(track: Track): string | null {
     return false;
   });
   if (exact[0]?.file) return convertFileSrc(exact[0].file);
-  // Fallback: артист совпадает, название — нечётко (варианты с пометками
-  // вроде "(remaster)", "Live" или разные переводы).
+  
+  
   const loose = files.find((f) => {
     const ft = norm(f.title ?? "");
     const fa = norm(f.artist ?? "");

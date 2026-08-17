@@ -2,7 +2,7 @@ import type { HttpJsonGateway } from "../providers/HttpGateway";
 import type { Track } from "../types";
 
 export interface LyricsLine {
-  /** Время в секундах (для синхронизированных), undefined для plain. */
+  
   time?: number;
   text: string;
 }
@@ -30,7 +30,6 @@ interface LrclibHit {
 const API = "https://lrclib.net";
 const UA = "Wave/0.1 (music client; https://github.com/velvett/wave)";
 
-/** Разбор синхронизированного LRC `[mm:ss.xx]text` в строки с таймингами. */
 export function parseSyncedLyrics(lrc: string): LyricsLine[] {
   const lines: LyricsLine[] = [];
   const re = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
@@ -52,7 +51,6 @@ export function parseSyncedLyrics(lrc: string): LyricsLine[] {
   return lines.sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
 }
 
-/** Клиент LRCLIB: тексты песен, кэш на сессию. */
 export class LyricsService {
   private cache = new Map<string, LyricsResult>();
   private readonly cacheLimit = 40;
@@ -78,12 +76,12 @@ export class LyricsService {
     return result;
   }
 
-  /** Сбросить кэш для трека (повторный поиск текста). */
+  
   invalidate(trackId: string): void {
     this.cache.delete(trackId);
   }
 
-  /** Полностью очистить кэш текстов. */
+  
   clearCache(): void {
     this.cache.clear();
   }

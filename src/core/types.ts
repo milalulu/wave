@@ -62,8 +62,8 @@ export interface HistoryEntry {
 export interface Playlist {
   id: string;
   name: string;
-  trackIds: string[]; // references to tracks by their original IDs
-  /** Полные треки (для воспроизведения и экспорта). */
+  trackIds: string[]; 
+  
   tracks?: Track[];
   createdAt: number;
   updatedAt: number;

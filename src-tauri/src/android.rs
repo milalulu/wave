@@ -7,11 +7,9 @@ use tauri::{
     Wry,
 };
 
-/// Дескриптор Android-плагина (Kotlin-часть: фоновое воспроизведение, импорт файлов).
 #[allow(dead_code)]
 pub struct WaveAndroid(pub PluginHandle<Wry>);
 
-/// Включить/выключить foreground service с wake lock во время воспроизведения.
 #[tauri::command]
 async fn set_playback(app: tauri::AppHandle, playing: bool) -> Result<(), String> {
     #[cfg(target_os = "android")]
@@ -28,8 +26,6 @@ async fn set_playback(app: tauri::AppHandle, playing: bool) -> Result<(), String
     Ok(())
 }
 
-/// Системный выбор аудиофайлов (SAF/ACTION_OPEN_DOCUMENT). Возвращает пути
-/// к файлам, скопированным в app-specific storage (играются через asset protocol).
 #[tauri::command]
 async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_os = "android")]

@@ -10,7 +10,7 @@ export function loadTheme(): Theme {
       return saved;
     }
   } catch {
-    //
+    
   }
   return DARK_DEFAULT ? "dark" : "light";
 }
@@ -19,7 +19,7 @@ export function saveTheme(theme: Theme): void {
   try {
     localStorage.setItem(KEY, theme);
   } catch {
-    //
+    
   }
 }
 
@@ -41,7 +41,6 @@ export function applyTheme(theme: Theme): void {
   }
 }
 
-/** Подписка на изменение системной схемы (для темы "system"). */
 export function onSystemThemeChange(cb: () => void): () => void {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return () => {};

@@ -16,6 +16,6 @@ export function saveSpeed(rate: number): void {
   try {
     localStorage.setItem(KEY, String(rate));
   } catch {
-    /* ignore */
+    
   }
 }

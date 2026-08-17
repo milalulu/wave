@@ -16,11 +16,6 @@ export interface WaveSource {
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
-/**
- * Взвешенная «волна»: лайки весят выше, недавно прослушанное затухает,
- * треки из топ-жанров библиотеки усиливаются. Расширяется до
- * полноценной рекомендательной машины через WaveSource.
- */
 export class WeightedRandomWaveSource implements WaveSource {
   constructor(private rng: () => number = Math.random) {}
 
@@ -77,12 +72,6 @@ export class WeightedRandomWaveSource implements WaveSource {
   }
 }
 
-/**
- * «Умная» волна: взвешенная выборка (как в WeightedRandomWaveSource)
- * плюс скоринг кандидатов по совпадению жанра/артиста с топом
- * библиотеки и контроль разнообразия (несколько треков одного артиста
- * подряд понижают вес).
- */
 export class SmartWaveSource implements WaveSource {
   constructor(private rng: () => number = Math.random) {}
 
@@ -131,8 +120,8 @@ export class SmartWaveSource implements WaveSource {
     const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
     const result: Track[] = [];
     for (let i = 0; i < limit && entries.length > 0; i++) {
-      // Штраф разнообразия пересчитывается от базового веса на каждом пике,
-      // чтобы ранние выборы артиста не «навсегда» давили его вес.
+      
+      
       for (const item of entries) {
         const already = chosenArtists.get(item.track.artist ?? "") ?? 0;
         item.weight = already > 0 ? item.base * 0.4 * Math.pow(0.5, already - 1) : item.base;
@@ -156,11 +145,10 @@ export class SmartWaveSource implements WaveSource {
   }
 }
 
-/** Сервис Wave: собирает контекст из хранилища и провайдеров. */
 export class WaveEngine {
   private recentIds = new Set<string>();
   private readonly recentCap = 100;
-  /** Фильтр «что не включать в волну» (заблокированные треки/артисты). */
+  
   private blockFilter: (track: Track) => boolean = () => true;
 
   constructor(
@@ -169,12 +157,12 @@ export class WaveEngine {
     private source: WaveSource,
   ) {}
 
-  /** Установить фильтр исключений (по умолчанию ничего не исключает). */
+  
   setBlockFilter(fn: (track: Track) => boolean): void {
     this.blockFilter = fn;
   }
 
-  /** Исключить только что сыгранный трек из будущих волн. */
+  
   markPlayed(track: Track): void {
     this.recentIds.add(track.id);
     this.trimRecent();
@@ -251,7 +239,7 @@ export class WaveEngine {
       queries.push(...similar.slice(0, 4));
     }
 
-    // Жанры и похожие артисты опрашиваются параллельно.
+    
     await Promise.all(queries.map((q) => collect(q)));
 
     return out.slice(0, limit * 2);

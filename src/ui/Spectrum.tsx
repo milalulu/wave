@@ -6,10 +6,6 @@ const BAR_W = 2;
 const BAR_GAP = 1;
 const HEIGHT = 40;
 
-/**
- * Спектр-визуализатор: читает analyser через engine.getSpectrum()
- * и рисует столбцы на canvas в rAF-цикле.
- */
 export function Spectrum({ engine }: { engine: PlayerEngine }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 

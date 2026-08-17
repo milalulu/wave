@@ -1,5 +1,5 @@
 import { useApp } from "./stores";
-import { type SyncedTrack, type SyncedPlaylist, syncLikes, fetchRemoteLikes, syncPlaylists, fetchRemotePlaylists, syncSettings, fetchRemoteSettings } from "./supabase";
+import { type SyncedTrack, type SyncedPlaylist, syncLikes, fetchRemoteLikes, syncPlaylists, fetchRemotePlaylists, syncSettings, fetchRemoteSettings, fetchSharedPlaylists } from "./supabase";
 import { loadYtQuality } from "./ytQuality";
 
 function getYtQuality(): string {
@@ -29,16 +29,10 @@ function saveStamps(stamps: Record<string, TrackStamp>): void {
   try {
     localStorage.setItem(SYNC_STAMP_KEY, JSON.stringify(stamps));
   } catch {
-    /* переполнение localStorage — игнорируем */
+    
   }
 }
 
-/**
- * updatedAt трека должен отражать момент реального изменения данных,
- * а не момент синка: иначе локальная копия всегда «новее» и правки
- * с другого устройства теряются. Хэш пейлоада позволяет оставлять
- * старый updatedAt, пока данные трека не менялись.
- */
 function mapTrackToSynced(
   track: ReturnType<typeof useApp.getState>["localTracks"][0],
   stamps: Record<string, TrackStamp>,
@@ -131,7 +125,7 @@ export function startSyncEngine() {
         }),
       ]);
 
-      // Чистим штампы треков, которых больше нет в локальной библиотеке/плейлистах.
+      
       for (const id of Object.keys(stamps)) {
         if (!usedIds.has(id)) delete stamps[id];
       }
@@ -156,10 +150,11 @@ export function stopSyncEngine() {
 
 export async function pullRemoteData(userId: string) {
   try {
-    const [likes, playlists, settings] = await Promise.all([
+    const [likes, playlists, settings, sharedPlaylists] = await Promise.all([
       fetchRemoteLikes(userId),
       fetchRemotePlaylists(userId),
       fetchRemoteSettings(userId),
+      fetchSharedPlaylists(userId),
     ]);
 
     const state = useApp.getState();
@@ -194,6 +189,13 @@ export async function pullRemoteData(userId: string) {
         });
       }
     }
+
+    for (const sp of sharedPlaylists) {
+      if (!mergedIds.has(sp.id)) {
+        mergedPlaylists.push(sp);
+      }
+    }
+
     useApp.setState({ likedIds: newLikedIds, playlists: mergedPlaylists });
 
     if (settings) {

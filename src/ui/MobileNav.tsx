@@ -22,7 +22,6 @@ export function isTabView(view: ViewKey): boolean {
   return (TAB_KEYS as string[]).includes(view);
 }
 
-/** Какой таб подсвечивать, когда открыта под-вьюха. */
 export function parentTab(view: ViewKey): ViewKey | null {
   switch (view) {
     case "album":

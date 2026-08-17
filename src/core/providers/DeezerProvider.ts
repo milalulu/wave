@@ -30,10 +30,6 @@ interface DzTrack {
   preview?: string;
 }
 
-/**
- * Провайдер Deezer: официальный публичный API без ключей.
- * 30-секундные превью реально играют; есть альбомы и артисты.
- */
 export class DeezerProvider implements MusicProvider {
   readonly id = "deezer";
   readonly name = "Deezer";
@@ -76,7 +72,7 @@ export class DeezerProvider implements MusicProvider {
         }
       }
     } catch {
-      // сеть недоступна — отдаём старый URL, движок пере-резолвит позже
+      
     }
     return track.uri;
   }
