@@ -68,7 +68,7 @@ interface AppState {
 
   position: number;
   duration: number;
-  likedIds: string[];
+  likedIds: Set<string>;
   localTracks: Track[];
   notices: { id: number; message: string }[];
   notify: (message: string) => void;
@@ -207,7 +207,7 @@ export const useApp = create<AppState>()((set, get) => ({
   snapshot: emptySnapshot,
   position: 0,
   duration: 0,
-  likedIds: [],
+  likedIds: new Set<string>(),
   localTracks: [],
   notices: [],
   notify: (message) => {
@@ -418,7 +418,7 @@ export const useApp = create<AppState>()((set, get) => ({
     const { services } = get();
     if (!services) return;
     const liked = await services.library.getLikedTracks();
-    set({ likedIds: liked.map((t) => t.id) });
+    set({ likedIds: new Set(liked.map((t) => t.id)) });
   },
 
   play: async (tracks, index = 0) => {
@@ -956,6 +956,7 @@ async function doInit(
         artist: track?.artist ?? null,
         duration: snap.duration,
         position: snap.position,
+        coverUrl: track?.coverUrl ?? null,
       }).catch(() => {});
     };
     services.engine.on("state", (s) => {
@@ -976,6 +977,7 @@ async function doInit(
         artist: services.engine.snapshot.current?.artist ?? null,
         duration: services.engine.snapshot.duration,
         position,
+        coverUrl: services.engine.snapshot.current?.coverUrl ?? null,
       }).catch(() => {});
     });
     (globalThis as unknown as Record<string, unknown>).__wave_media_action = (action: string) => {
@@ -1052,6 +1054,8 @@ async function doInit(
   onSystemThemeChange(() => {
     if (get().theme === "system") applyTheme("system");
   });
+  { const { loadAccentColor, applyAccentColor } = await import("./accentStore");
+    applyAccentColor(loadAccentColor()); }
 
   const restore = loadRestore();
   if (restore) {

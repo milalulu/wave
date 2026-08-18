@@ -84,7 +84,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
 
   const track = snapshot.current;
   const duration = track?.duration ?? storeDuration;
-  const liked = track ? likedIds.includes(track.id) : false;
+  const liked = track ? likedIds.has(track.id) : false;
   const buffering = snapshot.state === "loading";
   const sleepActive = sleepUntil !== null || pauseAfterTrack;
   const sleepLabel = pauseAfterTrack

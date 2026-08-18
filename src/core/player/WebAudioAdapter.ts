@@ -996,6 +996,11 @@ export class WebAudioAdapter implements AudioAdapter {
     } catch {
       
     }
+    try {
+      src.disconnect();
+    } catch {
+      
+    }
   }
 
   private bufPause(): void {

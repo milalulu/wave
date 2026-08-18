@@ -8,6 +8,7 @@ interface CoverEntry {
 }
 
 let memCache: Map<string, CoverEntry> | null = null;
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function ensureMemCache(): Map<string, CoverEntry> {
   if (memCache) return memCache;
@@ -20,12 +21,14 @@ function ensureMemCache(): Map<string, CoverEntry> {
   return memCache;
 }
 
-function write(map: Map<string, CoverEntry>): void {
+function flushWrite(): void {
+  writeTimer = null;
+  if (!memCache) return;
   try {
     const now = Date.now();
     const clean: Record<string, CoverEntry> = {};
     let size = 0;
-    for (const [url, e] of map) {
+    for (const [url, e] of memCache) {
       if (now - e.at > TTL) continue;
       clean[url] = e;
       size += e.data.length;
@@ -44,6 +47,11 @@ function write(map: Map<string, CoverEntry>): void {
   }
 }
 
+function scheduleWrite(): void {
+  if (writeTimer) return;
+  writeTimer = setTimeout(flushWrite, 1000);
+}
+
 export function getCachedCover(url: string): string | null {
   const e = ensureMemCache().get(url);
   if (!e || Date.now() - e.at > TTL) return null;
@@ -52,6 +60,10 @@ export function getCachedCover(url: string): string | null {
 
 export function clearCoverCache(): void {
   memCache = null;
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
   try {
     localStorage.removeItem(KEY);
   } catch {
@@ -68,7 +80,7 @@ export async function cacheCover(url: string): Promise<string | null> {  try {
     if (data.length < 100) return null;
     const cache = ensureMemCache();
     cache.set(url, { data, at: Date.now() });
-    write(cache);
+    scheduleWrite();
     return data;
   } catch {
     return null;

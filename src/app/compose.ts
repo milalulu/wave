@@ -125,7 +125,7 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
         clientSecret: cfg.spotifyClientSecret,
         ytFallback: hasYtDlp
           ? async (artist, title) => {
-              const results = await ytGateway.search(`${artist} ${title}`.trim(), 1);
+              const results = await ytGateway.search(`${artist} ${title}`.trim(), 5);
               const first = results[0];
               if (!first) throw new Error("spotify: no youtube fallback");
               return ytGateway.stream(first.id, loadYtQuality());
@@ -206,11 +206,11 @@ export async function composeServices(): Promise<AppServices> {
   wave = new WaveEngine(storage, providers, new SmartWaveSource());
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
-  engine.on("track", (track) => {
-    
-    
-    
-    if (track && engine.snapshot.state !== "paused") void history.recordPlay(track);
+  engine.on("state", (state) => {
+    if (state === "playing") {
+      const track = engine.snapshot.current;
+      if (track) void history.recordPlay(track);
+    }
   });
   return { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
 }
@@ -246,10 +246,23 @@ export async function searchAll(
 }
 
 export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {
+  const { detectMoods, getSpotifyGenres, getMoodProfile } = await import("../core/recommendations/moodTaxonomy");
+  const seedGenres = seed.genre ? [seed.genre] : [];
+  const moods = detectMoods(seedGenres, seed.title, seed.artist);
+  const spotifyGenres = getSpotifyGenres(moods);
+  const moodProfile = getMoodProfile(moods);
+  const moodOptions = {
+    moods,
+    genres: spotifyGenres.slice(0, 2),
+    targetEnergy: (moodProfile.energy[0] + moodProfile.energy[1]) / 2,
+    targetValence: (moodProfile.valence[0] + moodProfile.valence[1]) / 2,
+    targetAcousticness: (moodProfile.acousticness[0] + moodProfile.acousticness[1]) / 2,
+  };
+
   const similar = await Promise.allSettled(
     services.providers
       .filter((p) => typeof p.getSimilarTracks === "function")
-      .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "") ?? Promise.resolve([])),
+      .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "", moodOptions) ?? Promise.resolve([])),
   );
   let candidates = similar.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   

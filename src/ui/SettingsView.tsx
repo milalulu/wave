@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { ReactNode, FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { useAuth } from "./AuthContext";
+import { ACCENT_PRESETS, loadAccentColor, saveAccentColor, applyAccentColor } from "../app/accentStore";
 import {
   FolderIcon,
   SaveIcon,
@@ -133,6 +134,13 @@ export function SettingsView() {
   const [emailForm, setEmailForm] = useState({ email: "", password: "" });
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
+
+  const handleAccentColor = useCallback((color: string | null) => {
+    setAccentColor(color);
+    saveAccentColor(color);
+    applyAccentColor(color);
+  }, []);
 
   const handleOAuth = async (provider: "google" | "github") => {
     setOauthLoading(true);
@@ -348,6 +356,9 @@ export function SettingsView() {
                 <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
                   {t("settings").themeDark}
                 </button>
+                <button className={theme === "amoled" ? "active" : ""} onClick={() => setTheme("amoled")}>
+                  {t("settings").themeAmoled}
+                </button>
                 <button className={theme === "system" ? "active" : ""} onClick={() => setTheme("system")}>
                   {t("settings").themeSystem}
                 </button>
@@ -535,6 +546,33 @@ export function SettingsView() {
           <p className="muted">{t("settings").accentFromCoverDesc}</p>
           <p className="muted">{t("settings").autoContinueDesc}</p>
           <p className="muted">{t("settings").offlineModeDesc}</p>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").accentColor}>
+          <div className="accent-picker">
+            <button
+              className={`accent-swatch ${accentColor === null ? "active" : ""}`}
+              style={{ background: "var(--accent)" }}
+              onClick={() => handleAccentColor(null)}
+              title="Default"
+            />
+            {ACCENT_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                className={`accent-swatch ${accentColor === p.value ? "active" : ""}`}
+                style={{ background: p.value }}
+                onClick={() => handleAccentColor(p.value)}
+                title={p.name}
+              />
+            ))}
+            <label className="accent-custom" title="Custom">
+              <input
+                type="color"
+                value={accentColor ?? "#7c5cff"}
+                onChange={(e) => handleAccentColor(e.target.value)}
+              />
+            </label>
+          </div>
         </SettingsCard>
 
         <SettingsCard title={t("settings").lyrics} desc={t("settings").lyricsDesc}>

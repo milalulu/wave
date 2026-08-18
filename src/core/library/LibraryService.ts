@@ -23,7 +23,7 @@ export class LibraryService {
   }
 
   async isAlbumSaved(album: Album): Promise<boolean> {
-    return this.storage.getSavedAlbums().then((a) => a.some((x) => x.id === album.id));
+    return this.storage.isAlbumSaved(album.id);
   }
 
   async toggleSaveAlbum(album: Album): Promise<boolean> {
@@ -41,7 +41,7 @@ export class LibraryService {
   }
 
   async isArtistSaved(artist: Artist): Promise<boolean> {
-    return this.storage.getSavedArtists().then((a) => a.some((x) => x.id === artist.id));
+    return this.storage.isArtistSaved(artist.id);
   }
 
   async toggleSaveArtist(artist: Artist): Promise<boolean> {

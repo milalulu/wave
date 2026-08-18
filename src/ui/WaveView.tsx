@@ -17,7 +17,7 @@ export function WaveView() {
         <h2>{t("wave").title}</h2>
         <p>{t("wave").empty}</p>
         <div className="wave-stats">
-          <span>{t("library").liked}: {likedIds.length}</span>
+          <span>{t("library").liked}: {likedIds.size}</span>
           <span>{t("common").open}: {services?.providers.map((p) => p.name).join(", ") ?? "—"}</span>
         </div>
         <button className="btn btn-primary btn-lg" onClick={() => void startWave()}>

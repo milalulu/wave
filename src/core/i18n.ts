@@ -178,6 +178,8 @@ export interface Translations {
     themeDark: string;
     themeLight: string;
     themeSystem: string;
+    themeAmoled: string;
+    accentColor: string;
     sources: string;
     sourcesDesc: string;
     blockedProviders: string;
@@ -551,6 +553,8 @@ export const translations: Record<Locale, Translations> = {
       themeDark: "Dark",
       themeLight: "Light",
       themeSystem: "System",
+      themeAmoled: "AMOLED",
+      accentColor: "Accent color",
       sources: "Sources",
       sourcesDesc: "Choose which music platforms Wave uses. Changes apply on Save.",
       blockedProviders: "Blocked platforms",
@@ -925,6 +929,8 @@ export const translations: Record<Locale, Translations> = {
       themeDark: "Тёмная",
       themeLight: "Светлая",
       themeSystem: "Системная",
+      themeAmoled: "AMOLED",
+      accentColor: "Цвет акцента",
       sources: "Источники",
       sourcesDesc: "Выберите музыкальные площадки, которые использует Wave. Изменения применяются по кнопке «Сохранить».",
       blockedProviders: "Заблокированные площадки",

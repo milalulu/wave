@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { cacheCover, getCachedCover } from "../core/cover/CoverCache";
 
 interface CoverProps {
@@ -7,7 +7,7 @@ interface CoverProps {
   alt?: string;
 }
 
-export function Cover({ src, className, alt }: CoverProps) {
+export const Cover = memo(function Cover({ src, className, alt }: CoverProps) {
   const [resolved, setResolved] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,9 +41,9 @@ export function Cover({ src, className, alt }: CoverProps) {
       onError={() => {
         if (src) {
           const stale = getCachedCover(src);
-          if (stale) setResolved(stale);
+          if (stale && stale !== resolved) setResolved(stale);
         }
       }}
     />
   );
-}
+});

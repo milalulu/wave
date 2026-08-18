@@ -60,6 +60,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private preloadCache = new Map<string, string>();
   private preloadedId: string | null = null;
   private stallTimer: number | undefined;
+  private consecutiveFails = 0;
+  private static MAX_CONSECUTIVE_FAILS = 5;
   
   private fallback?: () => Track | null;
   private fallbackUsed = false;
@@ -431,21 +433,18 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async playCurrent(): Promise<void> {
     const track = this.queue.current();
     if (!track) return;
-    
-    
     if (track.id !== this.fallbackTrackId) {
       this.fallbackUsed = false;
     }
     this.playSeq += 1;
     this.retries = 0;
+    this.consecutiveFails = 0;
     await this.startTrack(this.playSeq);
   }
 
   
   private onLoadError(message: string, seq: number): void {
     if (seq !== this.playSeq || !this.queue.current()) return;
-    
-    
     if (this.state === "paused") return;
 
     const isMediaError = message.startsWith("audio error code");
@@ -461,7 +460,16 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       void this.startTrack(seq);
       return;
     }
-    
+
+    this.consecutiveFails += 1;
+    if (this.consecutiveFails >= PlayerEngine.MAX_CONSECUTIVE_FAILS) {
+      this.clearStallTimer();
+      this.emit("error", "too many failed tracks in a row, stopping");
+      this.consecutiveFails = 0;
+      this.stopAtEnd();
+      return;
+    }
+
     const current = this.queue.current();
     if (this.fallback && !this.fallbackUsed && current) {
       this.fallbackUsed = true;
@@ -476,8 +484,6 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.fallbackUsed = false;
     this.clearStallTimer();
     this.emit("error", message);
-    
-    
     void this.next();
   }
 

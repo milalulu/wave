@@ -108,7 +108,7 @@ export function startSyncEngine() {
       }
 
       await Promise.all([
-        syncLikes(user.id, state.likedIds, localTracksMap),
+        syncLikes(user.id, [...state.likedIds], localTracksMap),
         syncPlaylists(user.id, state.playlists.map((p) => mapPlaylistToSynced(p, stamps))),
         syncSettings(user.id, {
           userId: user.id,
@@ -158,7 +158,7 @@ export async function pullRemoteData(userId: string) {
     ]);
 
     const state = useApp.getState();
-    const newLikedIds = [...new Set([...state.likedIds, ...likes.map((l) => l.trackId)])];
+    const newLikedIds = new Set([...state.likedIds, ...likes.map((l) => l.trackId)]);
 
     const remotePlaylistMap = new Map(playlists.map((p) => [p.id, p]));
     const mergedPlaylists = state.playlists.map((pl) => {

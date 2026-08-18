@@ -3,6 +3,8 @@ import type { Album, Artist, HistoryEntry, Playlist, Track } from "../types";
 export interface Storage {
   init(): Promise<void>;
   isLiked(trackId: string): Promise<boolean>;
+  isAlbumSaved(albumId: string): Promise<boolean>;
+  isArtistSaved(artistId: string): Promise<boolean>;
   getLikedTracks(): Promise<Track[]>;
   addLikedTrack(track: Track): Promise<void>;
   removeLikedTrack(trackId: string): Promise<void>;

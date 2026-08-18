@@ -109,7 +109,11 @@ pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
         .route("/api/v1/blocks/artists", get(blocks_artists))
         .route("/api/v1/blocks/artist", post(block_artist_toggle))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
-    Router::new().merge(media).merge(health).merge(v1).with_state(state)
+    Router::new()
+        .merge(media)
+        .merge(health)
+        .merge(v1)
+        .with_state(state)
 }
 
 pub fn start(app: AppHandle, bridge: BridgeHandle, token: String) {
@@ -229,10 +233,8 @@ async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response 
         Ok(body) => {
             let mut res = Response::new(Body::from(body));
             *res.status_mut() = status;
-            res.headers_mut().insert(
-                "Access-Control-Allow-Origin",
-                HeaderValue::from_static("*"),
-            );
+            res.headers_mut()
+                .insert("Access-Control-Allow-Origin", HeaderValue::from_static("*"));
             res.headers_mut().insert(
                 "Content-Type",
                 HeaderValue::from_str(&content_type)

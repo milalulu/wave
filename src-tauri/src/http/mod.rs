@@ -41,7 +41,6 @@ fn ip_allowed(ip: IpAddr) -> bool {
 }
 
 /// Валидация URL перед запросом из renderer'а: только http(s) и хосты,
-
 pub async fn validate_http_url(url: &str) -> Result<reqwest::Url, String> {
     let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
     let scheme = parsed.scheme();

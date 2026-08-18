@@ -195,13 +195,14 @@ export class SpotifyProvider implements MusicProvider {
     };
   }
 
-  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
-    const cacheKey = `${artist}|${track}`;
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
+    const cacheKey = `${artist}|${track}|${JSON.stringify(options ?? {})}`;
     const hit = this.similarCache.get(cacheKey);
     if (hit && Date.now() - hit.at < SpotifyProvider.SIMILAR_TTL_MS) return hit.tracks;
     try {
       const token = await this.accessToken();
       const params = new URLSearchParams({ market: "US", limit: "20" });
+
       if (track) {
         const trackId = await this.findTrackId(track, artist, token);
         if (trackId) params.set("seed_tracks", trackId);
@@ -209,6 +210,32 @@ export class SpotifyProvider implements MusicProvider {
         const artistId = await this.findArtistId(artist, token);
         if (artistId) params.set("seed_artists", artistId);
       }
+
+      if (options?.genres?.length) {
+        const availableGenres = await this.getAvailableGenres(token);
+        const matched = options.genres
+          .filter((g) => availableGenres.has(g.toLowerCase()))
+          .slice(0, 2);
+        if (matched.length > 0) {
+          const existing = params.get("seed_artists") ?? params.get("seed_tracks");
+          if (!existing) {
+            params.delete("seed_artists");
+            params.delete("seed_tracks");
+            params.set("seed_genres", matched.join(","));
+          }
+        }
+      }
+
+      if (options?.targetEnergy != null) {
+        params.set("target_energy", String(Math.max(0, Math.min(1, options.targetEnergy))));
+      }
+      if (options?.targetValence != null) {
+        params.set("target_valence", String(Math.max(0, Math.min(1, options.targetValence))));
+      }
+      if (options?.targetAcousticness != null) {
+        params.set("target_acousticness", String(Math.max(0, Math.min(1, options.targetAcousticness))));
+      }
+
       const { status, body } = await this.http.json(
         "GET",
         `${API}/recommendations?${params.toString()}`,
@@ -327,5 +354,24 @@ export class SpotifyProvider implements MusicProvider {
     const expiresIn = data.expires_in ?? 3600;
     this.tokenExpiresAt = Date.now() + (expiresIn - 60) * 1000;
     return this.token;
+  }
+
+  private availableGenresCache: Set<string> | null = null;
+  private async getAvailableGenres(token: string): Promise<Set<string>> {
+    if (this.availableGenresCache) return this.availableGenresCache;
+    try {
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/recommendations/available-genre-seeds`,
+        undefined,
+        { Authorization: `Bearer ${token}` },
+      );
+      if (status !== 200) return new Set();
+      const data = body as { genres?: string[] };
+      this.availableGenresCache = new Set((data.genres ?? []).map((g) => g.toLowerCase()));
+      return this.availableGenresCache;
+    } catch {
+      return new Set();
+    }
   }
 }

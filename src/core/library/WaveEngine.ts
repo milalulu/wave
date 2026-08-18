@@ -1,6 +1,8 @@
 import type { HistoryEntry, Track } from "../types";
 import type { Storage } from "../database/Storage";
 import type { MusicProvider } from "../providers/MusicProvider";
+import { expandSearchQueries, getSpotifyGenres, getMoodProfile, normalizeGenre } from "../recommendations/moodTaxonomy";
+import { buildListeningProfile, profileToSearchTerms, type ListeningProfile } from "../recommendations/listeningProfile";
 
 export interface WaveContext {
   likedTracks: Track[];
@@ -8,6 +10,7 @@ export interface WaveContext {
   libraryGenres: Map<string, number>;
   candidates: Track[];
   recentIds?: Set<string>;
+  profile?: ListeningProfile;
 }
 
 export interface WaveSource {
@@ -120,8 +123,6 @@ export class SmartWaveSource implements WaveSource {
     const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
     const result: Track[] = [];
     for (let i = 0; i < limit && entries.length > 0; i++) {
-      
-      
       for (const item of entries) {
         const already = chosenArtists.get(item.track.artist ?? "") ?? 0;
         item.weight = already > 0 ? item.base * 0.4 * Math.pow(0.5, already - 1) : item.base;
@@ -148,6 +149,9 @@ export class SmartWaveSource implements WaveSource {
 export class WaveEngine {
   private recentIds = new Set<string>();
   private readonly recentCap = 100;
+  private cachedProfile: ListeningProfile | null = null;
+  private profileCacheTime = 0;
+  private readonly PROFILE_TTL = 5 * 60 * 1000;
   
   private blockFilter: (track: Track) => boolean = () => true;
 
@@ -168,14 +172,31 @@ export class WaveEngine {
     this.trimRecent();
   }
 
+  private async getProfile(): Promise<ListeningProfile> {
+    const now = Date.now();
+    if (this.cachedProfile && now - this.profileCacheTime < this.PROFILE_TTL) {
+      return this.cachedProfile;
+    }
+    const likedTracks = await this.storage.getLikedTracks();
+    const history = await this.storage.getHistory(200);
+    this.cachedProfile = buildListeningProfile(history, likedTracks);
+    this.profileCacheTime = now;
+    return this.cachedProfile;
+  }
+
   async generateWave(limit = 20): Promise<Track[]> {
     const likedTracks = await this.storage.getLikedTracks();
     const history = await this.storage.getHistory(100);
+    const profile = await this.getProfile();
+
     const libraryGenres = new Map<string, number>();
     const artistCounts = new Map<string, number>();
     for (const entry of history) {
       const genre = entry.track.genre;
-      if (genre) libraryGenres.set(genre, (libraryGenres.get(genre) ?? 0) + 1);
+      if (genre) {
+        const normalized = normalizeGenre(genre);
+        libraryGenres.set(normalized, (libraryGenres.get(normalized) ?? 0) + 1);
+      }
       const artist = entry.track.artist;
       if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1);
     }
@@ -183,13 +204,16 @@ export class WaveEngine {
       const artist = track.artist;
       if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1);
     }
-    const candidates = await this.fetchCandidates(libraryGenres, artistCounts, limit);
+
+    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit);
+
     const tracks = this.source.generate(limit, {
       likedTracks,
       history,
       libraryGenres,
       candidates,
       recentIds: this.recentIds,
+      profile,
     });
     const filtered = tracks.filter(this.blockFilter);
     for (const t of filtered) {
@@ -210,8 +234,9 @@ export class WaveEngine {
     }
   }
 
-  private async fetchCandidates(
-    genres: Map<string, number>,
+  private async fetchCandidatesMood(
+    profile: ListeningProfile,
+    _genres: Map<string, number>,
     artistCounts: Map<string, number>,
     limit: number,
   ): Promise<Track[]> {
@@ -230,41 +255,66 @@ export class WaveEngine {
       }
     };
 
-    const collectSimilar = async (artist: string, track: string) => {
-      const results = await Promise.allSettled(
-        this.providers
-          .filter((p) => typeof p.getSimilarTracks === "function")
-          .map((p) => p.getSimilarTracks?.(artist, track) ?? Promise.resolve([])),
-      );
-      for (const r of results) {
-        if (r.status !== "fulfilled") continue;
-        for (const t of r.value) {
-          if (t.meta?.noPlay || seen.has(t.id) || !this.blockFilter(t)) continue;
-          seen.add(t.id);
-          out.push(t);
-        }
-      }
-    };
+    const moodQueries = expandSearchQueries(profile.topMoods, profile.topGenres.slice(0, 3));
+    const profileTerms = profileToSearchTerms(profile);
+    const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 12);
 
-    const top = [...genres.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
-    const queries: string[] = top.map(([genre]) => genre);
+    await Promise.all(allQueries.map((q) => collect(q)));
+
+    const spotifyGenres = getSpotifyGenres(profile.topMoods);
+    const moodProfile = getMoodProfile(profile.topMoods);
+    const targetEnergy = (moodProfile.energy[0] + moodProfile.energy[1]) / 2;
+    const targetValence = (moodProfile.valence[0] + moodProfile.valence[1]) / 2;
+    const targetAcousticness = (moodProfile.acousticness[0] + moodProfile.acousticness[1]) / 2;
 
     const topArtists = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const moodOptions = {
+      moods: profile.topMoods,
+      genres: spotifyGenres.slice(0, 2),
+      targetEnergy,
+      targetValence,
+      targetAcousticness,
+    };
+
     for (const [artist] of topArtists) {
-      const similar = await this.fetchSimilarArtists(artist);
-      queries.push(...similar.slice(0, 3));
+      const similar = await this.fetchSimilarArtistsMood(artist, moodOptions);
+      for (const q of similar.slice(0, 2)) {
+        await collect(q);
+      }
     }
 
-    
-    await Promise.all(queries.map((q) => collect(q)));
-
     const topTracks = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
-    await Promise.all(topTracks.map(([artist]) => collectSimilar(artist, "")));
+    await Promise.all(topTracks.map(([artist]) => this.collectSimilarMood(artist, "", moodOptions, out, seen)));
 
     return out.slice(0, limit * 3);
   }
 
-  private async fetchSimilarArtists(artist: string): Promise<string[]> {
+  private async collectSimilarMood(
+    artist: string,
+    track: string,
+    options: import("../providers/MusicProvider").MoodRecommendOptions,
+    out: Track[],
+    seen: Set<string>,
+  ): Promise<void> {
+    const results = await Promise.allSettled(
+      this.providers
+        .filter((p) => typeof p.getSimilarTracks === "function")
+        .map((p) => p.getSimilarTracks?.(artist, track, options) ?? Promise.resolve([])),
+    );
+    for (const r of results) {
+      if (r.status !== "fulfilled") continue;
+      for (const t of r.value) {
+        if (t.meta?.noPlay || seen.has(t.id) || !this.blockFilter(t)) continue;
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+  }
+
+  private async fetchSimilarArtistsMood(
+    artist: string,
+    _options: import("../providers/MusicProvider").MoodRecommendOptions,
+  ): Promise<string[]> {
     const results = await Promise.allSettled(
       this.providers.map((p) => p.getSimilarArtists?.(artist) ?? Promise.resolve([])),
     );

@@ -4,9 +4,9 @@ mod http;
 pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
+mod tools;
 #[cfg(not(target_os = "android"))]
 mod tray;
-mod tools;
 
 use crate::diag::diagnostics;
 
@@ -237,7 +237,7 @@ async fn yt_search(
     let search = if is_sc {
         format!("scsearch{limit}:{query}")
     } else {
-        format!("ytsearch{limit}:{query}")
+        format!("ytsearchmusic{limit}:{query}")
     };
     let mut args = vec![
         search,
@@ -271,6 +271,67 @@ async fn yt_search(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            let duration = e
+                .get("duration")
+                .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)));
+            if !is_sc {
+                if let Some(d) = duration {
+                    if d > 0 && d < 60 {
+                        return None;
+                    }
+                    if d > 600 {
+                        return None;
+                    }
+                }
+                let lower = title.to_lowercase();
+                let junk = [
+                    "clip",
+                    "shorts",
+                    "official video",
+                    "live performance",
+                    "karaoke",
+                    "reaction",
+                    "нарезка",
+                    "отрезки",
+                    "клип",
+                    "podcast",
+                    "interview",
+                    "behind the scenes",
+                    "making of",
+                    "mix",
+                    "compilation",
+                    "dj set",
+                    "extended mix",
+                    "vinyl rip",
+                    "1 hour",
+                    "2 hour",
+                    "hour mix",
+                    "megamix",
+                    "best of",
+                    "голубой огонь",
+                    "non-stop",
+                    "nonstop",
+                    "continuous",
+                    "medley",
+                    "playlist",
+                    "все песни",
+                    "все хиты",
+                    "альбом",
+                    "album",
+                    "rejected",
+                    "spoof",
+                    "type beat",
+                    "typeBeat",
+                    "free beat",
+                    "free type",
+                    "instrumental v2",
+                    "remake",
+                    "remix type",
+                ];
+                if junk.iter().any(|kw| lower.contains(kw)) {
+                    return None;
+                }
+            }
             let thumbnail = e
                 .get("thumbnails")
                 .and_then(|t| t.as_array())
@@ -281,9 +342,7 @@ async fn yt_search(
                 "id": id,
                 "title": title,
                 "uploader": e.get("uploader").and_then(|v| v.as_str()),
-                "duration": e
-                    .get("duration")
-                    .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64))),
+                "duration": duration,
                 "thumbnail": thumbnail,
             }))
         })
@@ -312,8 +371,6 @@ async fn resolve_stream(
     let cookies = ytdlp_cookies_args(app);
     let mut attempts: Vec<Vec<String>> = vec![];
     if prefer_progressive {
-        
-        
         attempts.push(stream_args(
             url,
             &format!("{audio_only}[protocol=http]/{audio_only}[ext=mp3]/{audio_only}"),
@@ -322,9 +379,6 @@ async fn resolve_stream(
         ));
     }
     attempts.extend([
-        
-        
-        
         stream_args(
             url,
             &format!("{audio_only}[ext=m4a]/{audio_only}"),
@@ -367,7 +421,6 @@ async fn resolve_stream(
                     .find(|l| !l.trim().is_empty())
                     .map(|l| l.trim().to_string());
                 if let Some(u) = u {
-                    
                     if !u.contains(".m3u8") && !u.contains(".mpd") && !u.is_empty() {
                         return Ok(u);
                     }
@@ -404,7 +457,6 @@ async fn dl_stream(
     url: String,
     quality: Option<String>,
 ) -> Result<String, String> {
-    
     resolve_stream(&app, &url, quality.as_deref(), true).await
 }
 
@@ -612,6 +664,12 @@ pub fn run() {
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "history index",
+            sql: "CREATE INDEX IF NOT EXISTS idx_history_played_at ON history(played_at DESC);",
             kind: MigrationKind::Up,
         },
     ];
@@ -1053,8 +1111,7 @@ async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
     let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("download {redacted}: {e}"))?;
-        std::io::Write::write_all(&mut file, &chunk)
-            .map_err(|e| format!("write {tmp}: {e}"))?;
+        std::io::Write::write_all(&mut file, &chunk).map_err(|e| format!("write {tmp}: {e}"))?;
         total += chunk.len() as u64;
     }
     if total == 0 {

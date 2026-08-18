@@ -46,7 +46,6 @@ export function VirtualList<T>({
         <div
           key={rowKey(items[row.index], row.index)}
           data-index={row.index}
-          ref={virtualizer.measureElement}
           className="virtual-row"
           style={{
             position: "absolute",

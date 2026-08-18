@@ -81,21 +81,38 @@ export class SoundCloudProvider implements MusicProvider {
     }
   }
 
-  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
     if (!artist) return [];
     try {
-      const query = track ? `${artist} ${track}` : `${artist} music`;
-      const entries = await this.gateway.search(query, 10);
-      return entries.map((e) => ({
-        id: `soundcloud:track:${e.id}`,
-        provider: this.id,
-        uri: `soundcloud:track:${e.id}`,
-        title: e.title ?? "Unknown",
-        artist: e.uploader,
-        coverUrl: cover(e.thumbnail),
-        duration: e.duration ? Math.round(e.duration) : undefined,
-        meta: { scId: e.id, scUrl: trackUrl(e.id) },
-      }));
+      let query: string;
+      if (track && options?.moods?.length) {
+        query = `${artist} ${track} ${options.moods[0]}`;
+      } else if (track) {
+        query = `${artist} ${track}`;
+      } else if (options?.moods?.length) {
+        query = `${artist} ${options.moods[0]} ${options.genres?.[0] ?? "music"}`;
+      } else {
+        query = `${artist} music`;
+      }
+      const entries = await this.gateway.search(query, 15);
+      return entries
+        .filter((e) => {
+          const title = (e.title ?? "").toLowerCase();
+          if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
+          if (e.duration && e.duration < 30) return false;
+          return true;
+        })
+        .slice(0, 10)
+        .map((e) => ({
+          id: `soundcloud:track:${e.id}`,
+          provider: this.id,
+          uri: `soundcloud:track:${e.id}`,
+          title: e.title ?? "Unknown",
+          artist: e.uploader,
+          coverUrl: cover(e.thumbnail),
+          duration: e.duration ? Math.round(e.duration) : undefined,
+          meta: { scId: e.id, scUrl: trackUrl(e.id) },
+        }));
     } catch {
       return [];
     }

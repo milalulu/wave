@@ -20,11 +20,11 @@ export class SqliteStorage implements Storage {
   }
 
   async isLiked(trackId: string): Promise<boolean> {
-    const rows = await (await this.requireDb()).select<{ count: number }[]>(
-      "SELECT COUNT(*) AS count FROM liked_tracks WHERE id = $1",
+    const rows = await (await this.requireDb()).select<{ ok: number }[]>(
+      "SELECT 1 AS ok FROM liked_tracks WHERE id = $1 LIMIT 1",
       [trackId],
     );
-    return (rows[0]?.count ?? 0) > 0;
+    return rows.length > 0;
   }
 
   async getLikedTracks(): Promise<Track[]> {
@@ -52,6 +52,14 @@ export class SqliteStorage implements Storage {
     return rows.map((r) => JSON.parse(r.album_json) as Album);
   }
 
+  async isAlbumSaved(albumId: string): Promise<boolean> {
+    const rows = await (await this.requireDb()).select<{ ok: number }[]>(
+      "SELECT 1 AS ok FROM saved_albums WHERE id = $1 LIMIT 1",
+      [albumId],
+    );
+    return rows.length > 0;
+  }
+
   async addSavedAlbum(album: Album): Promise<void> {
     await (await this.requireDb()).execute(
       "INSERT OR REPLACE INTO saved_albums (id, album_json, saved_at) VALUES ($1, $2, $3)",
@@ -68,6 +76,14 @@ export class SqliteStorage implements Storage {
       "SELECT id, artist_json FROM saved_artists ORDER BY saved_at DESC",
     );
     return rows.map((r) => JSON.parse(r.artist_json) as Artist);
+  }
+
+  async isArtistSaved(artistId: string): Promise<boolean> {
+    const rows = await (await this.requireDb()).select<{ ok: number }[]>(
+      "SELECT 1 AS ok FROM saved_artists WHERE id = $1 LIMIT 1",
+      [artistId],
+    );
+    return rows.length > 0;
   }
 
   async addSavedArtist(artist: Artist): Promise<void> {

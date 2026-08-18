@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ViewKey } from "./Sidebar";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
-import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon } from "./icons";
 import { formatTime } from "../core/util/format";
+import { Spectrum } from "./Spectrum";
 
 interface NowPlayingViewProps {
   onNavigate: (view: ViewKey) => void;
@@ -34,9 +35,11 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const startRadio = useApp((s) => s.startRadio);
   const radioActive = useApp((s) => s.radioActive);
   const seek = useApp((s) => s.seek);
+  const services = useApp((s) => s.services);
+  const [spectrumOpen, setSpectrumOpen] = useState(false);
 
   const track = snapshot.current;
-  const liked = track ? likedIds.includes(track.id) : false;
+  const liked = track ? likedIds.has(track.id) : false;
 
   const activeIndex = useMemo(() => {
     if (!lyrics?.synced) return -1;
@@ -146,7 +149,19 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 <LyricsIcon size={18} />
                 {t("player").lyrics}
               </button>
+              <button
+                className={`btn ${spectrumOpen ? "active" : ""}`}
+                onClick={() => setSpectrumOpen((o) => !o)}
+                title={t("player").spectrum}
+              >
+                <ChartIcon size={18} />
+              </button>
             </div>
+            {spectrumOpen && services?.engine && (
+              <div className="np-spectrum">
+                <Spectrum engine={services.engine} />
+              </div>
+            )}
           </div>
         </div>
       ) : (

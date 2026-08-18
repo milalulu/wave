@@ -1,5 +1,3 @@
-
-
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,12 +12,8 @@ fn menu(app: &AppHandle) -> tauri::menu::Menu<tauri::Wry> {
     let playpause = MenuItemBuilder::with_id("playpause", "Play / Pause")
         .build(app)
         .unwrap();
-    let next = MenuItemBuilder::with_id("next", "Next")
-        .build(app)
-        .unwrap();
-    let quit = MenuItemBuilder::with_id("quit", "Quit")
-        .build(app)
-        .unwrap();
+    let next = MenuItemBuilder::with_id("next", "Next").build(app).unwrap();
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app).unwrap();
     let separator = PredefinedMenuItem::separator(app).unwrap();
     MenuBuilder::new(app)
         .item(&show)
@@ -50,13 +44,8 @@ pub fn start(app: &tauri::App) {
                 show_main(app);
                 return;
             }
-            let _ = app.emit(
-                "tray-command",
-                serde_json::json!({ "action": action }),
-            );
+            let _ = app.emit("tray-command", serde_json::json!({ "action": action }));
             if action == "quit" {
-                
-                
                 let app = app.clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(600));

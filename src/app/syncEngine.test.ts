@@ -54,7 +54,7 @@ const remotePlaylist = (id: string, name: string, updatedAt: number): SyncedPlay
 });
 
 afterEach(() => {
-  useApp.setState({ playlists: [], likedIds: [] });
+  useApp.setState({ playlists: [], likedIds: new Set() });
   vi.restoreAllMocks();
 });
 
@@ -67,7 +67,7 @@ beforeEach(() => {
 
 describe("pullRemoteData", () => {
   it("merges remote playlists that do not exist locally", async () => {
-    useApp.setState({ playlists: [], likedIds: [] });
+    useApp.setState({ playlists: [], likedIds: new Set() });
     fetchRemotePlaylistsMock.mockResolvedValue([remotePlaylist("r1", "Remote", 100)]);
     await pullRemoteData("u1");
     const playlists = useApp.getState().playlists;
@@ -78,7 +78,7 @@ describe("pullRemoteData", () => {
   it("keeps the newer version of an existing playlist", async () => {
     useApp.setState({
       playlists: [{ id: "p1", name: "Old", trackIds: ["a"], tracks: [], createdAt: 1, updatedAt: 100 }],
-      likedIds: [],
+      likedIds: new Set(),
     });
     fetchRemotePlaylistsMock.mockResolvedValue([remotePlaylist("p1", "New", 200)]);
     await pullRemoteData("u1");
@@ -89,7 +89,7 @@ describe("pullRemoteData", () => {
   it("does not overwrite a locally newer playlist", async () => {
     useApp.setState({
       playlists: [{ id: "p1", name: "Local", trackIds: ["a"], tracks: [], createdAt: 1, updatedAt: 300 }],
-      likedIds: [],
+      likedIds: new Set(),
     });
     fetchRemotePlaylistsMock.mockResolvedValue([remotePlaylist("p1", "Remote", 200)]);
     await pullRemoteData("u1");
@@ -97,7 +97,7 @@ describe("pullRemoteData", () => {
   });
 
   it("unions remote likes with local ones", async () => {
-    useApp.setState({ playlists: [], likedIds: ["a"] });
+    useApp.setState({ playlists: [], likedIds: new Set(["a"]) });
     fetchRemoteLikesMock.mockResolvedValue([
       { trackId: "b", track: { id: "b", provider: "test", uri: "u://b", title: "B", updatedAt: 1 }, createdAt: 1 },
     ]);

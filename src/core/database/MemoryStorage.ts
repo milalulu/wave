@@ -30,6 +30,10 @@ export class MemoryStorage implements Storage {
     return [...this.albums.values()];
   }
 
+  async isAlbumSaved(albumId: string): Promise<boolean> {
+    return this.albums.has(albumId);
+  }
+
   async addSavedAlbum(album: Album): Promise<void> {
     this.albums.set(album.id, album);
   }
@@ -40,6 +44,10 @@ export class MemoryStorage implements Storage {
 
   async getSavedArtists(): Promise<Artist[]> {
     return [...this.artists.values()];
+  }
+
+  async isArtistSaved(artistId: string): Promise<boolean> {
+    return this.artists.has(artistId);
   }
 
   async addSavedArtist(artist: Artist): Promise<void> {

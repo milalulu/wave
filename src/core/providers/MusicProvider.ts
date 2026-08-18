@@ -1,5 +1,13 @@
 import type { AlbumDetail, ArtistDetail, SearchResults, Track } from "../types";
 
+export interface MoodRecommendOptions {
+  moods?: string[];
+  genres?: string[];
+  targetEnergy?: number;
+  targetValence?: number;
+  targetAcousticness?: number;
+}
+
 export interface MusicProvider {
   readonly id: string;
   readonly name: string;
@@ -11,7 +19,7 @@ export interface MusicProvider {
   
   getSimilarArtists?(artist: string): Promise<string[]>;
   
-  getSimilarTracks?(artist: string, track: string): Promise<Track[]>;
+  getSimilarTracks?(artist: string, track: string, options?: MoodRecommendOptions): Promise<Track[]>;
   
   getArtistTopTracks?(artist: string): Promise<Track[]>;
 }

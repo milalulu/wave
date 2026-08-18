@@ -25,8 +25,20 @@ interface HomeViewProps {
   onNavigate: (view: ViewKey) => void;
 }
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth <= 720);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 720px)");
+    const fn = (e: MediaQueryListEvent) => setMobile(e.matches);
+    mq.addEventListener("change", fn);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
+  return mobile;
+}
+
 export function HomeView({ onNavigate }: HomeViewProps) {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const snapshot = useApp((s) => s.snapshot);
   const likedIds = useApp((s) => s.likedIds);
   const playlists = useApp((s) => s.playlists);
@@ -45,13 +57,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
   useEffect(() => {
     let cancelled = false;
     if (!history) return;
-    void history.getHistory(6).then((entries) => {
+    void history.getHistory(isMobile ? 12 : 6).then((entries) => {
       if (!cancelled) setRecent(entries);
     });
     return () => {
       cancelled = true;
     };
-  }, [history]);
+  }, [history, isMobile]);
 
   const track = snapshot.current;
 
@@ -64,6 +76,122 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     { view: "settings", icon: SettingsIcon, label: t("nav").settings, desc: t("home").settingsDesc },
   ];
 
+  if (isMobile) {
+    return (
+      <div className="view mobile-home">
+        {track ? (
+          <div className="mh-now-hero" onClick={() => onNavigate("nowPlaying")}>
+            <div className="mh-now-cover">
+              {track.coverUrl ? (
+                <Cover src={track.coverUrl} alt="" />
+              ) : (
+                <div className="mh-now-cover-empty">{track.title?.charAt(0) ?? "W"}</div>
+              )}
+            </div>
+            <div className="mh-now-info">
+              <span className="mh-now-label">{t("app").nowPlaying}</span>
+              <h2 className="mh-now-title">{track.title}</h2>
+              <p className="mh-now-artist">{track.artist}</p>
+            </div>
+            <button
+              className="mh-now-play"
+              onClick={(e) => { e.stopPropagation(); void togglePlay(); }}
+              aria-label={snapshot.state === "playing" ? t("player").pause : t("player").play}
+            >
+              {snapshot.state === "playing" ? <PauseIcon size={28} /> : <PlayIcon size={28} />}
+            </button>
+          </div>
+        ) : (
+          <div className="mh-empty-hero">
+            <div className="mh-empty-icon"><WaveIcon size={40} /></div>
+            <h1>{t("app").welcome}</h1>
+            <p>{t("home").welcomeSubtitle}</p>
+          </div>
+        )}
+
+        {recent.length > 0 && (
+          <section className="mh-section">
+            <h2 className="mh-section-title">{t("home").recentlyPlayed}</h2>
+            <div className="mh-recent-scroll">
+              {recent.map((entry) => (
+                <button
+                  key={`${entry.track.id}:${entry.playedAt}`}
+                  className="mh-recent-card"
+                  onClick={() => onNavigate("nowPlaying")}
+                >
+                  <div className="mh-recent-cover">
+                    {entry.track.coverUrl ? (
+                      <Cover src={entry.track.coverUrl} alt="" />
+                    ) : (
+                      <div className="mh-recent-cover-empty">{entry.track.title?.charAt(0) ?? "?"}</div>
+                    )}
+                  </div>
+                  <span className="mh-recent-title">{entry.track.title}</span>
+                  <span className="mh-recent-artist">{entry.track.artist}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="mh-section">
+          <div className="mh-actions-grid">
+            <button className="mh-action-card" onClick={() => onNavigate("search")}>
+              <span className="mh-action-icon"><SearchIcon size={24} /></span>
+              <span className="mh-action-label">{t("nav").search}</span>
+            </button>
+            <button className="mh-action-card" onClick={() => onNavigate("library")}>
+              <span className="mh-action-icon"><ListIcon size={24} /></span>
+              <span className="mh-action-label">{t("nav").library}</span>
+            </button>
+            <button className="mh-action-card" onClick={() => onNavigate("wave")}>
+              <span className="mh-action-icon"><WaveIcon size={24} /></span>
+              <span className="mh-action-label">{t("nav").wave}</span>
+            </button>
+            <button
+              className={`mh-action-card ${!track ? "mh-action-disabled" : ""}`}
+              onClick={() => void startRadio()}
+              disabled={!track}
+            >
+              <span className="mh-action-icon"><RadioIcon size={24} /></span>
+              <span className="mh-action-label">{t("home").radio}</span>
+            </button>
+            <button className="mh-action-card" onClick={() => onNavigate("playlist")}>
+              <span className="mh-action-icon"><PlaylistIcon size={24} /></span>
+              <span className="mh-action-label">{t("nav").playlist}</span>
+            </button>
+            <button className="mh-action-card" onClick={() => void openLocalDirectory()}>
+              <span className="mh-action-icon"><FolderIcon size={24} /></span>
+              <span className="mh-action-label">{t("nav").localFiles}</span>
+            </button>
+          </div>
+        </section>
+
+        {(likedIds.size > 0 || playlists.length > 0 || localTracks.length > 0) && (
+          <section className="mh-section">
+            <div className="mh-stats-row">
+              {likedIds.size > 0 && (
+                <button className="mh-stat-chip" onClick={() => onNavigate("library")}>
+                  <HeartIcon size={14} filled /> {likedIds.size} {t("library").liked}
+                </button>
+              )}
+              {playlists.length > 0 && (
+                <button className="mh-stat-chip" onClick={() => onNavigate("playlist")}>
+                  <PlaylistIcon size={14} /> {playlists.length} {t("nav").playlist}
+                </button>
+              )}
+              {localTracks.length > 0 && (
+                <button className="mh-stat-chip" onClick={() => void openLocalDirectory()}>
+                  <FolderIcon size={14} /> {localTracks.length} {t("nav").localFiles}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="view home-main">
       <header className="home-hero">
@@ -73,10 +201,10 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <p className="home-sub">{t("home").welcomeSubtitle}</p>
         </div>
         <div className="home-stats">
-          {likedIds.length > 0 && (
+          {likedIds.size > 0 && (
             <span className="home-stat">
               <HeartIcon size={14} filled />
-              {t("library").liked}: {likedIds.length}
+              {t("library").liked}: {likedIds.size}
             </span>
           )}
           {localTracks.length > 0 && (
@@ -98,14 +226,17 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         <section>
           <h2 className="home-section-title">{t("home").recentlyPlayed}</h2>
           <div className="track-list">
-            {recent.map((entry, i) => (
-              <TrackRow
-                key={`${entry.track.id}:${entry.playedAt}`}
-                track={entry.track}
-                index={i + 1}
-                nowPlaying={recent.findIndex((e) => e.track.id === snapshot.current?.id) === i}
-              />
-            ))}
+            {(() => {
+              const currentId = snapshot.current?.id;
+              return recent.map((entry, i) => (
+                <TrackRow
+                  key={`${entry.track.id}:${entry.playedAt}`}
+                  track={entry.track}
+                  index={i + 1}
+                  nowPlaying={currentId != null && entry.track.id === currentId}
+                />
+              ));
+            })()}
           </div>
         </section>
       )}

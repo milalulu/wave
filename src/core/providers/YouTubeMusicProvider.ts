@@ -96,20 +96,38 @@ export class YouTubeMusicProvider implements MusicProvider {
     throw new Error("youtube provider: no artists");
   }
 
-  async getSimilarTracks(artist: string, _track: string): Promise<Track[]> {
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
     if (!artist) return [];
     try {
-      const entries = await this.gateway.search(`${artist} music`, 10);
-      return entries.map((e) => ({
-        id: `youtube:track:${e.id}`,
-        provider: this.id,
-        uri: `https://www.youtube.com/watch?v=${e.id}`,
-        title: e.title,
-        artist: e.uploader,
-        coverUrl: cover(e.thumbnail),
-        duration: e.duration ?? undefined,
-        meta: { ytId: e.id },
-      }));
+      let query: string;
+      if (track && options?.moods?.length) {
+        query = `${artist} ${track} ${options.moods[0]}`;
+      } else if (track) {
+        query = `${artist} ${track}`;
+      } else if (options?.moods?.length) {
+        query = `${artist} ${options.moods[0]} ${options.genres?.[0] ?? "music"}`;
+      } else {
+        query = `${artist} music`;
+      }
+      const entries = await this.gateway.search(query, 15);
+      return entries
+        .filter((e) => {
+          const title = (e.title ?? "").toLowerCase();
+          if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
+          if (e.duration && e.duration < 30) return false;
+          return true;
+        })
+        .slice(0, 10)
+        .map((e) => ({
+          id: `youtube:track:${e.id}`,
+          provider: this.id,
+          uri: `https://www.youtube.com/watch?v=${e.id}`,
+          title: e.title,
+          artist: e.uploader,
+          coverUrl: cover(e.thumbnail),
+          duration: e.duration ?? undefined,
+          meta: { ytId: e.id },
+        }));
     } catch {
       return [];
     }

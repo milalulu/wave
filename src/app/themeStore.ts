@@ -1,12 +1,12 @@
 const KEY = "wave:theme";
-export type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "light" | "system" | "amoled";
 
 const DARK_DEFAULT = true;
 
 export function loadTheme(): Theme {
   try {
     const saved = localStorage.getItem(KEY) as Theme | null;
-    if (saved === "dark" || saved === "light" || saved === "system") {
+    if (saved === "dark" || saved === "light" || saved === "system" || saved === "amoled") {
       return saved;
     }
   } catch {
@@ -33,11 +33,15 @@ export function isDarkSystem(): boolean {
 
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
-  const dark = theme === "system" ? isDarkSystem() : theme === "dark";
-  if (dark) {
-    root.removeAttribute("data-theme");
+  if (theme === "amoled") {
+    root.setAttribute("data-theme", "amoled");
   } else {
-    root.setAttribute("data-theme", "light");
+    const dark = theme === "system" ? isDarkSystem() : theme === "dark";
+    if (dark) {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", "light");
+    }
   }
 }
 

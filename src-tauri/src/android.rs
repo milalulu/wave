@@ -18,6 +18,7 @@ async fn set_playback(
     artist: Option<String>,
     duration: Option<f64>,
     position: Option<f64>,
+    cover_url: Option<String>,
 ) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
@@ -32,13 +33,14 @@ async fn set_playback(
                     "artist": artist,
                     "duration": duration.unwrap_or(0.0),
                     "position": position.unwrap_or(0.0),
+                    "coverUrl": cover_url,
                 }),
             )
             .await
             .map_err(|e| e.to_string())?;
     }
     #[cfg(not(target_os = "android"))]
-    let _ = (app, playing, title, artist, duration, position);
+    let _ = (app, playing, title, artist, duration, position, cover_url);
     Ok(())
 }
 
@@ -82,7 +84,11 @@ async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> 
 
 pub fn init() -> TauriPlugin<Wry> {
     PluginBuilder::new("wave_android")
-        .invoke_handler(tauri::generate_handler![set_playback, pick_local_audio, consume_media_action])
+        .invoke_handler(tauri::generate_handler![
+            set_playback,
+            pick_local_audio,
+            consume_media_action
+        ])
         .setup(|_app, _api| {
             #[cfg(target_os = "android")]
             {

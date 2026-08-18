@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useI18n } from "./I18nContext";
 import { useApp } from "../app/stores";
 import { Cover } from "./Cover";
@@ -14,6 +14,32 @@ export function QueueView() {
   const clearQueue = useApp((s) => s.clearQueue);
   const moveQueueItem = useApp((s) => s.moveQueueItem);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const touchStartY = useRef(0);
+  const touchCurrentIndex = useRef<number | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, index: number) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchCurrentIndex.current = index;
+    setDragIndex(index);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchCurrentIndex.current === null) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element) return;
+    const trackRow = element.closest(".track-row");
+    if (!trackRow) return;
+    const targetIndex = Number((trackRow as HTMLElement).dataset.index);
+    if (isNaN(targetIndex) || targetIndex === touchCurrentIndex.current) return;
+    moveQueueItem(touchCurrentIndex.current, targetIndex);
+    touchCurrentIndex.current = targetIndex;
+  }, [moveQueueItem]);
+
+  const handleTouchEnd = useCallback(() => {
+    setDragIndex(null);
+    touchCurrentIndex.current = null;
+  }, []);
 
   return (
     <div className="view">
@@ -32,10 +58,10 @@ export function QueueView() {
             rowKey={(track, i) => `${track.id}:${i}`}
             renderRow={(track, i) => {
               const isCurrent = queueIndex >= 0 && i === queueIndex;
-              const isUpcoming = queueIndex >= 0 && i > queueIndex;
               return (
                 <div
                   className={`track-row ${isCurrent ? "track-current" : ""} ${dragIndex === i ? "track-dragging" : ""}`}
+                  data-index={i}
                   draggable
                   onDragStart={() => setDragIndex(i)}
                   onDragEnd={() => setDragIndex(null)}
@@ -49,8 +75,11 @@ export function QueueView() {
                     moveQueueItem(dragIndex, i);
                     setDragIndex(null);
                   }}
+                  onTouchStart={(e) => handleTouchStart(e, i)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                 >
-                  <span className="track-index">{isCurrent ? "▶" : isUpcoming ? i + 1 : i + 1}</span>
+                  <span className="track-index">{isCurrent ? "▶" : i + 1}</span>
                   {track.coverUrl ? (
                     <Cover className="track-cover" src={track.coverUrl} alt="" />
                   ) : (
@@ -61,10 +90,10 @@ export function QueueView() {
                     <span className="track-artist">{track.artist}</span>
                   </div>
                   <button
-                    className={`icon-btn ${likedIds.includes(track.id) ? "liked" : ""}`}
+                    className={`icon-btn ${likedIds.has(track.id) ? "liked" : ""}`}
                     onClick={() => void toggleLike(track)}
                   >
-                    <HeartIcon size={16} filled={likedIds.includes(track.id)} />
+                    <HeartIcon size={16} filled={likedIds.has(track.id)} />
                   </button>
                 </div>
               );

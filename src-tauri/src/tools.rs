@@ -54,6 +54,16 @@ const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
 #[cfg(target_os = "windows")]
 const FFMPEG_BASE: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/";
 
+#[cfg(target_os = "macos")]
+const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
+#[cfg(target_os = "macos")]
+const FFMPEG_BASE: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/";
+
+#[cfg(target_os = "linux")]
+const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
+#[cfg(target_os = "linux")]
+const FFMPEG_BASE: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/";
+
 pub fn tools_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
     app.path()
         .app_local_data_dir()
@@ -152,6 +162,34 @@ fn ffmpeg_zip_name(checksums_text: &str) -> Option<&str> {
     })
 }
 
+#[cfg(target_os = "macos")]
+fn ffmpeg_archive_name(checksums_text: &str) -> Option<&str> {
+    checksums_text.lines().find_map(|line| {
+        let mut it = line.split_whitespace();
+        let _ = it.next()?;
+        let name = it.next()?.trim_start_matches('*');
+        if name.ends_with("macos-gpl.pkg") || name.ends_with("macos-gpl.tar.xz") {
+            Some(name)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn ffmpeg_archive_name(checksums_text: &str) -> Option<&str> {
+    checksums_text.lines().find_map(|line| {
+        let mut it = line.split_whitespace();
+        let _ = it.next()?;
+        let name = it.next()?.trim_start_matches('*');
+        if name.ends_with("linux64-gpl.tar.xz") {
+            Some(name)
+        } else {
+            None
+        }
+    })
+}
+
 async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
     let resp = crate::http::client()
         .get(url)
@@ -235,7 +273,7 @@ async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
             "ffmpeg checksum mismatch for {zip_name}: got {actual}, want {expected}"
         ));
     }
-    let cursor = std::io::Cursor::new(bytes.as_slice());
+    let cursor = std::io::Cursor::new(&bytes[..]);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("ffmpeg zip: {e}"))?;
     let dir = dest.parent().ok_or_else(|| "no parent dir".to_string())?;
     std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
@@ -262,6 +300,121 @@ async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
+    let dest = ffmpeg_path(app);
+    if ffmpeg_ready(app) {
+        return Ok(());
+    }
+    // evermeet.cx provides a static ffmpeg binary directly (no archive extraction needed).
+    let url = "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip";
+    let resp = crate::http::client()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("ffmpeg download: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("ffmpeg download: HTTP {}", resp.status()));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("ffmpeg download: {e}"))?;
+    if bytes.is_empty() {
+        return Err("ffmpeg download: empty response".into());
+    }
+    let cursor = std::io::Cursor::new(&bytes[..]);
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("ffmpeg zip: {e}"))?;
+    let dir = dest.parent().ok_or_else(|| "no parent dir".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    let mut found = false;
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| format!("ffmpeg zip entry: {e}"))?;
+        if entry.is_file() && entry.name().ends_with("ffmpeg") {
+            let tmp = dest.with_extension(format!("tmp{}", std::process::id()));
+            let mut out = std::fs::File::create(&tmp)
+                .map_err(|e| format!("create {}: {e}", tmp.display()))?;
+            std::io::copy(&mut entry, &mut out).map_err(|e| format!("extract ffmpeg: {e}"))?;
+            drop(out);
+            std::fs::rename(&tmp, &dest)
+                .map_err(|e| format!("rename to {}: {e}", dest.display()))?;
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err("ffmpeg not found in evermeet archive".into());
+    }
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+async fn ensure_ffmpeg(app: &tauri::AppHandle) -> Result<(), String> {
+    let dest = ffmpeg_path(app);
+    if ffmpeg_ready(app) {
+        return Ok(());
+    }
+    let sums_url = format!("{FFMPEG_BASE}{FFMPEG_TAG}/checksums.sha256");
+    let sums = download_bytes(&sums_url).await?;
+    let text = String::from_utf8_lossy(&sums);
+    let archive_name = ffmpeg_archive_name(&text)
+        .ok_or_else(|| format!("ffmpeg: linux archive not found in {sums_url}"))?;
+    let expected = checksum_for(&text, archive_name)
+        .ok_or_else(|| format!("ffmpeg: no sha256 for {archive_name}"))?;
+    let url = format!("{FFMPEG_BASE}{FFMPEG_TAG}/{archive_name}");
+    let bytes = download_bytes(&url).await?;
+    let actual = sha256_hex(&bytes);
+    if actual != expected {
+        return Err(format!(
+            "ffmpeg checksum mismatch for {archive_name}: got {actual}, want {expected}"
+        ));
+    }
+    let dir = dest.parent().ok_or_else(|| "no parent dir".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    if archive_name.ends_with(".tar.xz") {
+        let tmp_dir = dir.join(format!(".ffmpeg_extract_{}", std::process::id()));
+        std::fs::create_dir_all(&tmp_dir)
+            .map_err(|e| format!("mkdir {}: {e}", tmp_dir.display()))?;
+        let archive_path = tmp_dir.join("ffmpeg.tar.xz");
+        std::fs::write(&archive_path, &bytes).map_err(|e| format!("write archive: {e}"))?;
+        let ok = std::process::Command::new("tar")
+            .arg("xf")
+            .arg(&archive_path)
+            .arg("-C")
+            .arg(&tmp_dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            let mut found = false;
+            for entry in std::fs::read_dir(&tmp_dir).into_iter().flatten().flatten() {
+                let p = entry.path();
+                if p.is_file() && p.file_name().and_then(|n| n.to_str()) == Some("ffmpeg") {
+                    std::fs::copy(&p, &dest).map_err(|e| format!("copy ffmpeg: {e}"))?;
+                    found = true;
+                    break;
+                }
+            }
+            let _ = std::fs::remove_dir_all(&tmp_dir);
+            if !found {
+                return Err("ffmpeg not found in tar.xz".into());
+            }
+        } else {
+            let _ = std::fs::remove_dir_all(&tmp_dir);
+            return Err("failed to extract ffmpeg: tar failed".into());
+        }
+    } else {
+        write_atomic(&dest, &bytes)?;
+    }
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+    Ok(())
+}
+
 /// Скачать недостающие инструменты. Вызывается фоном при старте и по кнопке.
 /// На Android yt-dlp не скачиваем: официальный релиз — Linux-запускаемый
 /// zipapp, которому нужен интерпретатор python3 (его нет). Юзер может задать
@@ -273,7 +426,7 @@ pub async fn ensure(app: &tauri::AppHandle) -> Result<ToolsStatus, String> {
         .await;
     #[cfg(not(target_os = "android"))]
     ensure_ytdlp(app).await?;
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "android"))]
     ensure_ffmpeg(app).await?;
     Ok(status(app))
 }
