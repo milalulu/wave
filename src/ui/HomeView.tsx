@@ -5,6 +5,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TrackRow } from "./TrackRow";
+import { WaveLogoMark } from "./icons";
 import type { HistoryEntry } from "../core/types";
 import {
   DownloadIcon,
@@ -194,31 +195,28 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
   return (
     <div className="view home-main">
-      <header className="home-hero">
-        <div>
-          <span className="hero-label">{t("app").name}</span>
-          <h1>{t("app").welcome}</h1>
-          <p className="home-sub">{t("home").welcomeSubtitle}</p>
+      {/* Immersive Hero Banner matching the brand asset sheet */}
+      <header className="home-hero-banner">
+        <div className="home-hero-content">
+          <div className="home-hero-badge">
+            <WaveLogoMark size={28} />
+            <span>WAVE MUSIC PLAYER</span>
+          </div>
+          <h1>Музыка. Без границ.</h1>
+          <p className="home-sub">Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.</p>
+          <div className="home-hero-actions">
+            <button className="btn btn-hero-play" onClick={() => onNavigate("wave")}>
+              <PlayIcon size={18} />
+              Слушать волну
+            </button>
+            <button className="btn btn-hero-secondary" onClick={() => onNavigate("search")}>
+              <SearchIcon size={18} />
+              Найти трек
+            </button>
+          </div>
         </div>
-        <div className="home-stats">
-          {likedIds.size > 0 && (
-            <span className="home-stat">
-              <HeartIcon size={14} filled />
-              {t("library").liked}: {likedIds.size}
-            </span>
-          )}
-          {localTracks.length > 0 && (
-            <span className="home-stat">
-              <FolderIcon size={14} />
-              {t("library").local}: {localTracks.length}
-            </span>
-          )}
-          {playlists.length > 0 && (
-            <span className="home-stat">
-              <PlaylistIcon size={14} />
-              {t("nav").playlist}: {playlists.length}
-            </span>
-          )}
+        <div className="home-hero-emblem">
+          <WaveLogoMark size={160} animated />
         </div>
       </header>
 

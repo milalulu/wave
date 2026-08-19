@@ -22,6 +22,9 @@ export const STALL_TIMEOUT_MS = 12000;
 
 export const PLAY_START_TIMEOUT_MS = 10000;
 
+const PREFETCH_THRESHOLD = 5;
+const PREFETCH_BATCH = 20;
+
 interface PlayerEngineOptions {
   rng?: () => number;
   
@@ -57,8 +60,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private retries = 0;
   private maxRetries: number;
   private playSeq = 0;
-  private preloadCache = new Map<string, string>();
+  private preloadCache = new Map<string, string | Promise<string>>();
   private preloadedId: string | null = null;
+  private prefetchedIds = new Set<string>();
+  private prefetchInFlight = false;
   private stallTimer: number | undefined;
   private consecutiveFails = 0;
   private static MAX_CONSECUTIVE_FAILS = 5;
@@ -157,6 +162,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     
     this.preloadCache.clear();
     this.preloadedId = null;
+    this.prefetchedIds.clear();
+    this.prefetchInFlight = false;
     this.fallbackUsed = false;
     this.fallbackTrackId = null;
     this.upgradedTrackId = null;
@@ -174,6 +181,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.queue.replace(queue, clamped);
     this.preloadCache.clear();
     this.preloadedId = null;
+    this.prefetchedIds.clear();
+    this.prefetchInFlight = false;
     this.fallbackUsed = false;
     this.fallbackTrackId = null;
     this.upgradedTrackId = null;
@@ -439,6 +448,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.playSeq += 1;
     this.retries = 0;
     this.consecutiveFails = 0;
+    void this.prefetchBatch();
+    void this.maybeRefillQueue();
     await this.startTrack(this.playSeq);
   }
 
@@ -498,12 +509,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (cached) {
         this.preloadCache.delete(track.id);
       }
-      
-      
-      
-      
       this.clearStallTimer();
-      const uri = cached ?? (this.resolveUri ? await this.resolveUri(track) : track.uri);
+      const uri = cached
+        ? (cached instanceof Promise ? await cached : cached)
+        : (this.resolveUri ? await this.resolveUri(track) : track.uri);
       if (seq !== this.playSeq) return;
 
       await validateStreamUrl(uri);
@@ -586,7 +595,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async preloadNext(): Promise<void> {
     if (!this.resolveUri) return;
     const next = this.queue.peekNext();
-    if (!next || this.preloadedId === next.id) return;
+    if (!next || this.preloadedId === next.id || this.preloadCache.has(next.id)) return;
     if (next.uri) {
       this.preloadedId = next.id;
       try {
@@ -598,6 +607,67 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       } catch {
         
       }
+    }
+  }
+
+  private async prefetchBatch(): Promise<void> {
+    if (!this.resolveUri || this.prefetchInFlight) return;
+    const upcoming = this.queue.peekAhead(PREFETCH_BATCH);
+    if (upcoming.length === 0) return;
+    const toFetch = upcoming.filter((t) => !this.prefetchedIds.has(t.id) && !this.preloadCache.has(t.id));
+    if (toFetch.length === 0) return;
+    this.prefetchInFlight = true;
+    try {
+      const seq = this.playSeq;
+      for (const track of toFetch) {
+        if (seq !== this.playSeq) return;
+        if (!track.uri) continue;
+        const promise = this.resolveUri!(track).then((uri) => {
+          this.prefetchedIds.add(track.id);
+          return uri;
+        });
+        this.preloadCache.set(track.id, promise);
+      }
+      const results = await Promise.allSettled(toFetch.map((t) => this.preloadCache.get(t.id)).filter((p): p is Promise<string> => p instanceof Promise));
+      results.forEach((r, i) => {
+        if (r.status === "rejected") this.preloadCache.delete(toFetch[i].id);
+      });
+      if (seq !== this.playSeq) return;
+      const first = upcoming[0];
+      if (first) {
+        const firstUri = this.preloadCache.get(first.id);
+        if (typeof firstUri === "string") {
+          this.adapter.preload(firstUri);
+        } else if (firstUri instanceof Promise) {
+          firstUri.then((uri) => { if (seq === this.playSeq && uri) this.adapter.preload(uri); }).catch(() => {});
+        }
+      }
+    } finally {
+      this.prefetchInFlight = false;
+    }
+  }
+
+  private maybeRefillQueue(): void {
+    if (this.prefetchInFlight) return;
+    const remaining = this.queue.remainingCount();
+    if (remaining >= PREFETCH_THRESHOLD) return;
+    if (!this.onQueueEnd) return;
+    void this.refillQueue();
+  }
+
+  private async refillQueue(): Promise<void> {
+    const seq = this.playSeq;
+    try {
+      const more = await this.onQueueEnd!();
+      if (seq !== this.playSeq) return;
+      if (more.length > 0) {
+        for (const t of more) this.queue.append(t);
+        this.emitQueue();
+        this.prefetchedIds.clear();
+        void this.prefetchBatch();
+      }
+    } catch (err) {
+      this.emit("error", `auto-fill failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

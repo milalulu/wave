@@ -8,6 +8,7 @@ export interface WaveContext {
   likedTracks: Track[];
   history: HistoryEntry[];
   libraryGenres: Map<string, number>;
+  artistCounts: Map<string, number>;
   candidates: Track[];
   recentIds?: Set<string>;
   profile?: ListeningProfile;
@@ -85,12 +86,10 @@ export class SmartWaveSource implements WaveSource {
       .slice(0, 3)
       .map(([genre]) => genre);
     const topGenreSet = new Set(topGenres);
-    const topArtists = new Set<string>();
-    for (const entry of ctx.history) {
-      if (entry.track.artist) topArtists.add(entry.track.artist);
-    }
-    for (const track of ctx.likedTracks) {
-      if (track.artist) topArtists.add(track.artist);
+    const maxArtistCount = Math.max(1, ...ctx.artistCounts.values());
+    const topArtists = new Map<string, number>();
+    for (const [artist, count] of ctx.artistCounts) {
+      topArtists.set(artist, 1 + Math.log2(count) / Math.log2(maxArtistCount));
     }
 
     for (const track of ctx.likedTracks) {
@@ -116,7 +115,8 @@ export class SmartWaveSource implements WaveSource {
     for (const item of pool.values()) {
       let { weight } = item;
       if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
-      if (topArtists.has(item.track.artist ?? "")) weight *= 2;
+      const artistBoost = topArtists.get(item.track.artist ?? "") ?? 0;
+      if (artistBoost > 0) weight *= 1 + artistBoost;
       item.weight = weight;
     }
 
@@ -172,13 +172,11 @@ export class WaveEngine {
     this.trimRecent();
   }
 
-  private async getProfile(): Promise<ListeningProfile> {
+  private async getProfile(likedTracks: Track[], history: HistoryEntry[]): Promise<ListeningProfile> {
     const now = Date.now();
     if (this.cachedProfile && now - this.profileCacheTime < this.PROFILE_TTL) {
       return this.cachedProfile;
     }
-    const likedTracks = await this.storage.getLikedTracks();
-    const history = await this.storage.getHistory(200);
     this.cachedProfile = buildListeningProfile(history, likedTracks);
     this.profileCacheTime = now;
     return this.cachedProfile;
@@ -186,8 +184,8 @@ export class WaveEngine {
 
   async generateWave(limit = 20): Promise<Track[]> {
     const likedTracks = await this.storage.getLikedTracks();
-    const history = await this.storage.getHistory(100);
-    const profile = await this.getProfile();
+    const history = await this.storage.getHistory(200);
+    const profile = await this.getProfile(likedTracks, history);
 
     const libraryGenres = new Map<string, number>();
     const artistCounts = new Map<string, number>();
@@ -211,6 +209,7 @@ export class WaveEngine {
       likedTracks,
       history,
       libraryGenres,
+      artistCounts,
       candidates,
       recentIds: this.recentIds,
       profile,
@@ -242,9 +241,12 @@ export class WaveEngine {
   ): Promise<Track[]> {
     const out: Track[] = [];
     const seen = new Set<string>();
+    const playableProviders = this.providers.filter(
+      (p) => p.id !== "lastfm" && p.id !== "musicbrainz",
+    );
 
     const collect = async (query: string) => {
-      const results = await Promise.allSettled(this.providers.map((p) => p.search(query)));
+      const results = await Promise.allSettled(playableProviders.map((p) => p.search(query)));
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
         for (const t of r.value.tracks) {
@@ -259,7 +261,10 @@ export class WaveEngine {
     const profileTerms = profileToSearchTerms(profile);
     const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 12);
 
-    await Promise.all(allQueries.map((q) => collect(q)));
+    for (let i = 0; i < allQueries.length; i += 4) {
+      const batch = allQueries.slice(i, i + 4);
+      await Promise.all(batch.map((q) => collect(q)));
+    }
 
     const spotifyGenres = getSpotifyGenres(profile.topMoods);
     const moodProfile = getMoodProfile(profile.topMoods);

@@ -180,7 +180,7 @@ export async function composeServices(): Promise<AppServices> {
     onQueueEnd: async () => {
       if (!wave) return [];
       try {
-        const waveTracks = await wave.generateWave(10);
+        const waveTracks = await wave.generateWave(20);
         if (waveTracks.length > 0) return waveTracks;
       } catch {
         
@@ -276,9 +276,13 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
     if (extra.length > 0) candidates = [...candidates, ...extra];
   }
 
-  const audioProviders = services.providers.filter(
-    (p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local",
-  );
+  const audioProviders = services.providers
+    .filter((p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local")
+    .sort((a, b) => {
+      const aFull = FULL_PLAYBACK_PROVIDERS.has(a.id) ? 0 : 1;
+      const bFull = FULL_PLAYBACK_PROVIDERS.has(b.id) ? 0 : 1;
+      return aFull - bFull;
+    });
 
   const resolved = await Promise.allSettled(
     candidates.map(async (c) => {

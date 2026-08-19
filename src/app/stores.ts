@@ -425,7 +425,7 @@ export const useApp = create<AppState>()((set, get) => ({
     const { services } = get();
     if (!services) return;
     if (get().radioActive) {
-      services.engine.setAutoFill(null);
+      services.engine.setAutoFill(get().autoContinue ? null : async () => []);
       set({ radioActive: false });
     }
     await services.engine.playTracks(tracks, index);

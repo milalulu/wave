@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { FolderIcon, HomeIcon, ListIcon, SearchIcon, WaveIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon } from "./icons";
+import { FolderIcon, HomeIcon, ListIcon, SearchIcon, WaveIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogo } from "./icons";
 
 export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
 
@@ -45,11 +45,8 @@ export function Sidebar({ view, onView }: SidebarProps) {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <span className="logo-mark">
-          <WaveIcon size={20} />
-        </span>
-        <span className="logo-text">Wave</span>
+      <div className="sidebar-logo" onClick={() => onView("home")} style={{ cursor: "pointer" }}>
+        <WaveLogo size={28} subtitle={false} />
       </div>
       <nav className="sidebar-nav">
         {items.map((item) => (
@@ -58,14 +55,14 @@ export function Sidebar({ view, onView }: SidebarProps) {
             className={`nav-item ${view === item.key ? "active" : ""}`}
             onClick={() => onView(item.key)}
           >
-            <item.icon />
+            <item.icon size={18} />
             <span>{item.label}</span>
           </button>
         ))}
       </nav>
       <div className="sidebar-footer">
         <button className="nav-item" onClick={() => void openLocalDirectory()}>
-          <FolderIcon />
+          <FolderIcon size={18} />
           <span>{t("nav").localFiles}</span>
         </button>
       </div>

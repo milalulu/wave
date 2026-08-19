@@ -51,13 +51,13 @@ export function buildListeningProfile(
   for (const track of likedTracks) {
     const artist = track.artist;
     if (artist) {
-      artistPlays.set(artist, (artistPlays.get(artist) ?? 0) + 3);
+      artistPlays.set(artist, (artistPlays.get(artist) ?? 0) + 2);
     }
 
     const genre = track.genre;
     if (genre) {
       const normalized = normalizeGenre(genre);
-      genreCounts.set(normalized, (genreCounts.get(normalized) ?? 0) + 3);
+      genreCounts.set(normalized, (genreCounts.get(normalized) ?? 0) + 2);
     }
 
     const moods = detectMoods(
@@ -66,7 +66,7 @@ export function buildListeningProfile(
       track.artist,
     );
     for (const mood of moods) {
-      moodCounts.set(mood, (moodCounts.get(mood) ?? 0) + 3);
+      moodCounts.set(mood, (moodCounts.get(mood) ?? 0) + 2);
     }
   }
 
@@ -92,7 +92,7 @@ export function buildListeningProfile(
 
   const topGenres = [...genreCounts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+    .slice(0, 3)
     .map(([genre]) => genre);
 
   const topArtists = [...artistPlays.entries()]

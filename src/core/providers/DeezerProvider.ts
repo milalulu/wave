@@ -104,24 +104,48 @@ export class DeezerProvider implements MusicProvider {
     return { artist, topTracks, albums: [] };
   }
 
-  async getSimilarTracks(artist: string, track: string): Promise<Track[]> {
-    const cacheKey = `${artist}|${track}`;
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
+    const cacheKey = `${artist}|${track}|${options?.moods?.join(",") ?? ""}`;
     const hit = this.similarCache.get(cacheKey);
     if (hit && Date.now() - hit.at < DeezerProvider.CACHE_TTL_MS) return hit.tracks;
     try {
       const trackId = await this.findTrackId(artist, track);
-      if (!trackId) return [];
+      if (!trackId) return this.fallbackSearch(artist, options);
       const { status, body } = await this.http.json(
         "GET",
         `${API}/track/${trackId}/related`,
         undefined,
         { "Content-Type": "application/json" },
       );
-      if (status !== 200) return [];
+      if (status !== 200) return this.fallbackSearch(artist, options);
       const data = (body as { data?: DzTrack[] }).data ?? [];
       const tracks = data.map((t) => this.track(t)).filter((t): t is Track => t !== null);
-      this.similarCache.set(cacheKey, { tracks, at: Date.now() });
-      return tracks;
+      if (tracks.length >= 3) {
+        this.similarCache.set(cacheKey, { tracks, at: Date.now() });
+        return tracks;
+      }
+      const extra = await this.fallbackSearch(artist, options);
+      const merged = [...tracks, ...extra];
+      this.similarCache.set(cacheKey, { tracks: merged, at: Date.now() });
+      return merged;
+    } catch {
+      return this.fallbackSearch(artist, options);
+    }
+  }
+
+  private async fallbackSearch(artist: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
+    const mood = options?.moods?.[0] ?? "";
+    const query = `${artist} ${mood}`.trim();
+    try {
+      const { status, body } = await this.http.json(
+        "GET",
+        `${API}/search?q=${encodeURIComponent(query)}&limit=10`,
+        undefined,
+        { "Content-Type": "application/json" },
+      );
+      if (status !== 200) return [];
+      const data = (body as { data?: DzTrack[] }).data ?? [];
+      return data.map((t) => this.track(t)).filter((t): t is Track => t !== null);
     } catch {
       return [];
     }

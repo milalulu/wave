@@ -1,18 +1,20 @@
 :root {
-  --bg: #0e0f13;
-  --bg-elev: #171922;
-  --bg-elev-2: #1f2230;
-  --border: #2a2e3d;
-  --text: #e8eaf0;
-  --muted: #9aa0b2;
-  --accent: #7c5cff;
-  --accent-2: #4cc9f0;
-  --danger: #ff5d73;
-  --radius: 12px;
-  --radius-sm: 8px;
+  --bg: #060914;
+  --bg-elev: #0D1326;
+  --bg-elev-2: #141C38;
+  --border: #1E2950;
+  --text: #F1F5F9;
+  --muted: #94A3B8;
+  --accent: #00F0FF;
+  --accent-2: #8B5CF6;
+  --danger: #FF5D73;
+  --radius: 14px;
+  --radius-sm: 9px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --body-bg: radial-gradient(1200px 600px at 20% -10%, #1a1c2b 0%, var(--bg) 60%);
+  --body-bg: radial-gradient(1400px 700px at 15% -10%, #101B3B 0%, var(--bg) 65%);
 }
+
+@import "./home-hero.css";
 
 [data-theme="light"] {
   --bg: #f5f6fa;

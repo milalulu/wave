@@ -182,6 +182,21 @@ export class Queue {
     return this.tracks[this.order[this.pos + 1]] ?? null;
   }
 
+  remainingCount(): number {
+    if (this.pos < 0 || this.pos >= this.order.length) return 0;
+    return this.order.length - this.pos - 1;
+  }
+
+  peekAhead(count: number): Track[] {
+    if (this.pos < 0 || this.pos >= this.order.length) return [];
+    const result: Track[] = [];
+    for (let i = 1; i <= count && this.pos + i < this.order.length; i++) {
+      const track = this.tracks[this.order[this.pos + i]];
+      if (track) result.push(track);
+    }
+    return result;
+  }
+
   previous(): Track | null {
     if (this.pos < 0 || this.pos >= this.order.length) return null;
     if (this.pos > 0) {

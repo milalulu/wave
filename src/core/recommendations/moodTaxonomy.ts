@@ -146,11 +146,16 @@ const GENRE_TO_MOOD: Record<string, Mood[]> = {
   "reggaeton": ["party", "energetic"],
 };
 
+function wordMatch(text: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
+
 export function detectMoods(genres: string[], title?: string, artist?: string): Mood[] {
   const text = [title, artist, ...genres].join(" ").toLowerCase();
   const detected = new Map<Mood, number>();
   for (const [genre, moods] of Object.entries(GENRE_TO_MOOD)) {
-    if (text.includes(genre)) {
+    if (wordMatch(text, genre)) {
       for (const mood of moods) {
         detected.set(mood, (detected.get(mood) ?? 0) + 2);
       }
@@ -158,7 +163,7 @@ export function detectMoods(genres: string[], title?: string, artist?: string): 
   }
   for (const [mood, def] of Object.entries(MOOD_TAXONOMY)) {
     for (const kw of def.keywords) {
-      if (text.includes(kw)) {
+      if (wordMatch(text, kw)) {
         detected.set(mood as Mood, (detected.get(mood as Mood) ?? 0) + 1);
       }
     }
@@ -185,9 +190,9 @@ export function expandSearchQueries(moods: Mood[], genres: string[]): string[] {
     for (const g of def.relatedGenres.slice(0, 2)) add(g);
   }
   for (const genre of genres) {
-    const normalized = normalizeGenre(genre);
-    add(normalized);
-    const moods = GENRE_TO_MOOD[normalized] ?? GENRE_TO_MOOD[genre.toLowerCase()];
+    const lower = genre.toLowerCase().trim();
+    const moods = GENRE_TO_MOOD[lower] ?? GENRE_TO_MOOD[normalizeGenre(lower)];
+    add(normalizeGenre(lower));
     if (moods) {
       for (const mood of moods) {
         for (const kw of MOOD_TAXONOMY[mood].keywords.slice(0, 2)) add(kw);

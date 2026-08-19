@@ -177,16 +177,24 @@ export const FolderIcon = (p: IconProps) => (
   </Svg>
 );
 
+export { WaveLogo, WaveLogoMark, WaveAppIconBadge } from "./WaveLogo";
+
 export const WaveIcon = (p: IconProps) => (
-  <Svg {...p} stroke="none">
-    <rect x="3.1" y="16" width="1.7" height="5" rx="0.85" fill="currentColor" />
-    <rect x="5.9" y="12" width="1.7" height="9" rx="0.85" fill="currentColor" />
-    <rect x="8.7" y="7" width="1.7" height="14" rx="0.85" fill="currentColor" />
-    <rect x="11.5" y="2" width="1.7" height="19" rx="0.85" fill="currentColor" />
-    <rect x="14.3" y="7" width="1.7" height="14" rx="0.85" fill="currentColor" />
-    <rect x="17.1" y="12" width="1.7" height="9" rx="0.85" fill="currentColor" />
-    <rect x="19.9" y="16" width="1.7" height="5" rx="0.85" fill="currentColor" />
-  </Svg>
+  <svg
+    width={p.size ?? 18}
+    height={p.size ?? 18}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={p.className}
+    aria-hidden="true"
+  >
+    <path
+      d="M3 8.5C4.2 6.5 6.5 6.5 8 8.2L10.5 12C11.5 13.2 13 13.2 14 12L15.8 9.5C16.8 8.2 18.5 8 19.8 9.2L21.5 12.5C22.2 14 21.5 16 19.8 16H16.2C14.8 16 13.8 15 13.2 14L11.8 11.8C10.8 10.5 9.2 10.5 8.2 11.8L5.5 15.2C4.5 16.5 2.5 16 1.8 14.5C1.2 13 1.8 11 2.8 9.5L3 8.5Z"
+      fill="currentColor"
+    />
+    <path d="M16 10.5L19.5 12.8L16 15.1V10.5Z" fill="var(--bg, #060814)" />
+  </svg>
 );
 
 export const ListIcon = (p: IconProps) => (

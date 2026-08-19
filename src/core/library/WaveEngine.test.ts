@@ -16,6 +16,7 @@ describe("WeightedRandomWaveSource", () => {
       likedTracks: [tracks[0]],
       history: [{ track: tracks[1], playedAt: Date.now() }] as HistoryEntry[],
       libraryGenres: new Map<string, number>(),
+      artistCounts: new Map<string, number>(),
       candidates: [tracks[2]],
     };
     const wave = source.generate(1, ctx);
@@ -28,6 +29,7 @@ describe("WeightedRandomWaveSource", () => {
       likedTracks: [],
       history: [{ track: tracks[2], playedAt: Date.now() }] as HistoryEntry[],
       libraryGenres: new Map([["rock", 10]]),
+      artistCounts: new Map<string, number>(),
       candidates: [],
     };
     const wave = source.generate(1, ctx);
@@ -40,6 +42,7 @@ describe("WeightedRandomWaveSource", () => {
       likedTracks: tracks,
       history: [] as HistoryEntry[],
       libraryGenres: new Map<string, number>(),
+      artistCounts: new Map<string, number>(),
       candidates: [],
     };
     const wave = source.generate(10, ctx);
@@ -53,6 +56,7 @@ describe("WeightedRandomWaveSource", () => {
       likedTracks: tracks,
       history: [] as HistoryEntry[],
       libraryGenres: new Map<string, number>(),
+      artistCounts: new Map<string, number>(),
       candidates: [],
       recentIds: new Set(["a", "b"]),
     };
@@ -79,6 +83,7 @@ describe("SmartWaveSource", () => {
       likedTracks: [...xs, y],
       history: [] as HistoryEntry[],
       libraryGenres: new Map<string, number>(),
+      artistCounts: new Map<string, number>([["X", 3], ["Y", 1]]),
       candidates: [],
     };
     const wave = source.generate(4, ctx);
@@ -95,6 +100,7 @@ describe("SmartWaveSource", () => {
       likedTracks: [...same, other],
       history: [] as HistoryEntry[],
       libraryGenres: new Map<string, number>(),
+      artistCounts: new Map<string, number>([["Same", 3], ["Other", 1]]),
       candidates: [],
     };
     const wave = source.generate(10, ctx);
