@@ -141,6 +141,7 @@ export class SmartWaveSource implements WaveSource {
     }
 
     const chosenArtists = new Map<string, number>();
+    const chosenGenres = new Map<string, number>();
     for (const item of pool.values()) {
       let { weight } = item;
       if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
@@ -155,10 +156,20 @@ export class SmartWaveSource implements WaveSource {
 
     const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
     const result: Track[] = [];
+    const chosenArtistSet = new Set<string>();
     for (let i = 0; i < limit && entries.length > 0; i++) {
+      const iterationPicked = i > 0 ? chosenArtistSet.size > 0 : false;
       for (const item of entries) {
-        const already = chosenArtists.get(item.track.artist ?? "") ?? 0;
-        item.weight = already > 0 ? item.base * 0.4 * Math.pow(0.5, already - 1) : item.base;
+        const artist = item.track.artist ?? "";
+        const genre = normalizeGenre(item.track.genre ?? "");
+        const alreadyArtist = chosenArtists.get(artist) ?? 0;
+        const alreadyGenre = chosenGenres.get(genre) ?? 0;
+        let w = item.base;
+        if (alreadyArtist > 0) w *= 0.4 * Math.pow(0.5, alreadyArtist - 1);
+        if (iterationPicked && alreadyGenre === 0 && genre !== "") {
+          w *= 1.2;
+        }
+        item.weight = w;
       }
       const total = entries.reduce((sum, e) => sum + e.weight, 0);
       let roll = this.rng() * total;
@@ -173,7 +184,10 @@ export class SmartWaveSource implements WaveSource {
       const [chosen] = entries.splice(picked, 1);
       result.push(chosen.track);
       const artist = chosen.track.artist ?? "";
+      const genre = normalizeGenre(chosen.track.genre ?? "");
       chosenArtists.set(artist, (chosenArtists.get(artist) ?? 0) + 1);
+      chosenGenres.set(genre, (chosenGenres.get(genre) ?? 0) + 1);
+      chosenArtistSet.add(artist);
     }
     return result;
   }
