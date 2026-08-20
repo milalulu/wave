@@ -249,12 +249,16 @@ export class SmartWaveSource implements WaveSource {
   }
 }
 
+import { RollingContext } from "./RollingContext";
+import { scoreTransition } from "./transitionScoring";
+
 export class WaveEngine {
   private recentIds = new Set<string>();
   private readonly recentCap = 100;
   private cachedProfile: ListeningProfile | null = null;
   private profileCacheTime = 0;
   private readonly PROFILE_TTL = 5 * 60 * 1000;
+  private rollingContext = new RollingContext();
   
   private blockFilter: (track: Track) => boolean = () => true;
   private historyDecayDays: number = 7;
@@ -282,7 +286,24 @@ export class WaveEngine {
   
   markPlayed(track: Track): void {
     this.recentIds.add(track.id);
+    this.rollingContext.addPlayed(track);
     this.trimRecent();
+  }
+
+  getRollingContext(): RollingContext {
+    return this.rollingContext;
+  }
+
+  onTrackSkipped(_track: Track, percent: number): void {
+    if (percent < 0.15) {
+      this.rollingContext.removeLast();
+    }
+  }
+
+  onTrackCompleted(track: Track, percent: number): void {
+    if (percent > 0.8) {
+      this.rollingContext.addPlayed(track);
+    }
   }
 
   private async getProfile(likedTracks: Track[], history: HistoryEntry[]): Promise<ListeningProfile> {
@@ -334,6 +355,19 @@ export class WaveEngine {
       discoveryRate: this.discoveryRate,
     });
     const filtered = tracks.filter(this.blockFilter);
+
+    const seed = this.rollingContext.getSeed();
+    const lastPlayed = this.rollingContext.getWindow().slice(-1)[0] ?? seed;
+    if (lastPlayed) {
+      for (let i = 0; i < filtered.length; i++) {
+        const prev = i === 0 ? lastPlayed : filtered[i - 1];
+        const score = scoreTransition(prev, filtered[i]);
+        if (score.total < 0.2) {
+          filtered.splice(i, 1);
+          i--;
+        }
+      }
+    }
     for (const t of filtered) {
       this.recentIds.add(t.id);
     }

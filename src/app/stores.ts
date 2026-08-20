@@ -1075,6 +1075,18 @@ async function doInit(
     (track) => !isTrackBlocked(track.id) && !isArtistBlocked(track.artist),
   );
 
+  // Skip reaction: откат контекста при быстром скипе
+  services.engine.on("skipped", ({ percent }) => {
+    const track = services.engine.snapshot.current;
+    if (track) services.wave.onTrackSkipped(track, percent);
+  });
+
+  // Track ended: обогащение контекста при долгом прослушивании
+  services.engine.on("ended", () => {
+    const track = services.engine.snapshot.current;
+    if (track) services.wave.onTrackCompleted(track, 1.0);
+  });
+
   // Автопродолжение очереди (волна/похожие), если настройка выключена — стоп.
   if (!get().autoContinue) {
     services.engine.setAutoFill(async () => []);
