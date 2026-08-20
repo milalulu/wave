@@ -1,14 +1,24 @@
 import type { HistoryEntry, Track } from "../types";
 import type { Storage } from "../database/Storage";
 import type { MusicProvider } from "../providers/MusicProvider";
-import { expandSearchQueries, getSpotifyGenres, getMoodProfile, normalizeGenre } from "../recommendations/moodTaxonomy";
+import { expandSearchQueries, getSpotifyGenres, getMoodProfile, normalizeGenre, detectMoods } from "../recommendations/moodTaxonomy";
 import { buildListeningProfile, profileToSearchTerms, type ListeningProfile } from "../recommendations/listeningProfile";
 
-export interface WaveContext {
+function detectTrackMoodScore(track: Track, moodDistribution: Record<string, number>): number {
+  const moods = detectMoods(
+    track.genre ? [track.genre] : [],
+    track.title,
+    track.artist,
+  );
+  if (moods.length === 0) return 0.5;
+  const topScore = Math.max(...moods.map((m) => moodDistribution[m] ?? 0));
+  return topScore;
+}export interface WaveContext {
   likedTracks: Track[];
   history: HistoryEntry[];
   libraryGenres: Map<string, number>;
   artistCounts: Map<string, number>;
+  moodDistribution: Record<string, number>;
   candidates: Track[];
   recentIds?: Set<string>;
   profile?: ListeningProfile;
@@ -56,8 +66,13 @@ export class WeightedRandomWaveSource implements WaveSource {
       }
     }
 
-    const entries = [...pool.values()];
+     const entries = [...pool.values()];
     const result: Track[] = [];
+    const artistPlays = new Map<string, number>();
+    for (const entry of ctx.history) {
+      const a = entry.track.artist ?? "";
+      if (a) artistPlays.set(a, (artistPlays.get(a) ?? 0) + 1);
+    }
     for (let i = 0; i < limit && entries.length > 0; i++) {
       const total = entries.reduce((sum, e) => sum + e.weight, 0);
       let roll = this.rng() * total;
@@ -71,6 +86,15 @@ export class WeightedRandomWaveSource implements WaveSource {
       }
       const [chosen] = entries.splice(picked, 1);
       result.push(chosen.track);
+
+      const artist = chosen.track.artist ?? "";
+      if (artistPlays.has(artist)) {
+        for (const item of entries) {
+          if (item.track.artist === artist) {
+            item.weight *= 0.3;
+          }
+        }
+      }
     }
     return result;
   }
@@ -117,6 +141,10 @@ export class SmartWaveSource implements WaveSource {
       if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
       const artistBoost = topArtists.get(item.track.artist ?? "") ?? 0;
       if (artistBoost > 0) weight *= 1 + artistBoost;
+      if (ctx.moodDistribution) {
+        const moodScore = detectTrackMoodScore(item.track, ctx.moodDistribution);
+        weight *= 0.8 + 0.4 * moodScore;
+      }
       item.weight = weight;
     }
 
@@ -203,13 +231,14 @@ export class WaveEngine {
       if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1);
     }
 
-    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit);
+    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit, history);
 
     const tracks = this.source.generate(limit, {
       likedTracks,
       history,
       libraryGenres,
       artistCounts,
+      moodDistribution: profile.moodDistribution,
       candidates,
       recentIds: this.recentIds,
       profile,
@@ -235,9 +264,10 @@ export class WaveEngine {
 
   private async fetchCandidatesMood(
     profile: ListeningProfile,
-    _genres: Map<string, number>,
+    _libraryGenres: Map<string, number>,
     artistCounts: Map<string, number>,
     limit: number,
+    _history: HistoryEntry[],
   ): Promise<Track[]> {
     const out: Track[] = [];
     const seen = new Set<string>();
