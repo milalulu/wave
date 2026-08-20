@@ -192,6 +192,15 @@ body {
   justify-content: center;
   padding: 4px 10px 18px;
 }
+.sidebar-logo .wave-logo-mark {
+  filter: brightness(1.25) saturate(1.2);
+}
+[data-theme="light"] .sidebar-logo .wave-logo-mark {
+  filter: none;
+}
+[data-theme="amoled"] .sidebar-logo .wave-logo-mark {
+  filter: brightness(1.6) saturate(1.4) drop-shadow(0 0 8px rgba(0,240,255,0.5));
+}
 
 .logo-mark {
   width: 34px;
