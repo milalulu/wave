@@ -76,6 +76,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private pauseAtEnd = false;
   
   private hasSource = false;
+  private queueUpdateScheduled = false;
   
 
   private restorePos = 0;
@@ -450,6 +451,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.consecutiveFails = 0;
     void this.prefetchBatch();
     void this.maybeRefillQueue();
+    void this.preloadNext();
     await this.startTrack(this.playSeq);
   }
 
@@ -691,10 +693,15 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private emitQueue(): void {
-    this.emit("queue", {
-      queue: this.queue.tracksList,
-      index: this.queue.currentIndex(),
-      history: this.queue.historyList,
+    if (this.queueUpdateScheduled) return;
+    this.queueUpdateScheduled = true;
+    queueMicrotask(() => {
+      this.queueUpdateScheduled = false;
+      this.emit("queue", {
+        queue: this.queue.tracksList,
+        index: this.queue.currentIndex(),
+        history: this.queue.historyList,
+      });
     });
   }
 }
