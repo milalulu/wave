@@ -192,12 +192,6 @@ body {
   justify-content: center;
   padding: 4px 10px 18px;
 }
-.sidebar-logo .wave-logo-mark {
-  filter: brightness(0) opacity(0.45);
-}
-.sidebar-logo:hover .wave-logo-mark {
-  filter: brightness(0) opacity(0.7);
-}
 
 .logo-mark {
   width: 34px;
@@ -244,6 +238,12 @@ body {
 .nav-item:hover {
   background: var(--bg-elev);
   color: var(--text);
+}
+.nav-item .wave-logo-mark {
+  filter: brightness(0) opacity(0.45);
+}
+.nav-item:hover .wave-logo-mark {
+  filter: brightness(0) opacity(0.7);
 }
 
 .nav-item.active {
