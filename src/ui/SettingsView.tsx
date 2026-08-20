@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
@@ -144,6 +144,18 @@ export function SettingsView() {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleAccentColor = useCallback((color: string | null) => {
     setAccentColor(color);
@@ -386,7 +398,7 @@ export function SettingsView() {
       {tab === "diagnostics" ? (
         <DiagnosticsView />
       ) : (
-      <div className="settings-cards">
+      <div ref={containerRef} className="settings-cards" data-cols={containerWidth > 720 ? "2" : "1"}>
         <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
           <div className="settings-grid">
             {envKeys.map(({ key, label, placeholder, type, test, detect }) => (

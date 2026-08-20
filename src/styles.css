@@ -1996,6 +1996,7 @@ input[type="range"]::-webkit-slider-thumb {
   overflow-y: auto;
   padding: 24px;
   max-width: 1280px;
+  margin: 0;
 }
 .settings-view h1 {
   font-size: 28px;
@@ -2046,9 +2047,12 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .settings-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   align-items: start;
+}
+.settings-cards[data-cols="2"] {
+  grid-template-columns: repeat(2, 1fr);
 }
 .settings-card {
   background: var(--bg-elev);
