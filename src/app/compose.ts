@@ -32,6 +32,7 @@ import { loadDiscoveryRate } from "./discoveryRate";
 import { loadHistoryDecayDays } from "./historyDecay";
 import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
+import { enrichTrack } from "../core/library/trackEnricher";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
@@ -212,10 +213,19 @@ export async function composeServices(): Promise<AppServices> {
    wave.setDiscoveryRate(loadDiscoveryRate());
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
+
+  const mbProvider = providers.find((p) => p.id === "musicbrainz") as MusicBrainzProvider | undefined;
+  const dzProvider = providers.find((p) => p.id === "deezer") as DeezerProvider | undefined;
+
   engine.on("state", (state) => {
     if (state === "playing") {
       const track = engine.snapshot.current;
-      if (track) void history.recordPlay(track);
+      if (track) {
+        void history.recordPlay(track);
+        if (mbProvider && dzProvider) {
+          void enrichTrack(track, mbProvider, dzProvider);
+        }
+      }
     }
   });
   return { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };

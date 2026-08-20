@@ -28,6 +28,13 @@ interface DzTrack {
   album?: DzAlbum;
   duration?: number;
   preview?: string;
+  bpm?: number;
+  rank?: number;
+}
+
+export interface DeezerTrackMeta {
+  bpm: number;
+  popularity: number;
 }
 
 export class DeezerProvider implements MusicProvider {
@@ -38,7 +45,9 @@ export class DeezerProvider implements MusicProvider {
 
   private resolveCache = new Map<string, { url: string; at: number }>();
   private similarCache = new Map<string, { tracks: Track[]; at: number }>();
+  private trackMetaCache = new Map<string, { data: DeezerTrackMeta; at: number }>();
   private static readonly CACHE_TTL_MS = 10 * 60 * 1000;
+  private static readonly META_CACHE_TTL_MS = 60 * 60 * 1000;
 
   async search(query: string): Promise<SearchResults> {
     const q = encodeURIComponent(query);
@@ -76,6 +85,27 @@ export class DeezerProvider implements MusicProvider {
       
     }
     return track.uri;
+  }
+
+  async getTrackMeta(trackId: string): Promise<DeezerTrackMeta | null> {
+    const cached = this.trackMetaCache.get(trackId);
+    if (cached && Date.now() - cached.at < DeezerProvider.META_CACHE_TTL_MS) return cached.data;
+
+    try {
+      const id = trackId.split(":").pop() ?? "";
+      const { status, body } = await this.http.json("GET", `${API}/track/${id}`, undefined, {
+        "Content-Type": "application/json",
+      });
+      if (status !== 200) return null;
+      const t = body as DzTrack;
+      const bpm = typeof t.bpm === "number" ? t.bpm : 0;
+      const popularity = typeof t.rank === "number" ? Math.round(t.rank) : 50;
+      const result: DeezerTrackMeta = { bpm, popularity };
+      this.trackMetaCache.set(trackId, { data: result, at: Date.now() });
+      return result;
+    } catch {
+      return null;
+    }
   }
 
   async getAlbum(albumIdValue: string): Promise<AlbumDetail> {
