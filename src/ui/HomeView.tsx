@@ -199,7 +199,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
       <header className="home-hero-banner">
         <div className="home-hero-content">
           <div className="home-hero-badge">
-            <WaveTitle height={40} />
+            <WaveTitle height={52} />
           </div>
           <h1>Музыка. Без границ.</h1>
           <p className="home-sub">Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.</p>

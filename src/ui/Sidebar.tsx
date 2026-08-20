@@ -46,7 +46,7 @@ export function Sidebar({ view, onView }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo" onClick={() => onView("home")} style={{ cursor: "pointer" }}>
-        <WaveLogoMark size={42} />
+        <WaveLogoMark size={52} />
       </div>
       <nav className="sidebar-nav">
         {items.map((item) => (
