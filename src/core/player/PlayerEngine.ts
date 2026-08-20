@@ -16,6 +16,7 @@ export interface PlayerEvents {
   repeat: RepeatMode;
   error: string;
   ended: void;
+  skipped: { position: number; duration: number; percent: number };
 }
 
 export const STALL_TIMEOUT_MS = 12000;
@@ -300,7 +301,14 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     }
   }
 
-  async next(): Promise<void> {
+  async next(userInitiated = false): Promise<void> {
+    if (userInitiated) {
+      const position = this.adapter.getPosition();
+      const duration = this.adapter.getDuration();
+      if (duration > 0) {
+        this.emit("skipped", { position, duration, percent: position / duration });
+      }
+    }
     const nextTrack = this.queue.next();
     if (nextTrack) {
       await this.playCurrent();

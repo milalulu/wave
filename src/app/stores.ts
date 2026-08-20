@@ -452,7 +452,7 @@ export const useApp = create<AppState>()((set, get) => ({
   next: async () => {
     const { services } = get();
     if (!services) return;
-    await services.engine.next();
+    await services.engine.next(true);
   },
 
   previous: async () => {
@@ -1017,7 +1017,7 @@ async function doInit(
       const engine = services.engine;
       switch (action) {
         case "prev": void engine.previous(); break;
-        case "next": void engine.next(); break;
+        case "next": void engine.next(true); break;
         case "play": void engine.play(); break;
         case "pause": engine.pause(); break;
       }
