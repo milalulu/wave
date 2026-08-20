@@ -2,7 +2,7 @@ import type { HistoryEntry, Track } from "../types";
 import type { Storage } from "../database/Storage";
 import type { MusicProvider } from "../providers/MusicProvider";
 import { expandSearchQueries, getSpotifyGenres, getMoodProfile, normalizeGenre, detectMoods } from "../recommendations/moodTaxonomy";
-import { buildListeningProfile, profileToSearchTerms, type ListeningProfile } from "../recommendations/listeningProfile";
+import { buildListeningProfile, timeAwareSearchTerms, getCurrentTimeContext, timeAdjustedMoodDistribution, type ListeningProfile, type TimeContext } from "../recommendations/listeningProfile";
 
 function detectTrackMoodScore(track: Track, moodDistribution: Record<string, number>): number {
   const moods = detectMoods(
@@ -250,14 +250,17 @@ export class WaveEngine {
       if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1);
     }
 
-    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit, history);
+    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit, history, getCurrentTimeContext());
+
+    const timeCtx = getCurrentTimeContext();
+    const moodDistribution = timeAdjustedMoodDistribution(profile.moodDistribution, timeCtx);
 
     const tracks = this.source.generate(limit, {
       likedTracks,
       history,
       libraryGenres,
       artistCounts,
-      moodDistribution: profile.moodDistribution,
+      moodDistribution,
       candidates,
       recentIds: this.recentIds,
       profile,
@@ -287,6 +290,7 @@ export class WaveEngine {
     artistCounts: Map<string, number>,
     limit: number,
     _history: HistoryEntry[],
+    timeCtx: TimeContext,
   ): Promise<Track[]> {
     const out: Track[] = [];
     const seen = new Set<string>();
@@ -307,7 +311,7 @@ export class WaveEngine {
     };
 
     const moodQueries = expandSearchQueries(profile.topMoods, profile.topGenres.slice(0, 3));
-    const profileTerms = profileToSearchTerms(profile);
+    const profileTerms = timeAwareSearchTerms(profile, timeCtx);
     const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 12);
 
     for (let i = 0; i < allQueries.length; i += 4) {

@@ -155,3 +155,123 @@ export function profileToSearchTerms(profile: ListeningProfile): string[] {
 
   return terms.slice(0, 10);
 }
+
+export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+export type DayType = "weekday" | "weekend";
+
+export interface TimeContext {
+  timeOfDay: TimeOfDay;
+  dayType: DayType;
+}
+
+export function getCurrentTimeContext(): TimeContext {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay();
+
+  let timeOfDay: TimeOfDay;
+  if (hour >= 5 && hour < 12) timeOfDay = "morning";
+  else if (hour >= 12 && hour < 17) timeOfDay = "afternoon";
+  else if (hour >= 17 && hour < 22) timeOfDay = "evening";
+  else timeOfDay = "night";
+
+  const dayType: DayType = day === 0 || day === 6 ? "weekend" : "weekday";
+
+  return { timeOfDay, dayType };
+}
+
+export function timeAdjustedMoodDistribution(
+  moodDistribution: Record<Mood, number>,
+  timeCtx: TimeContext,
+): Record<Mood, number> {
+  const morningMoods: Partial<Record<Mood, number>> = {
+    happy: 1.3,
+    energetic: 1.2,
+    focus: 1.1,
+    chill: 0.8,
+  };
+  const eveningMoods: Partial<Record<Mood, number>> = {
+    chill: 1.3,
+    romantic: 1.2,
+    dreamy: 1.1,
+    party: 1.2,
+    sad: 1.1,
+  };
+  const nightMoods: Partial<Record<Mood, number>> = {
+    chill: 1.4,
+    dreamy: 1.3,
+    dark: 1.1,
+    sad: 1.1,
+    party: 0.5,
+    energetic: 0.4,
+  };
+  const weekdayMoods: Partial<Record<Mood, number>> = {
+    focus: 1.3,
+    chill: 1.1,
+    party: 0.5,
+    aggressive: 0.6,
+  };
+  const weekendMoods: Partial<Record<Mood, number>> = {
+    party: 1.3,
+    energetic: 1.2,
+    dark: 1.1,
+    focus: 0.7,
+  };
+
+  const adjusted: Record<Mood, number> = { ...moodDistribution };
+  const modifiers: Partial<Record<Mood, number>> = {};
+
+  if (timeCtx.timeOfDay === "morning") Object.assign(modifiers, morningMoods);
+  if (timeCtx.timeOfDay === "evening") Object.assign(modifiers, eveningMoods);
+  if (timeCtx.timeOfDay === "night") Object.assign(modifiers, nightMoods);
+  if (timeCtx.dayType === "weekday") Object.assign(modifiers, weekdayMoods);
+  if (timeCtx.dayType === "weekend") Object.assign(modifiers, weekendMoods);
+
+  for (const [mood, factor] of Object.entries(modifiers)) {
+    const m = mood as Mood;
+    if (!adjusted[m]) continue;
+    adjusted[m] = Math.min(1.0, adjusted[m] * (factor ?? 1));
+  }
+
+  const total = (Object.keys(adjusted) as Mood[]).reduce((a, m) => a + adjusted[m], 0) || 1;
+  for (const m in adjusted) {
+    adjusted[m as Mood] /= total;
+  }
+
+  return adjusted;
+}
+
+export function timeAwareSearchTerms(profile: ListeningProfile, timeCtx: TimeContext): string[] {
+  const terms = profileToSearchTerms(profile);
+  const extra: string[] = [];
+
+  switch (timeCtx.timeOfDay) {
+    case "morning":
+      extra.push("upbeat", "focus");
+      break;
+    case "afternoon":
+      extra.push("energetic");
+      break;
+    case "evening":
+      extra.push("chill", "relaxed");
+      break;
+    case "night":
+      extra.push("ambient", "deep focus");
+      break;
+  }
+
+  if (timeCtx.dayType === "weekday") {
+    extra.push("study", "focus", "instrumental");
+  } else {
+    extra.push("party", "dance", "fun");
+  }
+
+  for (const t of extra) {
+    const k = t.toLowerCase();
+    if (!terms.some((existing) => existing.toLowerCase() === k)) {
+      terms.push(t);
+    }
+  }
+
+  return terms.slice(0, 12);
+}
