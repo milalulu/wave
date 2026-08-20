@@ -2099,10 +2099,10 @@ input[type="range"]::-webkit-slider-thumb {
 .wave-title {
   position: relative;
 }
-.wave-title-dark { display: none; }
-.wave-title-light { display: inline-block; }
-[data-theme="light"] .wave-title-dark { display: inline-block; }
-[data-theme="light"] .wave-title-light { display: none; }
+.wave-title-dark { display: inline-block; }
+.wave-title-light { display: none; }
+[data-theme="light"] .wave-title-dark { display: none; }
+[data-theme="light"] .wave-title-light { display: inline-block; }
 .settings-card {
   background: var(--bg-elev);
   border-radius: 12px;
