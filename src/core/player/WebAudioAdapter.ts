@@ -486,14 +486,14 @@ export class WebAudioAdapter implements AudioAdapter {
 
   setBassBoost(db: number): void {
     this.bassBoostGain = Math.min(Math.max(db, 0), 15);
-    const t = this.ctx?.currentTime ?? 0;
+    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
     if (this.bassBoost) this.bassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
     if (this.bufBassBoost) this.bufBassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
   }
 
   setReverb(mix: number): void {
     this.reverbMix = Math.min(Math.max(mix, 0), 1);
-    const t = this.ctx?.currentTime ?? 0;
+    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
     if (this.reverbGain) this.reverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
     if (this.dryGain) this.dryGain.gain.setTargetAtTime(1 - this.reverbMix * 0.5, t, GAIN_TAU);
     if (this.bufReverbGain) this.bufReverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
@@ -502,7 +502,7 @@ export class WebAudioAdapter implements AudioAdapter {
 
   setStereoWidth(pan: number): void {
     this.stereoWidth = Math.min(Math.max(pan, -1), 1);
-    const t = this.ctx?.currentTime ?? 0;
+    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
     if (this.stereoPan) this.stereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
     if (this.bufStereoPan) this.bufStereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
   }
