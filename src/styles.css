@@ -448,7 +448,7 @@ h2 {
   align-items: center;
   gap: 18px;
   padding: 12px 20px;
-  background: rgba(15, 16, 22, 0.92);
+  background: var(--bg-elev);
   border-top: 1px solid var(--border);
 }
 
