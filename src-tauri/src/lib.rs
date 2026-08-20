@@ -701,7 +701,7 @@ pub fn run() {
                 // Set window icon from compiled-in 128x128 PNG
                 use tauri::Manager;
                 if let Some(window) = app.get_webview_window("main") {
-                    let bytes = include_bytes!("../icons/128x128.png");
+                    let bytes = include_bytes!("../icons/256x256.png");
                     if let Ok(icon) = tauri::image::Image::from_bytes(bytes) {
                         let _ = window.set_icon(icon);
                     }
