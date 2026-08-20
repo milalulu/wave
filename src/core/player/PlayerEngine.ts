@@ -24,6 +24,13 @@ export const PLAY_START_TIMEOUT_MS = 10000;
 
 const PREFETCH_THRESHOLD = 5;
 const PREFETCH_BATCH = 20;
+const PREFETCH_CONCURRENCY = 4;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const res: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
+  return res;
+}
 
 interface PlayerEngineOptions {
   rng?: () => number;
@@ -621,19 +628,21 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.prefetchInFlight = true;
     try {
       const seq = this.playSeq;
-      for (const track of toFetch) {
+      const batches = chunk(toFetch, PREFETCH_CONCURRENCY);
+      for (const batch of batches) {
         if (seq !== this.playSeq) return;
-        if (!track.uri) continue;
-        const promise = this.resolveUri!(track).then((uri) => {
-          this.prefetchedIds.add(track.id);
-          return uri;
-        });
-        this.preloadCache.set(track.id, promise);
+        await Promise.allSettled(
+          batch.map((track) => {
+            if (!track.uri) return Promise.resolve();
+            const promise = this.resolveUri!(track).then((uri) => {
+              this.prefetchedIds.add(track.id);
+              return uri;
+            });
+            this.preloadCache.set(track.id, promise);
+            return promise;
+          })
+        );
       }
-      const results = await Promise.allSettled(toFetch.map((t) => this.preloadCache.get(t.id)).filter((p): p is Promise<string> => p instanceof Promise));
-      results.forEach((r, i) => {
-        if (r.status === "rejected") this.preloadCache.delete(toFetch[i].id);
-      });
       if (seq !== this.playSeq) return;
       const first = upcoming[0];
       if (first) {
