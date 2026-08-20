@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark } from "./icons";
+import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark, WaveIcon } from "./icons";
 
 export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
 
@@ -36,7 +36,7 @@ export function Sidebar({ view, onView }: SidebarProps) {
     { key: "nowPlaying", label: t("nav").nowPlaying, icon: PlayIcon },
     { key: "search", label: t("nav").search, icon: SearchIcon },
     { key: "library", label: t("nav").library, icon: ListIcon },
-    { key: "wave", label: t("nav").wave, icon: (p) => <WaveLogoMark size={p.size ?? 18} /> },
+    { key: "wave", label: t("nav").wave, icon: WaveIcon },
     { key: "playlist", label: t("nav").playlist, icon: PlaylistIcon },
     { key: "downloads", label: t("nav").downloads, icon: DownloadIcon },
     { key: "settings", label: t("nav").settings, icon: SettingsIcon },

@@ -12,7 +12,7 @@ import {
   SearchIcon,
   SettingsIcon,
   SpinnerIcon,
-  WaveLogoMark,
+  WaveIcon,
 } from "./icons";
 import type { ViewKey } from "./Sidebar";
 
@@ -100,7 +100,7 @@ export function BottomNav({ view, onView }: BottomNavProps) {
   const items = [
     { key: "home" as const, label: t("nav").home, icon: HomeIcon },
     { key: "search" as const, label: t("nav").search, icon: SearchIcon },
-    { key: "wave" as const, label: t("nav").wave, icon: (p: { size?: number }) => <WaveLogoMark size={p.size ?? 22} /> },
+    { key: "wave" as const, label: t("nav").wave, icon: WaveIcon },
     { key: "library" as const, label: t("nav").library, icon: ListIcon },
     { key: "settings" as const, label: t("nav").settings, icon: SettingsIcon },
   ];

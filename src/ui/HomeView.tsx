@@ -5,7 +5,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TrackRow } from "./TrackRow";
-import { WaveLogoMark, WaveTitle } from "./icons";
+import { WaveTitle } from "./icons";
 import type { HistoryEntry } from "../core/types";
 import {
   DownloadIcon,
@@ -205,7 +205,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <p className="home-sub">Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.</p>
           <div className="home-hero-actions">
             <button className="btn btn-hero-play" onClick={() => onNavigate("wave")}>
-              <WaveLogoMark size={18} style={{ filter: "brightness(0) invert(1)" }} />
+              <WaveIcon size={18} />
               Слушать волну
             </button>
             <button className="btn btn-hero-secondary" onClick={() => onNavigate("search")}>
