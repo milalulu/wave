@@ -156,7 +156,9 @@ export class SmartWaveSource implements WaveSource {
      }
     for (const candidate of ctx.candidates) {
       if (!pool.has(candidate.id)) {
-        pool.set(candidate.id, { track: candidate, weight: 1 });
+        const rank = (candidate.meta?.popularity as number) ?? 50;
+        const rankWeight = 0.5 + (rank / 100) * 1.5;
+        pool.set(candidate.id, { track: candidate, weight: rankWeight });
       }
     }
 
