@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark, WaveTitle } from "./icons";
+import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark } from "./icons";
 
 export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
 
@@ -46,8 +46,7 @@ export function Sidebar({ view, onView }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo" onClick={() => onView("home")} style={{ cursor: "pointer" }}>
-        <WaveLogoMark size={28} />
-        <WaveTitle height={16} />
+        <WaveLogoMark size={34} />
       </div>
       <nav className="sidebar-nav">
         {items.map((item) => (
