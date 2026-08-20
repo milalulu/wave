@@ -42,7 +42,7 @@ export class WeightedRandomWaveSource implements WaveSource {
     const topGenreSet = new Set(topGenres);
 
     for (const track of ctx.likedTracks) {
-      pool.set(track.id, { track, weight: 5 });
+      pool.set(track.id, { track, weight: 10 });
     }
     for (const entry of ctx.history) {
       const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / WEEK_MS);
@@ -68,6 +68,7 @@ export class WeightedRandomWaveSource implements WaveSource {
 
      const entries = [...pool.values()];
     const result: Track[] = [];
+    const likedIds = new Set(ctx.likedTracks.map((t) => t.id));
     const artistPlays = new Map<string, number>();
     for (const entry of ctx.history) {
       const a = entry.track.artist ?? "";
@@ -91,7 +92,11 @@ export class WeightedRandomWaveSource implements WaveSource {
       if (artistPlays.has(artist)) {
         for (const item of entries) {
           if (item.track.artist === artist) {
-            item.weight *= 0.3;
+            if (!likedIds.has(item.track.id)) {
+              item.weight *= 0.3;
+            } else {
+              item.weight *= 0.7;
+            }
           }
         }
       }
@@ -117,7 +122,7 @@ export class SmartWaveSource implements WaveSource {
     }
 
     for (const track of ctx.likedTracks) {
-      pool.set(track.id, { track, weight: 5 });
+      pool.set(track.id, { track, weight: 10 });
     }
     for (const entry of ctx.history) {
       const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / WEEK_MS);
