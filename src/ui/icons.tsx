@@ -185,15 +185,14 @@ export const WaveIcon = (p: IconProps) => (
     height={p.size ?? 18}
     viewBox="0 0 24 24"
     fill="none"
-    xmlns="http://www.w3.org/2000/svg"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={p.className}
     aria-hidden="true"
   >
-    <path
-      d="M3 8.5C4.2 6.5 6.5 6.5 8 8.2L10.5 12C11.5 13.2 13 13.2 14 12L15.8 9.5C16.8 8.2 18.5 8 19.8 9.2L21.5 12.5C22.2 14 21.5 16 19.8 16H16.2C14.8 16 13.8 15 13.2 14L11.8 11.8C10.8 10.5 9.2 10.5 8.2 11.8L5.5 15.2C4.5 16.5 2.5 16 1.8 14.5C1.2 13 1.8 11 2.8 9.5L3 8.5Z"
-      fill="currentColor"
-    />
-    <path d="M16 10.5L19.5 12.8L16 15.1V10.5Z" fill="var(--bg, #060814)" />
+    <path d="M2 12c1.5-3 3.5-3 5 0s3.5 3 5 0 3.5-3 5 0 3.5 3 5 0" />
   </svg>
 );
 
