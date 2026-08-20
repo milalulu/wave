@@ -249,10 +249,22 @@ body {
   color: var(--text);
 }
 .nav-item .wave-logo-mark {
-  filter: brightness(0) opacity(0.45);
+  filter: grayscale(1) brightness(1.8) opacity(0.45);
 }
 .nav-item:hover .wave-logo-mark {
-  filter: brightness(0) opacity(0.7);
+  filter: grayscale(1) brightness(2) opacity(0.7);
+}
+[data-theme="light"] .nav-item .wave-logo-mark {
+  filter: grayscale(1) brightness(0.6) opacity(0.6);
+}
+[data-theme="light"] .nav-item:hover .wave-logo-mark {
+  filter: grayscale(1) brightness(0.5) opacity(0.8);
+}
+[data-theme="amoled"] .nav-item .wave-logo-mark {
+  filter: grayscale(1) brightness(2.2) opacity(0.5);
+}
+[data-theme="amoled"] .nav-item:hover .wave-logo-mark {
+  filter: grayscale(1) brightness(2.5) opacity(0.75);
 }
 
 .nav-item.active {
