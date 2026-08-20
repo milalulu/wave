@@ -28,6 +28,9 @@ import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettin
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
 import { loadYtQuality } from "./ytQuality";
 import { loadCrossfadeMs } from "./crossfade";
+import { loadDiscoveryRate } from "./discoveryRate";
+import { loadHistoryDecayDays } from "./historyDecay";
+import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
@@ -147,6 +150,7 @@ export async function composeServices(): Promise<AppServices> {
   // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
+    autoGenerateThreshold: loadAutoGenerateThreshold(),
     resolveUri: async (track) => {
       
       
@@ -203,7 +207,9 @@ export async function composeServices(): Promise<AppServices> {
   const storage = new SqliteStorage();
   const library = new LibraryService(storage);
   const history = new HistoryService(storage);
-  wave = new WaveEngine(storage, providers, new SmartWaveSource());
+   wave = new WaveEngine(storage, providers, new SmartWaveSource());
+   wave.setHistoryDecayDays(loadHistoryDecayDays());
+   wave.setDiscoveryRate(loadDiscoveryRate());
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
   engine.on("state", (state) => {

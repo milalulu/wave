@@ -52,8 +52,8 @@ describe("crossfade", () => {
     expect(loadCrossfadeMs()).toBe(500);
   });
 
-  it("falls back to 300ms for an unknown value", () => {
-    storage.setItem("wave:crossfade-ms", "777");
+  it("falls back to 300ms for an out-of-range value", () => {
+    storage.setItem("wave:crossfade-ms", "99999");
     expect(loadCrossfadeMs()).toBe(300);
   });
 

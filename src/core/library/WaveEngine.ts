@@ -22,13 +22,15 @@ function detectTrackMoodScore(track: Track, moodDistribution: Record<string, num
   candidates: Track[];
   recentIds?: Set<string>;
   profile?: ListeningProfile;
+  historyDecayDays?: number;
+  discoveryRate?: number;
 }
 
 export interface WaveSource {
   generate(limit: number, ctx: WaveContext): Track[];
 }
 
-const WEEK_MS = 7 * 24 * 3600 * 1000;
+
 
 export class WeightedRandomWaveSource implements WaveSource {
   constructor(private rng: () => number = Math.random) {}
@@ -44,8 +46,10 @@ export class WeightedRandomWaveSource implements WaveSource {
     for (const track of ctx.likedTracks) {
       pool.set(track.id, { track, weight: 10 });
     }
-    for (const entry of ctx.history) {
-      const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / WEEK_MS);
+     for (const entry of ctx.history) {
+      const decayDays = ctx.historyDecayDays ?? 7;
+      const decayMs = decayDays * 24 * 3600 * 1000;
+      const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / decayMs);
       const prev = pool.get(entry.track.id);
       pool.set(entry.track.id, { track: entry.track, weight: (prev?.weight ?? 0) + decay });
     }
@@ -124,11 +128,13 @@ export class SmartWaveSource implements WaveSource {
     for (const track of ctx.likedTracks) {
       pool.set(track.id, { track, weight: 10 });
     }
-    for (const entry of ctx.history) {
-      const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / WEEK_MS);
-      const prev = pool.get(entry.track.id);
-      pool.set(entry.track.id, { track: entry.track, weight: (prev?.weight ?? 0) + decay });
-    }
+     for (const entry of ctx.history) {
+       const decayDays = ctx.historyDecayDays ?? 7;
+       const decayMs = decayDays * 24 * 3600 * 1000;
+       const decay = 1 + 0.5 * Math.exp(-(Date.now() - entry.playedAt) / decayMs);
+       const prev = pool.get(entry.track.id);
+       pool.set(entry.track.id, { track: entry.track, weight: (prev?.weight ?? 0) + decay });
+     }
     for (const candidate of ctx.candidates) {
       if (!pool.has(candidate.id)) {
         pool.set(candidate.id, { track: candidate, weight: 1 });
@@ -140,19 +146,23 @@ export class SmartWaveSource implements WaveSource {
       pool.delete(id);
     }
 
-    const chosenArtists = new Map<string, number>();
-    const chosenGenres = new Map<string, number>();
-    for (const item of pool.values()) {
-      let { weight } = item;
-      if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
-      const artistBoost = topArtists.get(item.track.artist ?? "") ?? 0;
-      if (artistBoost > 0) weight *= 1 + artistBoost;
-      if (ctx.moodDistribution) {
-        const moodScore = detectTrackMoodScore(item.track, ctx.moodDistribution);
-        weight *= 0.8 + 0.4 * moodScore;
-      }
-      item.weight = weight;
-    }
+     const chosenArtists = new Map<string, number>();
+     const chosenGenres = new Map<string, number>();
+     const discoveryRate = ctx.discoveryRate ?? 30;
+     for (const item of pool.values()) {
+       let { weight } = item;
+       if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
+       const artistBoost = topArtists.get(item.track.artist ?? "") ?? 0;
+       if (artistBoost > 0) {
+         const discoveryMultiplier = 1 - discoveryRate / 100;
+         weight *= 1 + artistBoost * discoveryMultiplier;
+       }
+       if (ctx.moodDistribution) {
+         const moodScore = detectTrackMoodScore(item.track, ctx.moodDistribution);
+         weight *= 0.8 + 0.4 * moodScore;
+       }
+       item.weight = weight;
+     }
 
     const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
     const result: Track[] = [];
@@ -201,12 +211,22 @@ export class WaveEngine {
   private readonly PROFILE_TTL = 5 * 60 * 1000;
   
   private blockFilter: (track: Track) => boolean = () => true;
+  private historyDecayDays: number = 7;
+  private discoveryRate: number = 30;
 
   constructor(
     private storage: Storage,
     private providers: MusicProvider[],
     private source: WaveSource,
   ) {}
+
+  setHistoryDecayDays(days: number): void {
+    this.historyDecayDays = Math.max(1, days);
+  }
+
+  setDiscoveryRate(rate: number): void {
+    this.discoveryRate = Math.max(0, Math.min(100, rate));
+  }
 
   
   setBlockFilter(fn: (track: Track) => boolean): void {
@@ -255,7 +275,7 @@ export class WaveEngine {
     const timeCtx = getCurrentTimeContext();
     const moodDistribution = timeAdjustedMoodDistribution(profile.moodDistribution, timeCtx);
 
-    const tracks = this.source.generate(limit, {
+     const tracks = this.source.generate(limit, {
       likedTracks,
       history,
       libraryGenres,
@@ -264,6 +284,8 @@ export class WaveEngine {
       candidates,
       recentIds: this.recentIds,
       profile,
+      historyDecayDays: this.historyDecayDays,
+      discoveryRate: this.discoveryRate,
     });
     const filtered = tracks.filter(this.blockFilter);
     for (const t of filtered) {

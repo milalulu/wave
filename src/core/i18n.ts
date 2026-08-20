@@ -242,6 +242,16 @@ export interface Translations {
     crossfade: string;
     crossfadeDesc: string;
     crossfadeOff: string;
+    crossfadeDuration: string;
+    recommendations: string;
+    recommendationsDesc: string;
+    discoveryRate: string;
+    discoveryRateDesc: string;
+    historyDecay: string;
+    historyDecayDesc: string;
+    days: string;
+    autoGenerateThreshold: string;
+    tracksRemaining: string;
     audioEffects: string;
     audioEffectsDesc: string;
     bassBoost: string;
@@ -617,6 +627,16 @@ export const translations: Record<Locale, Translations> = {
       crossfade: "Crossfade",
       crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
       crossfadeOff: "Off",
+      crossfadeDuration: "Crossfade Duration",
+      recommendations: "Recommendations",
+      recommendationsDesc: "Fine-tune how the Wave recommendations are generated.",
+      discoveryRate: "Discovery Rate",
+      discoveryRateDesc: "Higher = more new artists, Lower = more of your liked tracks.",
+      historyDecay: "History Decay",
+      historyDecayDesc: "How quickly your listening history loses influence (7-90 days).",
+      days: "days",
+      autoGenerateThreshold: "Auto-Generate Threshold",
+      tracksRemaining: "tracks remaining before auto-fill",
       audioEffects: "Audio Effects",
       audioEffectsDesc: "Enhance your listening with bass boost, reverb and stereo width.",
       bassBoost: "Bass Boost",
@@ -993,6 +1013,16 @@ export const translations: Record<Locale, Translations> = {
       crossfade: "Кроссфейд",
       crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
       crossfadeOff: "Выкл",
+      crossfadeDuration: "Длительность кроссфейда",
+      recommendations: "Рекомендации",
+      recommendationsDesc: "Настройте, как генерируются рекомендации Wave.",
+      discoveryRate: "Уровень открытий",
+      discoveryRateDesc: "Выше = больше новых исполнителей, ниже = больше ваших лайкнутых треков.",
+      historyDecay: "Затухание истории",
+      historyDecayDesc: "Как быстро история прослушиваний теряет влияние (7–90 дней).",
+      days: "дней",
+      autoGenerateThreshold: "Порог автозаполнения",
+      tracksRemaining: "треков осталось до автозаполнения",
       audioEffects: "Аудиоэффекты",
       audioEffectsDesc: "Улучшите звук с помощью бас-буста, реверберации и ширины стерео.",
       bassBoost: "Бас-буст",

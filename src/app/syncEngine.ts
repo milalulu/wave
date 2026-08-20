@@ -113,6 +113,9 @@ export function startSyncEngine() {
         syncSettings(user.id, {
           userId: user.id,
           crossfadeMs: state.crossfadeMs,
+          discoveryRate: state.discoveryRate,
+          historyDecayDays: state.historyDecayDays,
+          autoGenerateThreshold: state.autoGenerateThreshold,
           equalizer: state.snapshot.equalizer,
           theme: state.theme,
           accentEnabled: state.accentEnabled,
@@ -200,6 +203,9 @@ export async function pullRemoteData(userId: string) {
 
     if (settings) {
       state.setCrossfadeMs(settings.crossfadeMs);
+      state.setDiscoveryRate(settings.discoveryRate);
+      state.setHistoryDecayDays(settings.historyDecayDays);
+      state.setAutoGenerateThreshold(settings.autoGenerateThreshold);
       state.setEqualizer(settings.equalizer);
       state.setTheme(settings.theme as import("./themeStore").Theme);
       state.setAccentEnabled(settings.accentEnabled);

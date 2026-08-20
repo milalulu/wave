@@ -19,6 +19,9 @@ import { type SyncedPlaylist, type PlaylistShare, sharePlaylist as apiShare, rem
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
+import { loadDiscoveryRate, saveDiscoveryRate, DISCOVERY_MIN, DISCOVERY_MAX } from "./discoveryRate";
+import { loadHistoryDecayDays, saveHistoryDecayDays, HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "./historyDecay";
+import { loadAutoGenerateThreshold, saveAutoGenerateThreshold, AUTO_GEN_MIN, AUTO_GEN_MAX } from "./autoGenerateThreshold";
 import { loadAudioEffects, saveAudioEffects } from "./audioEffects";
 import { loadTheme, saveTheme, applyTheme, onSystemThemeChange, type Theme } from "./themeStore";
 import { getCachedCover } from "../core/cover/CoverCache";
@@ -167,9 +170,15 @@ interface AppState {
   setLyricsAutoOpen: (enabled: boolean) => void;
   lyricsAutoscroll: boolean;
   setLyricsAutoscroll: (enabled: boolean) => void;
-  crossfadeMs: number;
-  setCrossfadeMs: (ms: number) => void;
-  bassBoost: number;
+   crossfadeMs: number;
+   setCrossfadeMs: (ms: number) => void;
+   discoveryRate: number;
+   setDiscoveryRate: (rate: number) => void;
+   historyDecayDays: number;
+   setHistoryDecayDays: (days: number) => void;
+   autoGenerateThreshold: number;
+   setAutoGenerateThreshold: (threshold: number) => void;
+   bassBoost: number;
   setBassBoost: (db: number) => void;
   reverb: number;
   setReverb: (mix: number) => void;
@@ -884,6 +893,27 @@ export const useApp = create<AppState>()((set, get) => ({
     saveCrossfadeMs(ms);
     set({ crossfadeMs: ms });
     get().services?.engine.setCrossfadeMs(ms);
+  },
+   discoveryRate: loadDiscoveryRate(),
+   setDiscoveryRate: (rate) => {
+     const clamped = Math.min(Math.max(rate, DISCOVERY_MIN), DISCOVERY_MAX);
+     saveDiscoveryRate(clamped);
+     set({ discoveryRate: clamped });
+     get().services?.wave.setDiscoveryRate(clamped);
+   },
+   historyDecayDays: loadHistoryDecayDays(),
+   setHistoryDecayDays: (days) => {
+     const clamped = Math.min(Math.max(days, HISTORY_DECAY_MIN), HISTORY_DECAY_MAX);
+     saveHistoryDecayDays(clamped);
+     set({ historyDecayDays: clamped });
+     get().services?.wave.setHistoryDecayDays(clamped);
+   },
+  autoGenerateThreshold: loadAutoGenerateThreshold(),
+  setAutoGenerateThreshold: (threshold) => {
+    const clamped = Math.min(Math.max(threshold, AUTO_GEN_MIN), AUTO_GEN_MAX);
+    saveAutoGenerateThreshold(clamped);
+    set({ autoGenerateThreshold: clamped });
+    get().services?.engine.setAutoGenerateThreshold(clamped);
   },
   ...(() => {
     const fx = loadAudioEffects();

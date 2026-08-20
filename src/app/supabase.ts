@@ -54,6 +54,9 @@ export interface UserLikes {
 export interface UserSettings {
   userId: string;
   crossfadeMs: number;
+  discoveryRate: number;
+  historyDecayDays: number;
+  autoGenerateThreshold: number;
   equalizer: number[];
   theme: string;
   accentEnabled: boolean;

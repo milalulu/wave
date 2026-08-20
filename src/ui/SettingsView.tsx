@@ -16,7 +16,10 @@ import {
 } from "./icons";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { loadYtQuality, saveYtQuality, type YtQuality } from "../app/ytQuality";
-import { CROSSFADE_OPTIONS } from "../app/crossfade";
+import { CROSSFADE_MIN, CROSSFADE_MAX, CROSSFADE_STEP } from "../app/crossfade";
+import { DISCOVERY_MIN, DISCOVERY_MAX } from "../app/discoveryRate";
+import { HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "../app/historyDecay";
+import { AUTO_GEN_MIN, AUTO_GEN_MAX } from "../app/autoGenerateThreshold";
 import {
   KNOWN_PROVIDERS,
   getBlockedProviders,
@@ -103,6 +106,12 @@ export function SettingsView() {
   const setLyricsAutoscroll = useApp((s) => s.setLyricsAutoscroll);
   const crossfadeMs = useApp((s) => s.crossfadeMs);
   const setCrossfadeMs = useApp((s) => s.setCrossfadeMs);
+  const discoveryRate = useApp((s) => s.discoveryRate);
+  const setDiscoveryRate = useApp((s) => s.setDiscoveryRate);
+  const historyDecayDays = useApp((s) => s.historyDecayDays);
+  const setHistoryDecayDays = useApp((s) => s.setHistoryDecayDays);
+  const autoGenerateThreshold = useApp((s) => s.autoGenerateThreshold);
+  const setAutoGenerateThreshold = useApp((s) => s.setAutoGenerateThreshold);
   const bassBoost = useApp((s) => s.bassBoost);
   const setBassBoost = useApp((s) => s.setBassBoost);
   const reverb = useApp((s) => s.reverb);
@@ -599,16 +608,56 @@ export function SettingsView() {
         </SettingsCard>
 
         <SettingsCard title={t("settings").crossfade} desc={t("settings").crossfadeDesc}>
-          <div className="actions-row">
-            {CROSSFADE_OPTIONS.map((ms) => (
-              <button
-                key={ms}
-                className={`btn ${crossfadeMs === ms ? "btn-primary" : ""}`}
-                onClick={() => setCrossfadeMs(ms)}
-              >
-                {ms === 0 ? t("settings").crossfadeOff : `${ms} ms`}
-              </button>
-            ))}
+          <div className="effect-slider">
+            <label>{t("settings").crossfadeDuration}</label>
+            <input
+              type="range"
+              min={CROSSFADE_MIN}
+              max={CROSSFADE_MAX}
+              step={CROSSFADE_STEP}
+              value={crossfadeMs}
+              onChange={(e) => setCrossfadeMs(Number(e.target.value))}
+            />
+            <span className="effect-value">{crossfadeMs === 0 ? t("settings").crossfadeOff : `${crossfadeMs} ms`}</span>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").recommendations} desc={t("settings").recommendationsDesc}>
+          <div className="effect-slider">
+            <label>{t("settings").discoveryRate} <span className="muted">({discoveryRate}%)</span></label>
+            <input
+              type="range"
+              min={DISCOVERY_MIN}
+              max={DISCOVERY_MAX}
+              step={1}
+              value={discoveryRate}
+              onChange={(e) => setDiscoveryRate(Number(e.target.value))}
+            />
+            <span className="muted">{t("settings").discoveryRateDesc}</span>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").historyDecay} <span className="muted">({historyDecayDays} {t("settings").days})</span></label>
+            <input
+              type="range"
+              min={HISTORY_DECAY_MIN}
+              max={HISTORY_DECAY_MAX}
+              step={1}
+              value={historyDecayDays}
+              onChange={(e) => setHistoryDecayDays(Number(e.target.value))}
+            />
+            <span className="muted">{t("settings").historyDecayDesc}</span>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").autoGenerateThreshold}</label>
+            <input
+              type="range"
+              min={AUTO_GEN_MIN}
+              max={AUTO_GEN_MAX}
+              step={1}
+              value={autoGenerateThreshold}
+              onChange={(e) => setAutoGenerateThreshold(Number(e.target.value))}
+            />
+            <span className="effect-value">{autoGenerateThreshold} {t("settings").tracksRemaining}</span>
           </div>
         </SettingsCard>
 

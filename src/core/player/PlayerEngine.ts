@@ -22,7 +22,6 @@ export const STALL_TIMEOUT_MS = 12000;
 
 export const PLAY_START_TIMEOUT_MS = 10000;
 
-const PREFETCH_THRESHOLD = 5;
 const PREFETCH_BATCH = 20;
 const PREFETCH_CONCURRENCY = 4;
 
@@ -43,6 +42,7 @@ interface PlayerEngineOptions {
   
   onQueueEnd?: () => Promise<Track[]> | Track[];
   
+   autoGenerateThreshold?: number;
 
   upgradePreview?: (track: Track) => Promise<Track | null>;
 }
@@ -62,9 +62,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private detach: (() => void)[] = [];
   private resolveUri?: (track: Track) => Promise<string>;
   private invalidateStream?: (trackId: string) => void;
-  private onQueueEnd?: () => Promise<Track[]> | Track[];
-  private defaultFiller?: () => Promise<Track[]> | Track[];
-  private upgradePreview?: (track: Track) => Promise<Track | null>;
+   private onQueueEnd?: () => Promise<Track[]> | Track[];
+   private defaultFiller?: () => Promise<Track[]> | Track[];
+   private upgradePreview?: (track: Track) => Promise<Track | null>;
+   private autoGenerateThreshold: number = 3;
   
   private upgradedTrackId: string | null = null;
   private retries = 0;
@@ -97,12 +98,13 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.adapter = adapter;
     this.resolveUri = options.resolveUri;
     this.invalidateStream = options.invalidateStream;
-    this.onQueueEnd = options.onQueueEnd;
-    this.defaultFiller = options.onQueueEnd;
-    this.upgradePreview = options.upgradePreview;
-    this.maxRetries = Math.max(0, options.retries ?? 1);
-    this.queue = new Queue({ rng: options.rng });
-    this.attachAdapter();
+     this.onQueueEnd = options.onQueueEnd;
+     this.defaultFiller = options.onQueueEnd;
+     this.upgradePreview = options.upgradePreview;
+     this.maxRetries = Math.max(0, options.retries ?? 1);
+     if (options.autoGenerateThreshold !== undefined) this.autoGenerateThreshold = options.autoGenerateThreshold;
+     this.queue = new Queue({ rng: options.rng });
+     this.attachAdapter();
   }
 
   private attachAdapter(): void {
@@ -377,12 +379,16 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.adapter.setReverb(mix);
   }
 
-  setStereoWidth(pan: number): void {
-    this.stereoWidth = pan;
-    this.adapter.setStereoWidth(pan);
-  }
+   setStereoWidth(pan: number): void {
+     this.stereoWidth = pan;
+     this.adapter.setStereoWidth(pan);
+   }
 
-  
+   setAutoGenerateThreshold(threshold: number): void {
+     this.autoGenerateThreshold = Math.max(1, threshold);
+   }
+
+   
    setPauseAfterTrack(on: boolean): void {
     this.pauseAtEnd = on;
   }
@@ -678,7 +684,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private maybeRefillQueue(): void {
     if (this.prefetchInFlight) return;
     const remaining = this.queue.remainingCount();
-    if (remaining >= PREFETCH_THRESHOLD) return;
+    if (remaining >= this.autoGenerateThreshold) return;
     if (!this.onQueueEnd) return;
     void this.refillQueue();
   }
