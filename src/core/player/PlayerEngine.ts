@@ -54,6 +54,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private volume = 1;
   private speed = 1;
   private equalizer: number[] = [];
+  private bassBoost = 0;
+  private reverb = 0;
+  private stereoWidth = 0;
   private repeat: RepeatMode = "off";
   private duration = 0;
   private detach: (() => void)[] = [];
@@ -154,7 +157,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       duration: current?.duration ?? this.duration,
       volume: this.volume,
       speed: this.speed,
-      equalizer: [...this.equalizer],
+       equalizer: [...this.equalizer],
+      bassBoost: this.bassBoost,
+      reverb: this.reverb,
+      stereoWidth: this.stereoWidth,
       shuffle: this.queue.isShuffle,
       repeat: this.repeat,
       queue: this.queue.tracksList,
@@ -361,21 +367,31 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.adapter.setCrossfadeMs(ms);
   }
 
-  setBassBoost(db: number): void {
+   setBassBoost(db: number): void {
+    this.bassBoost = db;
     this.adapter.setBassBoost(db);
   }
 
   setReverb(mix: number): void {
+    this.reverb = mix;
     this.adapter.setReverb(mix);
   }
 
   setStereoWidth(pan: number): void {
+    this.stereoWidth = pan;
     this.adapter.setStereoWidth(pan);
   }
 
   
-  setPauseAfterTrack(on: boolean): void {
+   setPauseAfterTrack(on: boolean): void {
     this.pauseAtEnd = on;
+  }
+
+  private applyAudioSettings(): void {
+    this.adapter.setEqualizer(this.equalizer);
+    this.adapter.setBassBoost(this.bassBoost);
+    this.adapter.setReverb(this.reverb);
+    this.adapter.setStereoWidth(this.stereoWidth);
   }
 
   
@@ -530,6 +546,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.hasSource = true;
       this.startStallTimer();
       this.duration = track.duration ?? 0;
+      void this.applyAudioSettings();
       
       
       if (this.restorePosTrackId === track.id && this.restorePos > 0) {

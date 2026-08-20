@@ -78,6 +78,9 @@ export interface PlayerSnapshot {
   volume: number;
   speed: number;
   equalizer: number[];
+  bassBoost: number;
+  reverb: number;
+  stereoWidth: number;
   shuffle: boolean;
   repeat: RepeatMode;
   queue: Track[];
