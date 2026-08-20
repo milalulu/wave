@@ -15,8 +15,7 @@
         "width": 1280,
         "height": 800,
         "minWidth": 900,
-        "minHeight": 600,
-        "icon": "icons/128x128.png"
+        "minHeight": 600
       },
       {
         "label": "mini-player",
@@ -33,8 +32,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": true,
-        "visible": false,
-        "icon": "icons/128x128.png"
+        "visible": false
       }
     ],
     "security": {

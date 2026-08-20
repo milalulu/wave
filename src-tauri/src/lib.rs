@@ -697,6 +697,15 @@ pub fn run() {
                     let _ = tools::ensure(&handle).await;
                 });
                 tray::start(app);
+
+                // Set window icon from compiled-in 128x128 PNG
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    let bytes = include_bytes!("../icons/128x128.png");
+                    if let Ok(icon) = tauri::image::Image::from_bytes(bytes) {
+                        let _ = window.set_icon(icon);
+                    }
+                }
             }
             #[cfg(target_os = "android")]
             {
