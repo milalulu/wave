@@ -109,6 +109,25 @@ export class WeightedRandomWaveSource implements WaveSource {
   }
 }
 
+type CandidateCategory = "direct" | "deepcut" | "wildcard";
+
+function categorizeCandidate(
+  track: Track,
+  tagWeights: Map<string, number>,
+): CandidateCategory {
+  const pop = (track.meta?.popularity as number) ?? 50;
+  const tags = (track.meta?.tags as string[]) ?? [];
+  let tagSim = 0;
+  if (tags.length > 0 && tagWeights.size > 0) {
+    let dot = 0;
+    for (const t of tags) dot += tagWeights.get(t) ?? 0;
+    tagSim = dot / tags.length;
+  }
+  if (pop > 60 && tagSim > 0.3) return "direct";
+  if (pop <= 40 || tagSim < 0.2) return "deepcut";
+  return "wildcard";
+}
+
 export class SmartWaveSource implements WaveSource {
   constructor(private rng: () => number = Math.random) {}
 
@@ -146,8 +165,6 @@ export class SmartWaveSource implements WaveSource {
       pool.delete(id);
     }
 
-     const chosenArtists = new Map<string, number>();
-     const chosenGenres = new Map<string, number>();
      const discoveryRate = ctx.discoveryRate ?? 30;
      for (const item of pool.values()) {
        let { weight } = item;
@@ -164,11 +181,32 @@ export class SmartWaveSource implements WaveSource {
        item.weight = weight;
      }
 
-    const entries = [...pool.values()].map((e) => ({ track: e.track, weight: e.weight, base: e.weight }));
+    const tagWeights = new Map<string, number>();
+    for (const item of pool.values()) {
+      const tags = (item.track.meta?.tags as string[]) ?? [];
+      for (const t of tags) tagWeights.set(t, (tagWeights.get(t) ?? 0) + 1);
+    }
+
+    const entries = [...pool.values()].map((e) => ({
+      track: e.track,
+      weight: e.weight,
+      base: e.weight,
+      category: categorizeCandidate(e.track, tagWeights),
+    }));
     const result: Track[] = [];
+    const chosenArtists = new Map<string, number>();
+    const chosenGenres = new Map<string, number>();
     const chosenArtistSet = new Set<string>();
+    let directCount = 0;
+    let deepcutCount = 0;
+    let wildcardCount = 0;
+
     for (let i = 0; i < limit && entries.length > 0; i++) {
+      const remaining = limit - i;
+      const directQuota = Math.ceil(remaining * 0.7);
+      const deepcutQuota = Math.ceil(remaining * 0.2);
       const iterationPicked = i > 0 ? chosenArtistSet.size > 0 : false;
+
       for (const item of entries) {
         const artist = item.track.artist ?? "";
         const genre = normalizeGenre(item.track.genre ?? "");
@@ -176,20 +214,25 @@ export class SmartWaveSource implements WaveSource {
         const alreadyGenre = chosenGenres.get(genre) ?? 0;
         let w = item.base;
         if (alreadyArtist > 0) w *= 0.4 * Math.pow(0.5, alreadyArtist - 1);
-        if (iterationPicked && alreadyGenre === 0 && genre !== "") {
-          w *= 1.2;
-        }
+        if (iterationPicked && alreadyGenre === 0 && genre !== "") w *= 1.2;
+
+        const catBonus =
+          item.category === "direct"
+            ? directCount < directQuota ? 1.0 : 0.3
+            : item.category === "deepcut"
+              ? deepcutCount < deepcutQuota ? 0.6 : 0.1
+              : wildcardCount < (remaining - directQuota - deepcutQuota) ? 0.3 : 0.05;
+        w *= catBonus;
         item.weight = w;
       }
+
       const total = entries.reduce((sum, e) => sum + e.weight, 0);
+      if (total <= 0) break;
       let roll = this.rng() * total;
       let picked = 0;
       for (let j = 0; j < entries.length; j++) {
         roll -= entries[j].weight;
-        if (roll <= 0) {
-          picked = j;
-          break;
-        }
+        if (roll <= 0) { picked = j; break; }
       }
       const [chosen] = entries.splice(picked, 1);
       result.push(chosen.track);
@@ -198,6 +241,9 @@ export class SmartWaveSource implements WaveSource {
       chosenArtists.set(artist, (chosenArtists.get(artist) ?? 0) + 1);
       chosenGenres.set(genre, (chosenGenres.get(genre) ?? 0) + 1);
       chosenArtistSet.add(artist);
+      if (chosen.category === "direct") directCount++;
+      else if (chosen.category === "deepcut") deepcutCount++;
+      else wildcardCount++;
     }
     return result;
   }
