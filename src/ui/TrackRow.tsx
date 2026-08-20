@@ -86,6 +86,13 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
     setMenuOpen(true);
   };
 
+  const openMenuAtButton = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    const btn = e.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    openMenu(rect.right + 4, rect.bottom + 4);
+  };
+
   const onPlay = (): void => {
     if (!noPlay) void play([track], 0);
   };
@@ -153,10 +160,7 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
         <button
           className={`icon-btn more-btn ${menuOpen ? "active" : ""}`}
           title={t("common").actions}
-          onClick={(e) => {
-            e.stopPropagation();
-            openMenu();
-          }}
+          onClick={openMenuAtButton}
         >
           <MoreIcon size={16} />
         </button>

@@ -159,6 +159,11 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
 
   return (
     <footer className="player-bar">
+      {spectrumOpen && services?.engine && (
+        <div className="player-spectrum">
+          <Spectrum engine={services.engine} />
+        </div>
+      )}
       <div className="player-track" onClick={onOpenPlayer}>
         {track?.coverUrl ? (
           <Cover className="player-cover" src={track.coverUrl} alt="" />
@@ -276,11 +281,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           </button>
         </div>
         <div className="player-progress">
-          {spectrumOpen && services?.engine && (
-            <div className="spectrum-wrap">
-              <Spectrum engine={services.engine} />
-            </div>
-          )}
           <span className="time">{formatTime(position)}</span>
           <input
             type="range"

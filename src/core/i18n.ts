@@ -239,6 +239,11 @@ export interface Translations {
     backupDesc: string;
     restore: string;
     restoreDesc: string;
+    sectionSources: string;
+    sectionAppearance: string;
+    sectionPlayback: string;
+    sectionRecommendations: string;
+    sectionAccount: string;
     crossfade: string;
     crossfadeDesc: string;
     crossfadeOff: string;
@@ -624,6 +629,11 @@ export const translations: Record<Locale, Translations> = {
       backupDesc: "Export your library to a file. Copy this file to another device to migrate.",
       restore: "Restore Database",
       restoreDesc: "Import a database backup. Requires app restart to take effect.",
+      sectionSources: "Sources",
+      sectionAppearance: "Appearance",
+      sectionPlayback: "Playback",
+      sectionRecommendations: "Recommendations",
+      sectionAccount: "Account",
       crossfade: "Crossfade",
       crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
       crossfadeOff: "Off",
@@ -1010,6 +1020,11 @@ export const translations: Record<Locale, Translations> = {
       backupDesc: "Экспорт библиотеки в файл. Скопируйте файл на другое устройство для миграции.",
       restore: "Восстановить БД",
       restoreDesc: "Импорт резервной копии. Требуется перезапуск приложения.",
+      sectionSources: "Источники",
+      sectionAppearance: "Внешний вид",
+      sectionPlayback: "Воспроизведение",
+      sectionRecommendations: "Рекомендации",
+      sectionAccount: "Аккаунт",
       crossfade: "Кроссфейд",
       crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
       crossfadeOff: "Выкл",

@@ -399,6 +399,7 @@ export function SettingsView() {
         <DiagnosticsView />
       ) : (
       <div ref={containerRef} className="settings-cards" data-cols={containerWidth > 720 ? "2" : "1"}>
+        <h3 className="settings-section-title">{t("settings").sectionSources}</h3>
         <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
           <div className="settings-grid">
             {envKeys.map(({ key, label, placeholder, type, test, detect }) => (
@@ -528,6 +529,7 @@ export function SettingsView() {
           )}
         </SettingsCard>
 
+        <h3 className="settings-section-title">{t("settings").sectionAppearance}</h3>
         <SettingsCard title={t("settings").behavior}>
           <div className="settings-toggles">
             <label className="toggle-row">
@@ -619,6 +621,7 @@ export function SettingsView() {
           <p className="muted">{t("settings").lyricsAutoscrollDesc}</p>
         </SettingsCard>
 
+        <h3 className="settings-section-title">{t("settings").sectionPlayback}</h3>
         <SettingsCard title={t("settings").crossfade} desc={t("settings").crossfadeDesc}>
           <div className="effect-slider">
             <label>{t("settings").crossfadeDuration}</label>
@@ -632,46 +635,7 @@ export function SettingsView() {
             />
             <span className="effect-value">{crossfadeMs === 0 ? t("settings").crossfadeOff : `${crossfadeMs} ms`}</span>
           </div>
-        </SettingsCard>
-
-        <SettingsCard title={t("settings").recommendations} desc={t("settings").recommendationsDesc}>
-          <div className="effect-slider">
-            <label>{t("settings").discoveryRate} <span className="muted">({discoveryRate}%)</span></label>
-            <input
-              type="range"
-              min={DISCOVERY_MIN}
-              max={DISCOVERY_MAX}
-              step={1}
-              value={discoveryRate}
-              onChange={(e) => setDiscoveryRate(Number(e.target.value))}
-            />
-            <span className="muted">{t("settings").discoveryRateDesc}</span>
-          </div>
-          <div className="effect-slider">
-            <label>{t("settings").historyDecay} <span className="muted">({historyDecayDays} {t("settings").days})</span></label>
-            <input
-              type="range"
-              min={HISTORY_DECAY_MIN}
-              max={HISTORY_DECAY_MAX}
-              step={1}
-              value={historyDecayDays}
-              onChange={(e) => setHistoryDecayDays(Number(e.target.value))}
-            />
-            <span className="muted">{t("settings").historyDecayDesc}</span>
-          </div>
-          <div className="effect-slider">
-            <label>{t("settings").autoGenerateThreshold}</label>
-            <input
-              type="range"
-              min={AUTO_GEN_MIN}
-              max={AUTO_GEN_MAX}
-              step={1}
-              value={autoGenerateThreshold}
-              onChange={(e) => setAutoGenerateThreshold(Number(e.target.value))}
-            />
-            <span className="effect-value">{autoGenerateThreshold} {t("settings").tracksRemaining}</span>
-          </div>
-        </SettingsCard>
+</SettingsCard>
 
         <SettingsCard title={t("settings").audioEffects} desc={t("settings").audioEffectsDesc}>
           <div className="effects-sliders">
@@ -714,6 +678,46 @@ export function SettingsView() {
               <span className="effect-value">{stereoWidth > 0 ? "+" : ""}{Math.round(stereoWidth * 100)}%</span>
             </div>
             <p className="muted">{t("settings").stereoWidthDesc}</p>
+          </div>
+        </SettingsCard>
+
+        <h3 className="settings-section-title">{t("settings").sectionRecommendations}</h3>
+        <SettingsCard title={t("settings").recommendations} desc={t("settings").recommendationsDesc}>
+          <div className="effect-slider">
+            <label>{t("settings").discoveryRate} <span className="muted">({discoveryRate}%)</span></label>
+            <input
+              type="range"
+              min={DISCOVERY_MIN}
+              max={DISCOVERY_MAX}
+              step={1}
+              value={discoveryRate}
+              onChange={(e) => setDiscoveryRate(Number(e.target.value))}
+            />
+            <span className="muted">{t("settings").discoveryRateDesc}</span>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").historyDecay} <span className="muted">({historyDecayDays} {t("settings").days})</span></label>
+            <input
+              type="range"
+              min={HISTORY_DECAY_MIN}
+              max={HISTORY_DECAY_MAX}
+              step={1}
+              value={historyDecayDays}
+              onChange={(e) => setHistoryDecayDays(Number(e.target.value))}
+            />
+            <span className="muted">{t("settings").historyDecayDesc}</span>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").autoGenerateThreshold}</label>
+            <input
+              type="range"
+              min={AUTO_GEN_MIN}
+              max={AUTO_GEN_MAX}
+              step={1}
+              value={autoGenerateThreshold}
+              onChange={(e) => setAutoGenerateThreshold(Number(e.target.value))}
+            />
+            <span className="effect-value">{autoGenerateThreshold} {t("settings").tracksRemaining}</span>
           </div>
         </SettingsCard>
 
@@ -763,6 +767,7 @@ export function SettingsView() {
           </div>
         </SettingsCard>
 
+        <h3 className="settings-section-title">{t("settings").sectionAccount}</h3>
         <SettingsCard title={t("settings").account} desc={t("settings").accountDesc}>
           {!authConfigured ? (
             <p className="muted">{t("settings").accountNotConfigured}</p>
