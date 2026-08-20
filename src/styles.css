@@ -283,6 +283,10 @@ body {
   max-width: 980px;
   margin: 0 auto;
 }
+.view:not(.search-view) {
+  margin-left: 0;
+  margin-right: auto;
+}
 
 .view-header {
   display: flex;
