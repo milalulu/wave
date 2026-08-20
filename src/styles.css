@@ -2039,8 +2039,11 @@ input[type="range"]::-webkit-slider-thumb {
   position: sticky;
   top: 0;
   z-index: 5;
-  padding: 10px 0;
-  background: linear-gradient(var(--bg), var(--bg) 70%, transparent);
+  padding: 14px 20px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 .settings-topbar-actions {
   display: flex;
