@@ -33,6 +33,7 @@ import { loadHistoryDecayDays } from "./historyDecay";
 import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
+import { streamCache } from "../core/player/streamCache";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
@@ -62,7 +63,7 @@ const localSource: LocalSource = {
 
 const ytGateway: YtDlpGateway = {
   search: (query, limit) => invoke("yt_search", { query, limit }),
-  stream: (id, quality) => invoke("yt_stream", { id, quality }),
+  stream: (id, quality) => invoke("yt_stream_fast", { id, quality }),
 };
 
 const httpGateway: HttpJsonGateway = {
@@ -115,7 +116,7 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
     providers.push(
       new SoundCloudProvider({
         search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
-        stream: (url) => invoke("dl_stream", { url, quality: "best" }),
+        stream: (url) => invoke("dl_stream_fast", { url }),
       }),
     );
   }
@@ -153,8 +154,9 @@ export async function composeServices(): Promise<AppServices> {
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
     resolveUri: async (track) => {
-      
-      
+      const cached = streamCache.get(track.id);
+      if (cached) return cached;
+
       if (isBlockedProvider(track.provider)) {
         throw new Error(`provider blocked: ${track.provider}`);
       }
@@ -163,9 +165,12 @@ export async function composeServices(): Promise<AppServices> {
         if (local) return local;
       }
       const provider = providers.find((p) => p.id === track.provider);
-      return provider ? provider.resolveUri(track) : track.uri;
+      const url = provider ? await provider.resolveUri(track) : track.uri;
+      streamCache.set(track.id, url);
+      return url;
     },
     invalidateStream: (trackId) => {
+      streamCache.invalidate(trackId);
       const match = trackId.match(/^([^:]+):/);
       if (!match) return;
       const provider = providers.find((p) => p.id === match[1]);

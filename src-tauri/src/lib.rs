@@ -19,7 +19,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 static YTDLP_SLOTS: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
 
 fn ytdlp_slots() -> &'static tokio::sync::Semaphore {
-    YTDLP_SLOTS.get_or_init(|| tokio::sync::Semaphore::new(2))
+    YTDLP_SLOTS.get_or_init(|| tokio::sync::Semaphore::new(4))
 }
 
 #[derive(Serialize)]
@@ -460,6 +460,95 @@ async fn dl_stream(
     resolve_stream(&app, &url, quality.as_deref(), true).await
 }
 
+/// Быстрый резолв YouTube-стрима: всего 2 попытки с жёстким таймаутом 10с.
+#[tauri::command]
+async fn yt_stream_fast(
+    app: tauri::AppHandle,
+    id: String,
+    quality: Option<String>,
+) -> Result<String, String> {
+    let quality_str = quality.unwrap_or_else(|| "best".to_string());
+    let audio_only = match quality_str.as_str() {
+        "low" => "ba[abr<=48]",
+        "medium" => "ba[abr<=128]",
+        "high" => "ba[abr<=256]",
+        _ => "ba",
+    };
+    let fmt = format!("{audio_only}[ext=m4a]/{audio_only}[ext=webm]/{audio_only}");
+    let cookies = ytdlp_cookies_args(&app);
+    let url_str = format!("https://www.youtube.com/watch?v={id}");
+
+    let clients = ["android", "web_safari"];
+
+    for client in clients {
+        let mut args = vec![
+            url_str.clone(),
+            "--no-playlist".to_string(),
+            "-f".to_string(),
+            fmt.clone(),
+            "-g".to_string(),
+            "--no-warnings".to_string(),
+            "--socket-timeout".to_string(),
+            "5".to_string(),
+            "--extractor-args".to_string(),
+            format!("youtube:player_client={client}"),
+        ];
+        args.extend(cookies.iter().cloned());
+
+        if let Ok(Some(stdout)) = run_ytdlp(&app, args, 10).await {
+            if let Some(u) = stdout
+                .lines()
+                .rev()
+                .find(|l| !l.trim().is_empty())
+                .map(|l| l.trim().to_string())
+            {
+                if !u.is_empty() && !u.contains(".m3u8") && !u.contains(".mpd") {
+                    return Ok(u);
+                }
+            }
+        }
+    }
+
+    // Фолбэк на полный resolve_stream с 7 попытками
+    resolve_stream(&app, &url_str, Some(&quality_str), false).await
+}
+
+/// Быстрый резолв произвольного URL (SoundCloud и т.д.): 1 попытка, 10с таймаут.
+#[tauri::command]
+async fn dl_stream_fast(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<String, String> {
+    let args = vec![
+        url.clone(),
+        "--no-playlist".to_string(),
+        "-f".to_string(),
+        "ba[ext=m4a]/ba[ext=mp3]/ba".to_string(),
+        "-g".to_string(),
+        "--no-warnings".to_string(),
+        "--socket-timeout".to_string(),
+        "5".to_string(),
+    ];
+
+    match run_ytdlp(&app, args, 10).await {
+        Ok(Some(stdout)) => {
+            let u = stdout
+                .lines()
+                .rev()
+                .find(|l| !l.trim().is_empty())
+                .map(|l| l.trim().to_string());
+            if let Some(u) = u {
+                if !u.is_empty() && !u.contains(".m3u8") && !u.contains(".mpd") {
+                    return Ok(u);
+                }
+            }
+            Err("dl_stream_fast: no playable stream".into())
+        }
+        Ok(None) => Err("dl_stream_fast: no stream".into()),
+        Err(e) => Err(e),
+    }
+}
+
 fn stream_args(url: &str, fmt: &str, client: Option<&str>, cookies: &[String]) -> Vec<String> {
     let mut args = vec![
         url.to_string(),
@@ -720,7 +809,9 @@ pub fn run() {
             app_config,
             yt_search,
             yt_stream,
+            yt_stream_fast,
             dl_stream,
+            dl_stream_fast,
             vk_search,
             http_fetch_json,
             http_fetch_text,
