@@ -1,6 +1,6 @@
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
-import { WaveIcon } from "./icons";
+import { WaveAppIconBadge } from "./WaveLogo";
 
 export function WaveView() {
   const { t } = useI18n();
@@ -11,9 +11,7 @@ export function WaveView() {
   return (
     <div className="view wave-view">
       <div className="wave-hero">
-        <span className="wave-logo-mark">
-          <WaveIcon size={38} />
-        </span>
+        <WaveAppIconBadge size={80} />
         <h2>{t("wave").title}</h2>
         <p>{t("wave").empty}</p>
         <div className="wave-stats">
@@ -21,7 +19,6 @@ export function WaveView() {
           <span>{t("common").open}: {services?.providers.map((p) => p.name).join(", ") ?? "—"}</span>
         </div>
         <button className="btn btn-primary btn-lg" onClick={() => void startWave()}>
-          <WaveIcon size={20} />
           {t("wave").start}
         </button>
         <p className="muted">

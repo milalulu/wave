@@ -185,6 +185,43 @@ export function WaveAppIconBadge({
 }
 
 /**
+ * Theme-aware Wave Title SVG
+ */
+export function WaveTitle({
+  height = 18,
+  className,
+  style,
+}: {
+  height?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      className={`wave-title ${className ?? ""}`}
+      style={{ display: "inline-flex", lineHeight: 0, ...style }}
+    >
+      <img
+        src="/title.svg"
+        alt="Wave"
+        height={height}
+        className="wave-title-light"
+        draggable={false}
+        style={{ objectFit: "contain" }}
+      />
+      <img
+        src="/title_black_to_white.svg"
+        alt="Wave"
+        height={height}
+        className="wave-title-dark"
+        draggable={false}
+        style={{ objectFit: "contain" }}
+      />
+    </span>
+  );
+}
+
+/**
  * Compact crisp 24px Wave Icon for navigation and action buttons
  */
 export function WaveIcon({

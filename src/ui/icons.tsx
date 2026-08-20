@@ -177,7 +177,7 @@ export const FolderIcon = (p: IconProps) => (
   </Svg>
 );
 
-export { WaveLogo, WaveLogoMark, WaveAppIconBadge } from "./WaveLogo";
+export { WaveLogo, WaveLogoMark, WaveAppIconBadge, WaveTitle } from "./WaveLogo";
 
 export const WaveIcon = (p: IconProps) => (
   <svg

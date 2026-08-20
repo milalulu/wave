@@ -5,7 +5,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TrackRow } from "./TrackRow";
-import { WaveLogoMark } from "./icons";
+import { WaveLogoMark, WaveTitle } from "./icons";
 import type { HistoryEntry } from "../core/types";
 import {
   DownloadIcon,
@@ -200,7 +200,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         <div className="home-hero-content">
           <div className="home-hero-badge">
             <WaveLogoMark size={28} />
-            <span>WAVE MUSIC PLAYER</span>
+            <WaveTitle height={20} />
           </div>
           <h1>Музыка. Без границ.</h1>
           <p className="home-sub">Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.</p>
@@ -214,9 +214,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               Найти трек
             </button>
           </div>
-        </div>
-        <div className="home-hero-emblem">
-          <WaveLogoMark size={160} animated />
         </div>
       </header>
 
