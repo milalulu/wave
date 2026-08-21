@@ -4,6 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wave — Music Player</title>
+<meta name="description" content="Wave is a free, open-source music player with YouTube, Spotify, SoundCloud, Deezer, iTunes, and more — all in one search bar. Cross-platform: Windows, Linux, Android.">
+<meta name="theme-color" content="#05040f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Wave — Music Player">
+<meta property="og:description" content="Free, open-source music player. 6+ sources, equalizer, synced lyrics, smart recommendations. Windows, Linux, Android.">
+<meta property="og:url" content="https://milalulu.github.io/wave">
+<meta property="og:image" content="https://milalulu.github.io/wave/logo.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Wave — Music Player">
+<meta name="twitter:description" content="Free, open-source music player. 6+ sources, equalizer, synced lyrics, smart recommendations.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Wave",
+  "operatingSystem": "Windows, Linux, Android",
+  "applicationCategory": "MultimediaApplication",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "description": "Free, open-source music player with YouTube, Spotify, SoundCloud, Deezer, iTunes, and more.",
+  "url": "https://milalulu.github.io/wave",
+  "downloadUrl": "https://github.com/milalulu/wave/releases/latest",
+  "softwareVersion": "0.2.2",
+  "license": "https://opensource.org/licenses/Apache-2.0"
+}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
 
@@ -660,6 +685,11 @@
     .mock-app { grid-template-columns: 1fr; grid-template-areas: "content" "player"; }
     .mock-player { grid-template-columns: 1fr auto; }
     .mock-player-side { display: none; }
+    .mockup { transform: scale(0.85); transform-origin: top center; margin-bottom: -40px; }
+    .theme-row { flex-direction: column; align-items: center; }
+    .theme-card { width: 100%; max-width: 300px; }
+    .compare-table { font-size: 12px; }
+    .compare-table th, .compare-table td { padding: 8px 10px; }
   }
 
   /* ── Theme switcher ── */
@@ -1407,6 +1437,7 @@
       <button class="eq-preset-btn" onclick="eqPreset('vocal')">Vocal</button>
       <button class="eq-preset-btn" onclick="eqPreset('bright')">Bright</button>
     </div>
+    <p style="text-align:center;color:#64748b;font-size:13px;margin-top:10px;">Drag the sliders to shape your sound</p>
   </div>
 </section>
 
@@ -1551,13 +1582,6 @@
           <td>JS (Electron)</td>
           <td>JS (Electron)</td>
           <td>Dart (Flutter)</td>
-        </tr>
-        <tr>
-          <td class="cmp-feat">Scrobbling</td>
-          <td class="cmp-wave">Planned</td>
-          <td><span class="cmp-yes"></span></td>
-          <td><span class="cmp-yes"></span></td>
-          <td><span class="cmp-no"></span></td>
         </tr>
         <tr>
           <td class="cmp-feat">Plugin system</td>
@@ -1707,7 +1731,7 @@
         Does it collect my data?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-a"><div class="faq-a-inner">No telemetry, no analytics. Create an account to sync your liked tracks and preferences across devices — your data stays yours.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">No telemetry, no analytics. Sign in with Supabase to sync your liked tracks, playlists, and preferences across devices — your data stays yours.</div></div>
     </div>
   </div>
 </section>
@@ -1741,6 +1765,24 @@
   </div>
   <div class="api-note">
     All endpoints run on <code>127.0.0.1:8299</code>. Example: <code>curl http://127.0.0.1:8299/api/v1/status</code>
+  </div>
+</section>
+
+<!-- CTA -->
+<section style="position:relative;z-index:1;text-align:center;padding:80px 20px 40px;">
+  <div style="font-size:clamp(28px,5vw,42px);font-weight:800;margin-bottom:12px;">
+    Ready to listen?
+  </div>
+  <p style="color:#94A3B8;font-size:16px;margin-bottom:32px;">Free. Open-source. No ads. No tracking.</p>
+  <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_x64_en-US.msi" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:16px;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Wave
+    </a>
+    <a class="dl-btn" href="https://github.com/milalulu/wave" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:16px;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      Star on GitHub
+    </a>
   </div>
 </section>
 
