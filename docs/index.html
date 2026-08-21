@@ -1084,8 +1084,8 @@
 <section class="features" id="features">
   <div class="feat">
     <div class="feat-icon">🔍</div>
-    <div class="feat-title">Multi-source search</div>
-    <div class="feat-desc">iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK, local files — all in one search bar</div>
+    <div class="feat-title">Smart search</div>
+    <div class="feat-desc">iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK, local files — with deduplication and cross-provider ranking</div>
   </div>
   <div class="feat">
     <div class="feat-icon">🎵</div>
@@ -1095,12 +1095,12 @@
   <div class="feat">
     <div class="feat-icon">⚡</div>
     <div class="feat-title">Fast streaming</div>
-    <div class="feat-desc">Parallel yt-dlp resolution, global stream cache, streaming proxy — tracks load in seconds</div>
+    <div class="feat-desc">Innertube API, SoundCloud native resolver, parallel yt-dlp, stream cache — tracks load in seconds</div>
   </div>
   <div class="feat">
     <div class="feat-icon">🎨</div>
     <div class="feat-title">Beautiful player</div>
-    <div class="feat-desc">Crossfade, 10-band equalizer, bass boost, reverb, lyrics sync — full audio experience</div>
+    <div class="feat-desc">Crossfade, 10-band equalizer, bass boost, reverb, stereo width, synced lyrics — full audio experience</div>
   </div>
   <div class="feat">
     <div class="feat-icon">🔗</div>
@@ -1436,24 +1436,39 @@
       <div class="rm-desc">Windows, Linux, Android with MediaSession, notifications, auto-updates</div>
     </div>
     <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Synced lyrics</div>
+      <div class="rm-desc">Multi-source lyrics with time-synced display</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Audio effects</div>
+      <div class="rm-desc">10-band equalizer, bass boost, reverb, stereo width, crossfade</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Last.fm scrobbling</div>
+      <div class="rm-desc">Full scrobble integration with Now Playing updates</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Search normalization</div>
+      <div class="rm-desc">Deduplication, title cleanup, cross-provider ranking</div>
+    </div>
+    <div class="rm-card">
       <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
       <div class="rm-title">AI DJ mode</div>
       <div class="rm-desc">Auto-mix transitions, key detection, BPM matching — seamless sets</div>
     </div>
     <div class="rm-card">
       <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
-      <div class="rm-title">Collaborative queues</div>
-      <div class="rm-desc">Share a queue with friends, vote on next track, party mode</div>
+      <div class="rm-title">Collaborative playlists</div>
+      <div class="rm-desc">Shared playlists via Supabase — invite, sync, and listen together</div>
     </div>
     <div class="rm-card">
       <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
-      <div class="rm-title">Audio Scrobbling</div>
-      <div class="rm-desc">Last.fm scrobble integration with full history sync</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
-      <div class="rm-title">Lyrics editor</div>
-      <div class="rm-desc">Community-driven lyrics sync and translation</div>
+      <div class="rm-title">Smart playlists</div>
+      <div class="rm-desc">Auto-generated playlists by mood, genre, energy, and listening patterns</div>
     </div>
   </div>
 </section>
@@ -1497,7 +1512,7 @@
         </tr>
         <tr>
           <td class="cmp-feat">Smart recommendations</td>
-          <td class="cmp-wave"><span class="cmp-partial"></span></td>
+          <td class="cmp-wave"><span class="cmp-yes"></span></td>
           <td><span class="cmp-partial"></span></td>
           <td><span class="cmp-no"></span></td>
           <td><span class="cmp-no"></span></td>
@@ -1522,6 +1537,13 @@
           <td><span class="cmp-no"></span></td>
           <td><span class="cmp-yes"></span></td>
           <td><span class="cmp-yes"></span></td>
+        </tr>
+        <tr>
+          <td class="cmp-feat">Audio scrobbling</td>
+          <td class="cmp-wave"><span class="cmp-yes"></span></td>
+          <td><span class="cmp-no"></span></td>
+          <td><span class="cmp-no"></span></td>
+          <td><span class="cmp-no"></span></td>
         </tr>
         <tr>
           <td class="cmp-feat">Backend</td>
@@ -1579,6 +1601,20 @@
   <div class="section-label">History</div>
   <div class="section-title">Changelog</div>
   <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-version">0.2.2</div><span class="tl-date">Aug 2026</span>
+      <span class="tl-tag feat">feat</span>
+      <div class="tl-body"><ul>
+        <li>Search normalization — deduplication, title cleanup, cross-provider ranking</li>
+        <li>Innertube API resolver — YouTube streaming 3-5x faster</li>
+        <li>SoundCloud native resolver — direct HTTP, no yt-dlp dependency</li>
+        <li>10 UI improvements — dynamic backgrounds, glassmorphism, view transitions</li>
+        <li>Wayland/X11 compatibility fix for Linux</li>
+        <li>Stream cache (6h TTL, localStorage persistence)</li>
+        <li>PlayerEngine concurrency 8, prefetch, failed retry</li>
+      </ul></div>
+    </div>
     <div class="tl-item">
       <div class="tl-dot"></div>
       <div class="tl-version">0.2.1</div><span class="tl-date">Aug 2026</span>
@@ -2076,3 +2112,4 @@ window.addEventListener('scroll', () => {
 
 </body>
 </html>
+
