@@ -1,46 +1,158 @@
-# Wave
+<p align="center">
+  <a href="https://github.com/milalulu/wave/releases">
+    <img src="https://raw.githubusercontent.com/milalulu/wave/master/public/logo.svg" width="120" />
+  </a>
+</p>
 
-![Wave Screenshot](assets/screenshot.png)
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/milalulu/wave/master/public/title.svg" />
+    <img alt="Wave" src="https://raw.githubusercontent.com/milalulu/wave/master/public/title_black_to_white.svg" width="360" />
+  </picture>
+</h1>
 
-Минималистичный десктопный музыкальный клиент: поиск по множеству источников, собственная волна (My Wave), лайки/история, HTTP API для интеграции с голосовыми ассистентами (Jarvis).
+<p align="center">
+  <em>Музыкальный плеер, который слушает тебя</em>
+</p>
 
-**Стек:** Tauri 2 (Rust) + React 19 + TypeScript + Zustand + SQLite (tauri-plugin-sql) + axum HTTP API.
-
-[![Release](https://img.shields.io/github/v/release/milalulu/wave?sort=semver&color=blue)](https://github.com/milalulu/wave/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI)](https://github.com/milalulu/wave/actions/workflows/ci.yml)
-
-## Скачать
-
-| Платформа | Установщик |
-|---|---|
-| **Windows 10/11** | [`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_x64_en-US.msi) · [`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_x64-setup.exe) |
-| **Linux (Debian/Ubuntu)** | [`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_amd64.deb) |
-| **Linux (Fedora/RHEL)** | [`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.1.9-1.x86_64.rpm) |
-| **Linux (universal)** | [AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.1.9_amd64.AppImage) |
-| **Android** | [APK (arm64)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk) |
-| **Все файлы** | [Релизы](https://github.com/milalulu/wave/releases) |
-
-> Обновления внутри приложения устанавливаются автоматически (Tauri updater). Android APK собирается с debug-подписью; для Play Store нужен keystore. macOS (universal) собирается без нотаризации (при первом запуске потребуется `xattr -dr com.apple.quarantine /Applications/Wave.app`).
-> Ссылки ведут на последний релиз; при выпуске новой версии обновите имя файла в URL (номер версии входит в имя файла).
+<p align="center">
+  <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/badge/download-v0.2.1-00aad4?style=for-the-badge&logo=windows&logoColor=white" /></a>
+  <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-gray?style=for-the-badge" /></a>
+  <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
+</p>
 
 ---
 
-## Фичи
+<p align="center">
+<svg width="600" height="80" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00aad4" stop-opacity="0">
+        <animate attributeName="stop-opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="50%" stop-color="#00aad4" stop-opacity="1" />
+      <stop offset="100%" stop-color="#00aad4" stop-opacity="0">
+        <animate attributeName="stop-opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+  </defs>
+  <path fill="none" stroke="url(#waveGrad)" stroke-width="2.5" stroke-linecap="round">
+    <animate attributeName="d"
+      values="M0,40 C30,40 50,10 80,10 C110,10 130,70 160,70 C190,70 210,10 240,10 C270,10 290,70 320,70 C350,70 370,10 400,10 C430,10 450,70 480,70 C510,70 530,10 560,10 C590,10 600,40 600,40;
+              M0,40 C30,40 50,70 80,70 C110,70 130,10 160,10 C190,10 210,70 240,70 C270,70 290,10 320,10 C350,10 370,70 400,70 C430,70 450,10 480,10 C510,10 530,70 560,70 C590,70 600,40 600,40;
+              M0,40 C30,40 50,10 80,10 C110,10 130,70 160,70 C190,70 210,10 240,10 C270,10 290,70 320,70 C350,70 370,10 400,10 C430,10 450,70 480,70 C510,70 530,10 560,10 C590,10 600,40 600,40"
+      dur="4s" repeatCount="indefinite" />
+  </path>
+  <path fill="none" stroke="url(#waveGrad)" stroke-width="1.5" stroke-linecap="round" opacity="0.4">
+    <animate attributeName="d"
+      values="M0,40 C40,40 60,15 90,15 C120,15 140,65 170,65 C200,65 220,15 250,15 C280,15 300,65 330,65 C360,65 380,15 410,15 C440,15 460,65 490,65 C520,65 540,15 570,15 C600,15 600,40 600,40;
+              M0,40 C40,40 60,65 90,65 C120,65 140,15 170,15 C200,15 220,65 250,65 C280,65 300,15 330,15 C360,15 380,65 410,65 C440,65 460,15 490,15 C520,15 540,65 570,65 C600,65 600,40 600,40;
+              M0,40 C40,40 60,15 90,15 C120,15 140,65 170,65 C200,65 220,15 250,15 C280,15 300,65 330,65 C360,65 380,15 410,15 C440,15 460,65 490,65 C520,65 540,15 570,15 C600,15 600,40 600,40"
+      dur="4s" repeatCount="indefinite" />
+  </path>
+</svg>
+</p>
 
-| Категория | Детали |
-|---|---|
-| **Поиск** | iTunes, YouTube Music (через yt-dlp), SoundCloud, Deezer, MusicBrainz, Last.fm, Spotify (preview), VK, локальные файлы |
-| **Воспроизведение** | Очередь, shuffle/repeat, громкость, сик, переключение треков, медиаклавиши (MPRIS); авто-фолбэк на другой источник при ошибке загрузки; **Play Next** (вставить следующим в очередь) |
-| **Моя волна** | Персональный микс на основе лайков, истории, топ-жанров; кандидаты со всех провайдеров; блокировка отдельных треков и артистов |
-| **Варианты трека** | Musixmatch-стиль: тот же трек на других площадках (сортировка по предпочтениям), «Похожие треки» в очередь |
-| **Лайки / История** | SQLite-персистентность, синхронизация между запусками |
-| **Локальные файлы** | Рекурсивное сканирование папки, чтение ID3/FLAC/MP4 тегов (lofty), длительность |
-| **HTTP API** | REST endpoints для управления плеером, поиска, волны, вариантов, источников, «похожих», лайков — для Jarvis / внешних скриптов |
-| **Тексты песен** | LRCLIB (синхронизированные LRC + обычные) |
-| **Настройки (UI)** | Ввод токенов провайдеров, выбор папки локальных файлов, тема, язык; блокировка/порядок источников, сброс кешей, проверка всех площадок; **горячие клавиши** |
-| **Интернационализация** | English (default) / Русский |
-| **Android** | MediaSession + foreground service + notification (play/pause/prev/next), arm64 + armv7 APK |
-| **Безопасность** | Path sandboxing, фильтрация заголовков (cookie/auth), крипто-рандом, merge конфига, оптимизация обложек (> 200KB) |
+---
+
+## Скачать
+
+<table align="center">
+<tr>
+  <td align="center"><b>Windows</b></td>
+  <td align="center"><b>Linux</b></td>
+  <td align="center"><b>Android</b></td>
+</tr>
+<tr>
+  <td align="center">
+
+[`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_x64_en-US.msi)
+&middot;
+[`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_x64-setup.exe)
+
+  </td>
+  <td align="center">
+
+[`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_amd64.deb)
+&middot;
+[`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.2.1-1.x86_64.rpm)
+&middot;
+[AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_amd64.AppImage)
+
+  </td>
+  <td align="center">
+
+[APK (arm64)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk)
+
+  </td>
+</tr>
+</table>
+
+<p align="center"><sub>Автообновления встроены (Tauri updater). <a href="https://github.com/milalulu/wave/releases">Все релизы &rarr;</a></sub></p>
+
+---
+
+## Что это
+
+**Wave** — десктопный музыкальный плеер, который агрегирует несколько источников в один интерфейс. Поиск по iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK и локальным файлам. Умный микс «Моя волна» на основе твоих вкусов. Полный REST API для интеграции с голосовыми ассистентами.
+
+**Стек:** Tauri 2 (Rust) &middot; React 19 &middot; TypeScript &middot; Zustand &middot; SQLite &middot; axum HTTP API
+
+---
+
+## Возможности
+
+<details open>
+<summary><b>Поиск и источники</b></summary>
+<br>
+
+| Источник | Поиск | Воспроизведение | Примечание |
+|---|:---:|:---:|---|
+| YouTube Music | :white_check_mark: | :white_check_mark: полные треки | через yt-dlp, стримы с авто-перерезолвом |
+| SoundCloud | :white_check_mark: | :white_check_mark: 128k mp3 | API v2 через Rust-прокси |
+| iTunes | :white_check_mark: | :white_check_mark: превью 30с | официальный API |
+| Deezer | :white_check_mark: | :white_check_mark: превью 30с | публичный API |
+| Spotify | :white_check_mark: | :white_check_mark: превью 30с | Client Credentials flow |
+| VK | :white_check_mark: | :white_check_mark: | недокументированный API |
+| MusicBrainz / Last.fm | :white_check_mark: | :x: метаданные | обогащение тегов |
+| Локальные файлы | :white_check_mark: | :white_check_mark: полные файлы | ID3/FLAC/MP4 через lofty |
+
+</details>
+
+<details open>
+<summary><b>Плеер</b></summary>
+<br>
+
+- Очередь с drag-and-drop, **Play Next**, shuffle / repeat
+- Кроссфейд, эквалайзер (10 полос + пресеты), bass boost, reverb
+- Перемотка, громкость, горячие клавиши, медиаклавиши (MPRIS)
+- Авто-фолбэк: при ошибке загрузки пробует другой источник
+- **Варианты трека** (Musixmatch-style): тот же трек на других площадках
+- **Похожие треки** в очередь
+
+</details>
+
+<details open>
+<summary><b>Моя волна</b></summary>
+<br>
+
+Персональный микс на основе лайков, истории и топ-жанров. Кандидаты со всех провайдеров. Блокировка отдельных треков и артистов. Смарт-рекомендации с RollingContext, TransitionScoring и балансом queue 70/20/10.
+
+</details>
+
+<details open>
+<summary><b>Ещё</b></summary>
+<br>
+
+- Тексты песен (LRCLIB, синхронизированные LRC)
+- Лайки / история (SQLite, персистентность)
+- Тёмная / светлая / AMOLED темы
+- i18n: English / Русский
+- Android: MediaSession + notification + foreground service
+- HTTP REST API для Jarvis / внешних скриптов
+- Облачная синхронизация (Supabase)
+
+</details>
 
 ---
 
@@ -48,39 +160,27 @@
 
 ```
 src/
-├── core/                 # Music Core — независимый от Tauri TS-ядер
-│   ├── player/           # PlayerEngine, адаптеры (WebAudioAdapter)
-│   ├── queue/            # Queue (shuffle/repeat/history, insertNext)
-│   ├── library/          # WaveEngine, HistoryService, LibraryService
-│   ├── database/         # Storage интерфейс + SqliteStorage
-│   ├── providers/        # MusicProvider + реализации (iTunes, YouTube, SC, Deezer, MB, LF, Spotify, VK, Local)
-│   ├── lyrics/           # LyricsService (LRCLIB)
-│   ├── util/             # formatTime и другие утилиты
-│   ├── i18n.ts           # Интернационализация (EN/RU)
+├── core/                 # Music Core — чистый TS, независимый от Tauri
+│   ├── player/           # PlayerEngine, WebAudioAdapter, стриминг
+│   ├── queue/            # Queue (shuffle/repeat/history)
+│   ├── library/          # WaveEngine, рекомендации, enrichment
+│   ├── providers/        # iTunes, YouTube, SoundCloud, Deezer, Spotify, VK, Local...
+│   ├── lyrics/           # LRCLIB
 │   └── types.ts          # Track, Album, Artist, SearchResults...
-├── app/                  # Tauri-слой: compose, bridge, stores, SqliteStorage
-├── ui/                   # React компоненты (Sidebar, PlayerBar, Views…)
-├── main.tsx              # Entry, error forwarding
-└── styles.css            # Global styles, dark theme, skeletons
+├── app/                  # Tauri-слой: stores, bridge, compose
+├── ui/                   # React компоненты
+└── styles.css            # CSS custom properties, темы
 src-tauri/
-├── src/
-│   ├── lib.rs            # Commands: app_config, yt_search, yt_stream, vk_search, http_fetch_json, list_music_files, path sandboxing, config merge, header filtering, cover art cap
-│   ├── android.rs        # Android MediaSession control (set_playback, consume_media_action)
-│   └── http/             # axum HTTP server + auth middleware (token)
+├── src/lib.rs            # Tauri commands, yt-dlp, стриминг
+├── src/http/             # axum HTTP server + audio proxy
 └── Cargo.toml
-src-tauri/gen/android/    # Android (Tauri mobile)
-├── app/src/main/java/com/wave/desktop/
-│   ├── MainActivity.kt       # Tauri activity + media action queue
-│   ├── PlaybackService.kt    # Foreground service + MediaSession + notification
-│   └── PlaybackPlugin.kt     # Tauri plugin: set_playback, consume_media_action
-└── app/build.gradle.kts  # compileSdk=36, minSdk=24, media:1.7.0
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS, тестируется в Node), Tauri-специфика — только в `app/` и `src-tauri/`.
+**Принцип:** бизнес-логика в `core/` (чистый TS, тестируется в Node). Tauri-специфика — только в `app/` и `src-tauri/`.
 
 ---
 
-## Установка
+## Установка для разработки
 
 ### Зависимости
 
@@ -89,140 +189,43 @@ src-tauri/gen/android/    # Android (Tauri mobile)
 | Node.js | 24+ | `nvm install 24` |
 | pnpm | 11+ | `corepack enable && corepack prepare pnpm@latest --activate` |
 | Rust | 1.75+ | `rustup default stable` |
-| yt-dlp | 2024+ | `pipx install yt-dlp` или скачать бинарник в `~/.local/bin/yt-dlp` |
-| (Linux) WebKit2GTK | 2.40+ | `sudo apt install libwebkit2gtk-4.1-dev` / `pacman -S webkit2gtk-4.1` |
-| (Android) JDK 17 | 17+ | Android SDK + `cargo-ndk` |
-
-> **Важно:** на Wayland запускайте с переменными окружения:
-> ```bash
-> env WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 pnpm tauri dev
-> ```
-
-### Сборка и запуск
+| yt-dlp | 2024+ | `pipx install yt-dlp` |
+| (Linux) WebKit2GTK | 2.40+ | `sudo apt install libwebkit2gtk-4.1-dev` |
 
 ```bash
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
 pnpm tauri dev          # разработка
-pnpm tauri build        # релиз (в src-tauri/target/release/bundle)
+pnpm tauri build        # релиз
 ```
-
-### Релиз (GitHub Actions)
-
-CI собирает установщики автоматически при пуше git-тега `v*`:
-
-```bash
-git tag v0.1.9
-git push origin v0.1.9
-```
-
-Релиз создаётся как **черновик** — проверьте артефакты и опубликуйте вручную. Для подписи сборок задайте в настройках репозитория (Settings → Secrets and variables → Actions) секреты:
-
-| Секрет | Назначение |
-|---|---|
-| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Подпись пакетов автообновления (`tauri signer generate`). Без них `latest.json` не создаётся, приложение просто не видит обновлений. |
-| `WIN_CERTIFICATE` (.pfx в base64), `WIN_CERTIFICATE_PASSWORD` | Подпись Windows (убирает предупреждение SmartScreen). Дополнительно укажите `certificateThumbprint` в `bundle.windows` `src-tauri/tauri.conf.json`. |
-
-macOS-сборки собираются на `macos-latest` (universal-apple-darwin). Без Developer ID-сертификата нотаризация пропускается — приложение требует ручного снятия quarantine. Для подписи/нотаризации задайте секреты: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
-
-**Внимание:** ключ подписи генерируется один раз и хранится только у вас (`TAURI_SIGNING_PRIVATE_KEY`). При его утере автообновление перестанет работать — придётся генерировать новый ключ и менять `pubkey` в `tauri.conf.json`. Не коммитьте приватный ключ в репозиторий.
-
-Endpoint автообновлений в `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`) замените на `https://github.com/<owner>/<repo>/releases/latest/download/latest.json`.
 
 ---
 
-## Конфигурация (переменные окружения)
+## HTTP API
 
-Создайте `.env` в корне проекта (см. `.env.example`):
+**Base:** `http://127.0.0.1:8299` &nbsp; | &nbsp; **Auth:** `X-Api-Token: <token>`
 
-| Переменная | Описание | Обязательна |
-|---|---|---|
-| `WAVE_YTDLP_PATH` | Путь к yt-dlp (если не в PATH) | Нет |
-| `WAVE_SOUNDCLOUD_CLIENT_ID` | Client ID для SoundCloud API v2 (достать из браузера на soundcloud.com) | Для SC |
-| `WAVE_SPOTIFY_CLIENT_ID` | Spotify Client ID (developer.spotify.com) | Для Spotify |
-| `WAVE_SPOTIFY_CLIENT_SECRET` | Spotify Client Secret | Для Spotify |
-| `WAVE_VK_TOKEN` | VK user token с правами `audio` | Для VK |
-| `WAVE_LASTFM_API_KEY` | Last.fm API key (last.fm/api/account/create) | Для Last.fm / скробблинга |
-| `WAVE_API_TOKEN` | Токен для HTTP API (если не задан — генерируется случайный, пишется в `~/.config/com.wave.desktop/api-token`) | Для Jarvis |
-| `VITE_SUPABASE_URL` | URL Supabase-проекта (Settings → API) | Для синхронизации |
-| `VITE_SUPABASE_ANON_KEY` | Anon-ключ Supabase | Для синхронизации |
+```
+POST /api/v1/play          {track} или {queue[], index?}
+POST /api/v1/pause
+POST /api/v1/next
+POST /api/v1/search        {query: "..."}
+POST /api/v1/play_search   {query: "...", index?}
+GET  /api/v1/queue         очередь + индекс
+POST /api/v1/like          лайк/дизлайк
+GET  /api/v1/history       история
+POST /api/v1/wave/start    запустить My Wave (20 треков)
+```
 
-**Токен HTTP API:** при первом запуске генерируется случайный 32-символьный токен, сохраняется в конфиг и логируется в консоль (`[wave-http] api token: ...`). Передайте его в заголовке `X-Api-Token`.
-
-### Облачная синхронизация (Supabase)
-
-1. Создайте проект на [supabase.com](https://supabase.com), скопируйте `URL` и `anon key` из **Project Settings → API** в `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
-2. Примените схему — **SQL Editor**, скопируйте содержимое `supabase/migrations/0001_initial_schema.sql` и запустите (таблицы + RLS).
-3. Включите провайдеры — **Authentication → Providers**: Google и/или GitHub. **Ключи (Client ID/Secret) нужно зарегистрировать вручную** в консолях разработчика Google / GitHub и вписать сюда (это нельзя сделать кодом).
-4. Добавьте redirect-URL — **Authentication → URL Configuration → Redirect URLs**:
-   - `http://127.0.0.1:12121` (десктопный OAuth-колбэк; если порт занят — также `http://127.0.0.1:12122` и `http://127.0.0.1:12123`)
-   - `http://localhost:1420` (разработка в браузере через `pnpm dev`)
-5. Для email-подтверждений: **Authentication → Sign In / Up → Confirm email** — на выбор; при включённом подтверждении письма уходят из Supabase.
-
-Ограничения: OAuth (Google/GitHub) работает на десктопе и в браузере; на Android используйте email/пароль. Без `VITE_SUPABASE_*` раздел аккаунта скрыт, всё остальное работает локально.
-
----
-
-## HTTP API (для Jarvis)
-
-**Base:** `http://127.0.0.1:8299`  
-**Auth:** `X-Api-Token: <token>`
-
-| Метод | Путь | Описание |
-|---|---|---|
-| GET | `/health` | Проверка живости (без auth) |
-| GET | `/api/v1/status` | Сnapshot плеера (state, current, position, queue…) |
-| POST | `/api/v1/play` | `{track}` или `{queue[], index?}` — играть |
-| POST | `/api/v1/pause` | Пауза |
-| POST | `/api/v1/resume` | Продолжить |
-| POST | `/api/v1/next` | Следующий |
-| POST | `/api/v1/previous` | Предыдущий |
-| POST | `/api/v1/seek` | `{position_seconds: 42}` |
-| POST | `/api/v1/volume` | `{percent: 50}` |
-| POST | `/api/v1/shuffle` | `{enabled: true}` |
-| POST | `/api/v1/repeat` | `{mode: "off"|"all"|"one"}` |
-| GET | `/api/v1/queue` | Очередь + индекс |
-| POST | `/api/v1/queue/add` | `{track}` |
-| POST | `/api/v1/queue/clear` | Очистить очередь |
-| POST | `/api/v1/search` | `{query: "..."}` — поиск по всем провайдерам |
-| POST | `/api/v1/play_search` | `{query: "...", index?}` — поиск + играть |
-| POST | `/api/v1/like` | `{track?}` — лайк/дизлайк текущего или указанного |
-| GET | `/api/v1/history` | История прослушиваний |
-| POST | `/api/v1/wave/start` | Запустить My Wave (20 треков) |
-
-**Пример (curl):**
 ```bash
 TOKEN="$(cat ~/.config/com.wave.desktop/api-token)"
 curl -H "X-Api-Token: $TOKEN" http://127.0.0.1:8299/api/v1/status | jq
-curl -H "X-Api-Token: $TOKEN" -X POST -d '{"query":"Daft Punk"}' http://127.0.0.1:8299/api/v1/play_search
+curl -H "X-Api-Token: $TOKEN" -X POST -d '{"query":"Daft Punk"}' \
+  http://127.0.0.1:8299/api/v1/play_search
 ```
 
----
-
-## Провайдеры — заметки
-
-| Провайдер | Ключ | Воспроизведение | Примечание |
-|---|---|---|---|
-| iTunes | — | ✅ превью 30с | Официальный поиск |
-| YouTube Music | `WAVE_YTDLP_PATH` | ✅ полные треки | Через yt-dlp (стримы истекают ~6ч, авто-перерезолв) |
-| SoundCloud | `WAVE_SOUNDCLOUD_CLIENT_ID` | ✅ 128к mp3 | API v2 без CORS → через Rust-прокси |
-| Deezer | — | ✅ превью 30с | Публичный API, нет CORS → через Rust-прокси |
-| MusicBrainz | — | ❌ метаданные | Только поиск, User-Agent обязателен |
-| Last.fm | `WAVE_LASTFM_API_KEY` | ❌ метаданные | Трек/альбом/артист поиск + скробблинг |
-| Spotify | ID + Secret | ✅ превью 30с | Client Credentials flow, только треки с preview_url |
-| VK | `WAVE_VK_TOKEN` | ✅ (если есть прямые ссылки) | al_audio.php, недокументированный |
-| Local | — | ✅ полные файлы | ID3/FLAC/MP4 теги через lofty |
-
-> ⚠️ **SoundCloud / VK / YouTube** используют недокументированные эндпоинты — могут ломаться. Используйте на свой страх.
-
----
-
-## Лицензия
-
-MIT License — см. [LICENSE](LICENSE).
-
-**Disclaimer:** этот проект использует недокументированные API (SoundCloud, VK, YouTube через yt-dlp). Авторы не несут ответственности за нарушение ToS сторонних сервисов. Используйте для личных целей.
+[Полный список эндпоинтов &rarr;](https://github.com/milalulu/wave/blob/master/README.md#http-api-для-jarvis)
 
 ---
 
@@ -230,43 +233,60 @@ MIT License — см. [LICENSE](LICENSE).
 
 - [x] Music Core (queue, player, providers, wave, storage)
 - [x] SQLite persistence (likes, history, albums, artists)
-- [x] HTTP API + auth
-- [x] yt-dlp / SoundCloud / Deezer / MusicBrainz / Last.fm / Spotify / VK providers
-- [x] Re-resolve expired streams, error toasts, local file metadata, random API token
-- [x] i18n (en/ru) + Settings UI (tokens, providers, local dir, source blocking/preferences, reset caches, test all)
-- [x] Lyrics (LRCLIB)
-- [x] Track variants (Musixmatch-style) + «Similar» to queue
-- [x] My Wave blocking (tracks/artists), auto-fallback on load errors
-- [x] **Play Next** queue action (context menu + stores)
-- [x] **Keyboard shortcuts** cheat sheet (Settings)
-- [x] **Loading skeletons** (Search view)
-- [x] **Android** — MediaSession, notification controls, foreground service
-- [x] Security: path sandboxing, header filtering, cryptographic RNG, config merge
-- [x] Cover art optimization (skip base64 for > 200KB images)
-- [ ] **Albums/Artists UI** (view tracks, bio)
-- [ ] **User playlists** (create, M3U import/export, drag-to-queue)
-- [ ] **MPRIS / media keys** + system notifications (desktop)
-- [ ] **Last.fm scrobbling** (now playing + scrobble)
-- [ ] **Radio by track** from external sources (not just library wave)
-- [ ] Cross-platform (Windows/macOS asset paths, yt-dlp discovery)
+- [x] HTTP API + auth + yt-dlp / SoundCloud / Deezer / Spotify / VK
+- [x] Lyrics (LRCLIB) + Track variants + Similar
+- [x] Android (MediaSession + notification + foreground service)
+- [x] Keyboard shortcuts, loading skeletons, blocking
+- [x] **My Wave** smart recommendations (RollingContext, TransitionScoring, queue balance)
+- [x] **Streaming proxy** (YouTube через localhost, CORS-free, streaming)
+- [x] **Fast yt-dlp** (параллельные клиенты, глобальный кеш стримов)
+- [ ] Albums / Artists UI
+- [ ] User playlists (create, M3U import/export, drag-to-queue)
+- [ ] Last.fm scrobbling
+- [ ] Radio by track from external sources
 
 ---
 
 ## Вклад
 
 PR welcome. Перед коммитом:
+
 ```bash
-pnpm test
-pnpm build
+pnpm test && pnpm build
 cd src-tauri && cargo fmt --check && cargo clippy && cargo build
 ```
 
 ---
 
-## Благодарности
+## Лицензия
 
-- [Muffon](https://github.com/staniel359/muffon) — концепция провайдеров и UI (AGPL-3.0, код не копировался)
-- [tauri-plugin-sql](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/sql) — SQLite в вебвью
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — YouTube стримы
-- [lofty](https://github.com/open-rs/lofty) — аудио метаданные
-- [LRCLIB](https://lrclib.net/) — открытые тексты песен
+MIT License — см. [LICENSE](LICENSE).
+
+**Disclaimer:** проект использует недокументированные API (SoundCloud, VK, YouTube через yt-dlp). Авторы не несут ответственности за нарушение ToS сторонних сервисов.
+
+---
+
+<p align="center">
+  <svg width="200" height="30" viewBox="0 0 200 30" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="3" fill="#00aad4">
+      <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="55" cy="15" r="3" fill="#00aad4">
+      <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.2s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" begin="0.2s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="95" cy="15" r="3" fill="#00aad4">
+      <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.4s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" begin="0.4s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="135" cy="15" r="3" fill="#00aad4">
+      <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.6s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" begin="0.6s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="175" cy="15" r="3" fill="#00aad4">
+      <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" begin="0.8s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+</p>
