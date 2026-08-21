@@ -639,6 +639,20 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     adapter.destroy();
   });
 
+  it("проксированный стрим не уходит в полную загрузку буфера", async () => {
+    const fetchMock = stubFetch();
+    FakeAudioElement.broken = true;
+    const adapter = new WebAudioAdapter();
+    const src = `${PROXY_BASE}/audio?url=${encodeURIComponent("https://rr.googlevideo.com/videoplayback")}`;
+    await adapter.load(src);
+    await adapter.play();
+    await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_READY_PROBE_MS + 100);
+
+    expect(lastCtx().bufferSources.length).toBe(0);
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/audio?url="))).toBe(false);
+    adapter.destroy();
+  });
+
   it("элемент без метаданных (readyState 0) переключается на буфер второй пробой", async () => {
     stubFetch();
     FakeAudioElement.stuckMetadata = true;

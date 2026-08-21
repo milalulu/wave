@@ -317,6 +317,30 @@ describe("PlayerEngine resolveUri", () => {
     expect(engine.snapshot.state).toBe("playing");
   });
 
+  it("resolves only the current track before play, then the next", async () => {
+    const adapter = new MockAudioAdapter();
+    const ids: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const engine = new PlayerEngine(adapter, {
+      resolveUri: async (t) => {
+        ids.push(t.id);
+        if (t.id === "a") await gate;
+        return t.uri;
+      },
+    });
+    const started = engine.playTracks(tracks);
+    await flush();
+    expect(ids).toEqual(["a"]);
+    release();
+    await started;
+    await flush();
+    expect(ids).toEqual(["a", "b"]);
+    engine.destroy();
+  });
+
   it("uses track.uri directly when no resolver", async () => {
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter);

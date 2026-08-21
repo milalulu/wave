@@ -9,6 +9,10 @@ export const GAIN_TAU = 0.05;
 
 export const PROXY_BASE = "http://127.0.0.1:8299";
 
+export function isProxiedAudioUrl(src: string | null | undefined): boolean {
+  return Boolean(src && src.startsWith(PROXY_BASE));
+}
+
 export const MEDIA_ELEMENT_PROBE_MS = 1500;
 
 export const MEDIA_ELEMENT_READY_PROBE_MS = 8000;
@@ -422,6 +426,9 @@ export class WebAudioAdapter implements AudioAdapter {
   
 
   async load(src: string): Promise<void> {
+    if (isProxiedAudioUrl(src)) {
+      this.switchToElementMode();
+    }
     if (this.mode === "buffer") {
       await this.bufLoad(src);
       return;
@@ -454,6 +461,9 @@ export class WebAudioAdapter implements AudioAdapter {
 
   
   preload(src: string): void {
+    if (isProxiedAudioUrl(src) && this.mode === "buffer") {
+      return;
+    }
     if (this.mode === "buffer") {
       this.bufPreload(src);
       return;
@@ -715,6 +725,7 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private switchToBufferMode(): void {
     if (this.mode === "buffer") return;
+    if (isProxiedAudioUrl(this.pendingElementSrc)) return;
     if (!this.ensureBufferCtx()) return;
     this.mode = "buffer";
     this.cancelFade();
@@ -736,9 +747,20 @@ export class WebAudioAdapter implements AudioAdapter {
     this.elements = [null, null];
   }
 
-  
+  private switchToElementMode(): void {
+    if (this.mode === "element") return;
+    this.stopTimeTimer();
+    this.stopSourceNode(this.bufSource);
+    this.bufSource = null;
+    this.bufPlaying = false;
+    this.mode = "element";
+    this.graphDisabled = false;
+    this.ensureElements();
+    this.ensureGraph();
+  }
 
   private scheduleProbe(): void {
+    if (isProxiedAudioUrl(this.pendingElementSrc)) return;
     if (this.probed) return;
     this.probed = true;
     this.probeTimer = globalThis.setTimeout(() => {
