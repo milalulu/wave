@@ -12,6 +12,7 @@ function isYouTubeUrl(url: string): boolean {
 export async function validateStreamUrl(url: string): Promise<void> {
   if (!url.startsWith("http://") && !url.startsWith("https://")) return;
   if (isYouTubeUrl(url)) return;
+  if (url.includes("127.0.0.1:8299/audio")) return;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), VALIDATE_TIMEOUT_MS);

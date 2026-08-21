@@ -495,8 +495,7 @@ async fn yt_stream_fast(
 
     let clients = ["android", "web_safari"];
 
-    let mut progressive_url: Option<String> = None;
-    let mut hls_url: Option<String> = None;
+    let mut handles = Vec::with_capacity(clients.len());
     for client in clients {
         let mut args = vec![
             url_str.clone(),
@@ -511,8 +510,14 @@ async fn yt_stream_fast(
             format!("youtube:player_client={client}"),
         ];
         args.extend(cookies.iter().cloned());
+        let app2 = app.clone();
+        handles.push(tokio::spawn(async move { run_ytdlp(&app2, args, 7).await }));
+    }
 
-        if let Ok(Some(stdout)) = run_ytdlp(&app, args, 10).await {
+    let mut progressive_url: Option<String> = None;
+    let mut hls_url: Option<String> = None;
+    for h in handles {
+        if let Ok(Ok(Some(stdout))) = h.await {
             if let Some(u) = stdout
                 .lines()
                 .rev()

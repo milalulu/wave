@@ -442,8 +442,6 @@ export class WebAudioAdapter implements AudioAdapter {
     if (next && next.currentSrc === src) {
       this.swapActive();
       next.currentTime = 0;
-      
-      
       this.rebalanceGains();
       this.scheduleProbe();
       return;

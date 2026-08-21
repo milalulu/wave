@@ -34,6 +34,7 @@ import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
+import { PROXY_BASE } from "../core/player/WebAudioAdapter";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
@@ -171,7 +172,10 @@ export async function composeServices(): Promise<AppServices> {
         if (local) return local;
       }
       const provider = providers.find((p) => p.id === track.provider);
-      const url = provider ? await provider.resolveUri(track) : track.uri;
+      const raw = provider ? await provider.resolveUri(track) : track.uri;
+      const url = raw.includes("googlevideo.com")
+        ? `${PROXY_BASE}/audio?url=${encodeURIComponent(raw)}`
+        : raw;
       streamCache.set(track.id, url);
       return url;
     },

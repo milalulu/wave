@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use futures_util::TryStreamExt;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use tauri::AppHandle;
@@ -73,7 +74,24 @@ route_handler!(block_artist_toggle, "blocks.artist.toggle");
 
 pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
     let state = ServerState { app, bridge, token };
-    let media = Router::new().route("/audio", get(audio_proxy));
+    let media = Router::new()
+        .route("/audio", get(audio_proxy).options(|| async {
+            let mut res = Response::new(Body::empty());
+            *res.status_mut() = StatusCode::NO_CONTENT;
+            res.headers_mut().insert(
+                axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                HeaderValue::from_static("*"),
+            );
+            res.headers_mut().insert(
+                axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+                HeaderValue::from_static("GET, HEAD, OPTIONS"),
+            );
+            res.headers_mut().insert(
+                axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+                HeaderValue::from_static("range"),
+            );
+            res
+        }));
     let health = Router::new()
         .route("/health", get(health))
         .route("/api/v1/health", get(health))
@@ -206,7 +224,10 @@ fn media_host_allowed(url: &str) -> bool {
         .any(|suffix| host == suffix.trim_start_matches('.') || host.ends_with(suffix))
 }
 
-async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response {
+async fn audio_proxy(
+    headers: axum::http::HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
     let Some(url) = params.get("url") else {
         return (StatusCode::BAD_REQUEST, "missing url").into_response();
     };
@@ -216,7 +237,11 @@ async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response 
     if let Err(e) = super::validate_http_url(url).await {
         return (StatusCode::FORBIDDEN, e).into_response();
     }
-    let response = match super::client().get(url).send().await {
+    let mut req = super::client().get(url);
+    if let Some(range) = headers.get("range").and_then(|v| v.to_str().ok()) {
+        req = req.header("range", range);
+    }
+    let response = match req.send().await {
         Ok(res) => res,
         Err(e) => {
             return (StatusCode::BAD_GATEWAY, format!("proxy fetch: {e}")).into_response();
@@ -229,19 +254,47 @@ async fn audio_proxy(Query(params): Query<HashMap<String, String>>) -> Response 
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
-    match response.bytes().await {
-        Ok(body) => {
-            let mut res = Response::new(Body::from(body));
-            *res.status_mut() = status;
-            res.headers_mut()
-                .insert("Access-Control-Allow-Origin", HeaderValue::from_static("*"));
-            res.headers_mut().insert(
-                "Content-Type",
-                HeaderValue::from_str(&content_type)
-                    .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
-            );
-            res
+    let content_length = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let accept_ranges = response
+        .headers()
+        .get("accept-ranges")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let content_range = response
+        .headers()
+        .get("content-range")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let stream = response.bytes_stream();
+    let body = Body::from_stream(stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let mut res = Response::new(body);
+    *res.status_mut() = status;
+    res.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_str(&content_type).unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    res.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
+    if let Some(cl) = content_length {
+        if let Ok(v) = HeaderValue::from_str(&cl) {
+            res.headers_mut().insert(axum::http::header::CONTENT_LENGTH, v);
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("proxy body: {e}")).into_response(),
     }
+    if let Some(ar) = accept_ranges {
+        if let Ok(v) = HeaderValue::from_str(&ar) {
+            res.headers_mut().insert(axum::http::header::ACCEPT_RANGES, v);
+        }
+    }
+    if let Some(cr) = content_range {
+        if let Ok(v) = HeaderValue::from_str(&cr) {
+            res.headers_mut().insert(axum::http::header::CONTENT_RANGE, v);
+        }
+    }
+    res
 }
