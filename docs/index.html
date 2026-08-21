@@ -1026,9 +1026,74 @@
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+
+  /* ── Custom cursor ── */
+  @media (hover: hover) and (pointer: fine) {
+    *, *::before, *::after { cursor: none !important; }
+  }
+  .cursor-dot {
+    position: fixed; top: 0; left: 0; z-index: 9999;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s, height 0.2s, background 0.2s;
+    mix-blend-mode: difference;
+  }
+  .cursor-ring {
+    position: fixed; top: 0; left: 0; z-index: 9998;
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1.5px solid rgba(0,170,212,0.4);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s, border-color 0.3s, background 0.3s;
+  }
+  .cursor-dot.hovering {
+    width: 14px; height: 14px;
+    background: var(--magenta);
+  }
+  .cursor-ring.hovering {
+    width: 60px; height: 60px;
+    border-color: rgba(208,48,255,0.5);
+    background: rgba(208,48,255,0.05);
+  }
+  .cursor-dot.clicking {
+    width: 6px; height: 6px;
+    background: #fff;
+  }
+  .cursor-ring.clicking {
+    width: 32px; height: 32px;
+    border-color: rgba(255,255,255,0.6);
+  }
+
+  /* ── Spotlight overlay ── */
+  .spotlight {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(circle 600px at var(--mx, 50%) var(--my, 50%),
+      rgba(0,170,212,0.04) 0%, transparent 70%);
+    transition: background 0.1s;
+  }
+
+  /* ── 3D tilt cards ── */
+  .feat { perspective: 800px; transform-style: preserve-3d; }
+
+  /* ── Magnetic button ── */
+  .dl-btn, .cta-btn { transition: all 0.3s cubic-bezier(.22,1,.36,1); }
+
+  /* ── Hero gradient follows cursor ── */
+  .hero-glow {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 800px 500px at var(--hmx, 50%) var(--hmy, 30%),
+      rgba(124,92,255,0.08) 0%, transparent 70%);
+  }
 </style>
 </head>
 <body>
+
+<div class="cursor-dot" id="cursor-dot"></div>
+<div class="cursor-ring" id="cursor-ring"></div>
+<div class="spotlight" id="spotlight"></div>
 
 <div class="glow-1"></div>
 <div class="glow-2"></div>
@@ -1040,6 +1105,7 @@
 </button>
 
 <section class="hero">
+  <div class="hero-glow" id="hero-glow"></div>
 
   <!-- Rings -->
   <div class="rings">
@@ -2150,6 +2216,108 @@ window.addEventListener('scroll', () => {
   if (window.scrollY > 600) btt.classList.add('show');
   else btt.classList.remove('show');
 });
+
+// ── Cursor tracking ──
+(function() {
+  const dot = document.getElementById('cursor-dot');
+  const ring = document.getElementById('cursor-ring');
+  const spotlight = document.getElementById('spotlight');
+  const heroGlow = document.getElementById('hero-glow');
+  if (!dot || !ring) return;
+
+  let mx = 0, my = 0;       // actual mouse
+  let rx = 0, ry = 0;       // ring position (lerped)
+  let visible = false;
+
+  document.addEventListener('mousemove', (e) => {
+    mx = e.clientX;
+    my = e.clientY;
+    if (!visible) {
+      visible = true;
+      dot.style.opacity = '1';
+      ring.style.opacity = '1';
+    }
+    // Spotlight
+    spotlight.style.setProperty('--mx', mx + 'px');
+    spotlight.style.setProperty('--my', my + 'px');
+    // Hero glow
+    if (heroGlow) {
+      const rect = heroGlow.parentElement.getBoundingClientRect();
+      const hx = ((mx - rect.left) / rect.width * 100);
+      const hy = ((my - rect.top) / rect.height * 100);
+      heroGlow.style.setProperty('--hmx', hx + '%');
+      heroGlow.style.setProperty('--hmy', hy + '%');
+    }
+  });
+
+  // Dot follows instantly
+  function tick() {
+    dot.style.left = mx + 'px';
+    dot.style.top = my + 'px';
+    // Ring follows with lag (lerp 0.12)
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(tick);
+  }
+  dot.style.opacity = '0';
+  ring.style.opacity = '0';
+  requestAnimationFrame(tick);
+
+  // Hover states
+  const hoverEls = 'a, button, .feat, .dl-btn, .eq-preset-btn, .mock-nav-item, .theme-card, .faq-q, .api-ep, .tl-item';
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest(hoverEls)) {
+      dot.classList.add('hovering');
+      ring.classList.add('hovering');
+    }
+  });
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest(hoverEls)) {
+      dot.classList.remove('hovering');
+      ring.classList.remove('hovering');
+    }
+  });
+
+  // Click
+  document.addEventListener('mousedown', () => { dot.classList.add('clicking'); ring.classList.add('clicking'); });
+  document.addEventListener('mouseup', () => { dot.classList.remove('clicking'); ring.classList.remove('clicking'); });
+
+  // Hide on mouse leave
+  document.addEventListener('mouseleave', () => {
+    dot.style.opacity = '0'; ring.style.opacity = '0'; visible = false;
+  });
+  document.addEventListener('mouseenter', () => {
+    dot.style.opacity = '1'; ring.style.opacity = '1'; visible = true;
+  });
+
+  // ── 3D tilt on feature cards ──
+  document.querySelectorAll('.feat').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform = `translateY(-4px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+    });
+  });
+
+  // ── Magnetic buttons ──
+  document.querySelectorAll('.dl-btn').forEach(btn => {
+    btn.addEventListener('mousemove', (e) => {
+      const rect = btn.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
+      btn.style.transform = `translate(${x * 0.15}px, ${y * 0.15}px) translateY(-2px)`;
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.transform = '';
+    });
+  });
+})();
 </script>
 
 </body>
