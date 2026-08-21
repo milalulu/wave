@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../app/stores";
 import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
@@ -30,6 +30,7 @@ import {
   VolumeIcon,
   VolumeMuteIcon,
 } from "./icons";
+import { usePopoverDismiss } from "./usePopoverDismiss";
 
 function formatRemaining(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -79,6 +80,17 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const [eqOpen, setEqOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
+  const sleepRef = useRef<HTMLDivElement>(null);
+  const speedRef = useRef<HTMLDivElement>(null);
+  const eqRef = useRef<HTMLDivElement>(null);
+  const variantsRef = useRef<HTMLDivElement>(null);
+  const spectrumRef = useRef<HTMLDivElement>(null);
+
+  usePopoverDismiss(sleepRef, sleepOpen, () => setSleepOpen(false));
+  usePopoverDismiss(speedRef, speedOpen, () => setSpeedOpen(false));
+  usePopoverDismiss(eqRef, eqOpen, () => setEqOpen(false));
+  usePopoverDismiss(variantsRef, variantsOpen, () => setVariantsOpen(false));
+  usePopoverDismiss(spectrumRef, spectrumOpen, () => setSpectrumOpen(false));
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
   const eqActive = snapshot.equalizer.some((g) => g !== 0);
 
@@ -172,7 +184,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         )}
         <div className="player-track-info">
           {track && (
-            <div className="player-variants-wrap">
+            <div className="player-variants-wrap" ref={variantsRef}>
               <button
                 className={`variants-toggle ${variantsOpen ? "active" : ""}`}
                 onClick={(e) => {
@@ -328,7 +340,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
           <QueueIcon size={18} />
         </button>
-        <div className="sleep-menu-wrap">
+        <div className="sleep-menu-wrap" ref={speedRef}>
           <button
             className={`icon-btn ${snapshot.speed !== 1 ? "active" : ""}`}
             onClick={() => setSpeedOpen((o) => !o)}
@@ -355,7 +367,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             </div>
           )}
         </div>
-        <div className="sleep-menu-wrap">
+        <div className="sleep-menu-wrap" ref={eqRef}>
           <button
             className={`icon-btn ${spectrumOpen ? "active" : ""}`}
             onClick={() => setSpectrumOpen((o) => !o)}
@@ -414,7 +426,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             </div>
           )}
         </div>
-        <div className="sleep-menu-wrap">
+        <div className="sleep-menu-wrap" ref={sleepRef}>
           <button
             className={`icon-btn ${sleepActive ? "active" : ""}`}
             onClick={() => setSleepOpen((o) => !o)}

@@ -61,6 +61,10 @@ export interface Translations {
     sleepTimerAfterTrack: string;
   };
   home: {
+    heroTitle: string;
+    heroSubtitle: string;
+    heroPlay: string;
+    heroSearch: string;
     welcomeTitle: string;
     welcomeSubtitle: string;
     localFiles: string;
@@ -451,6 +455,10 @@ export const translations: Record<Locale, Translations> = {
       sleepTimerAfterTrack: "Sleep timer: end of track",
     },
     home: {
+      heroTitle: "Music. Without borders.",
+      heroSubtitle: "A modern music player with intelligent waves, cross-provider search and perfect sound.",
+      heroPlay: "Listen to Wave",
+      heroSearch: "Find Track",
       welcomeTitle: "Welcome to Wave",
       welcomeSubtitle: "Find music or open a local folder",
       localFiles: "Local Files",
@@ -842,6 +850,10 @@ export const translations: Record<Locale, Translations> = {
       sleepTimerAfterTrack: "Таймер сна: конец трека",
     },
     home: {
+      heroTitle: "Музыка. Без границ.",
+      heroSubtitle: "Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.",
+      heroPlay: "Слушать волну",
+      heroSearch: "Найти трек",
       welcomeTitle: "Добро пожаловать в Wave",
       welcomeSubtitle: "Найдите музыку или откройте локальную папку",
       localFiles: "Локальные файлы",

@@ -55,7 +55,7 @@ export function AlbumDetailView() {
       </header>
 
       <section className="detail-tracks">
-        <h2>{tf("common").open} ({tracks.length})</h2>
+        <h2>{tf("search").tracks} ({tracks.length})</h2>
         <div className="track-list">
           {tracks.map((track: Track, i: number) => (
             <TrackRow key={track.id} track={track} index={i + 1} />

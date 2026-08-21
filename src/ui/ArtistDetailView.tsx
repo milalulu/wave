@@ -76,7 +76,7 @@ export function ArtistDetailView() {
 
       {topTracks.length > 0 && (
         <section className="detail-tracks">
-          <h2>{tf("common").open} ({topTracks.length})</h2>
+          <h2>{tf("library").topTracks} ({topTracks.length})</h2>
           <div className="track-list">
             {topTracks.map((track: Track, i: number) => (
               <TrackRow key={track.id} track={track} index={i + 1} />
@@ -98,7 +98,7 @@ export function ArtistDetailView() {
 
       {similar.length > 0 && (
         <section className="detail-tracks">
-          <h2>{t("search").tracks} (Similar)</h2>
+          <h2>{t("player").similar}</h2>
           <div className="track-list">
             {similar.map((track: Track, i: number) => (
               <TrackRow key={track.id} track={track} index={i + 1} />

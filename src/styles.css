@@ -1,7 +1,10 @@
+@import "./home-hero.css";
+
 :root {
   --bg: #060914;
   --bg-elev: #0D1326;
   --bg-elev-2: #141C38;
+  --bg-elevated: #0D1326;
   --border: #1E2950;
   --text: #F1F5F9;
   --muted: #94A3B8;
@@ -10,22 +13,29 @@
   --danger: #FF5D73;
   --radius: 14px;
   --radius-sm: 9px;
+  --radius-md: 10px;
+  --hover: rgba(255, 255, 255, 0.06);
+  --text-muted: #94A3B8;
+  --text-dim: #64748B;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --body-bg: radial-gradient(1400px 700px at 15% -10%, #101B3B 0%, var(--bg) 65%);
 }
-
-@import "./home-hero.css";
 
 [data-theme="light"] {
   --bg: #f5f6fa;
   --bg-elev: #ffffff;
   --bg-elev-2: #eef0f6;
+  --bg-elevated: #ffffff;
   --border: #d1d5e0;
   --text: #1e2230;
   --muted: #6b7280;
   --accent: #7c5cff;
   --accent-2: #4cc9f0;
   --danger: #ff5d73;
+  --radius-md: 10px;
+  --hover: rgba(0, 0, 0, 0.05);
+  --text-muted: #6b7280;
+  --text-dim: #9ca3af;
   --body-bg: radial-gradient(1200px 600px at 20% -10%, #eef2ff 0%, var(--bg) 60%);
 }
 
@@ -33,17 +43,44 @@
   --bg: #000000;
   --bg-elev: #0a0a0a;
   --bg-elev-2: #141414;
+  --bg-elevated: #0a0a0a;
   --border: #1a1a1a;
   --text: #e8eaf0;
   --muted: #71768a;
   --accent: #7c5cff;
   --accent-2: #4cc9f0;
   --danger: #ff5d73;
+  --hover: rgba(255, 255, 255, 0.04);
+  --text-muted: #71768a;
+  --text-dim: #4a4f64;
   --body-bg: #000000;
 }
 
 * {
   box-sizing: border-box;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 html,
@@ -346,7 +383,7 @@ h2 {
 .icon-btn.active,
 .icon-btn.liked {
   color: var(--accent);
-  background: rgba(124, 92, 255, 0.16);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .icon-btn.muted {
@@ -811,7 +848,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .playlist-dropzone.drag-over {
-  background: rgba(124, 92, 255, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   box-shadow: inset 0 2px 0 0 var(--accent);
 }
 
@@ -826,7 +863,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .playlist-dropzone-end.drag-over {
   border-color: var(--accent);
-  background: rgba(124, 92, 255, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .playlist-split {
@@ -1013,7 +1050,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .track-row.track-current {
-  background: rgba(124, 92, 255, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .track-row[draggable="true"] {
@@ -1217,7 +1254,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .chip.active {
-  background: rgba(124, 92, 255, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-color: var(--accent);
   color: var(--text);
 }
@@ -1633,7 +1670,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .period-tabs button.active {
   color: var(--accent);
-  background: rgba(124, 92, 255, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .smart-playlists {
@@ -1755,12 +1792,12 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .lyrics-line.clickable:hover {
-  background: rgba(124, 92, 255, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .lyrics-line.active {
   color: var(--text);
-  background: rgba(124, 58, 237, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   font-weight: 600;
 }
 
@@ -1796,7 +1833,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 20px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #fff;
-  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .wave-hero p {
@@ -1866,9 +1903,9 @@ input[type="range"]::-webkit-slider-thumb {
   max-width: 340px;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #2b2131;
-  border: 1px solid rgba(255, 94, 164, 0.4);
-  color: #ffd7e7;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  color: var(--text);
   font-size: 13px;
   line-height: 1.4;
   text-align: left;
@@ -1942,7 +1979,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 64px;
   font-weight: 700;
   color: var(--muted);
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg) 100%);
 }
 .cover-empty.artist {
   border-radius: 50%;

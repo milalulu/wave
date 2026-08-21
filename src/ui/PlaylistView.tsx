@@ -235,7 +235,7 @@ export function PlaylistView() {
                 </button>
                 <button
                   className="icon-btn danger"
-                  onClick={(e) => { e.stopPropagation(); deletePlaylist(pl.id); if (selectedPlaylistId === pl.id) setSelectedPlaylist(null); }}
+                  onClick={(e) => { e.stopPropagation(); if (!window.confirm(t("common").delete + "?")) return; deletePlaylist(pl.id); if (selectedPlaylistId === pl.id) setSelectedPlaylist(null); }}
                   title={t("common").delete}
                 >
                   <TrashIcon size={14} />

@@ -201,16 +201,16 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <div className="home-hero-badge">
             <WaveTitle height={120} />
           </div>
-          <h1>Музыка. Без границ.</h1>
-          <p className="home-sub">Современный музыкальный плеер с интеллектуальной волной, кросс-провайдерным поиском и идеальным звуком.</p>
+          <h1>{t("home").heroTitle}</h1>
+          <p className="home-sub">{t("home").heroSubtitle}</p>
           <div className="home-hero-actions">
             <button className="btn btn-hero-play" onClick={() => onNavigate("wave")}>
               <WaveIcon size={18} />
-              Слушать волну
+              {t("home").heroPlay}
             </button>
             <button className="btn btn-hero-secondary" onClick={() => onNavigate("search")}>
               <SearchIcon size={18} />
-              Найти трек
+              {t("home").heroSearch}
             </button>
           </div>
         </div>
