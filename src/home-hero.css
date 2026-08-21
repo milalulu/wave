@@ -1,6 +1,6 @@
 @keyframes waveFloat {
-  0%, 100% { transform: translateY(0px) scale(1); filter: drop-shadow(0 12px 24px rgba(0, 240, 255, 0.25)); }
-  50% { transform: translateY(-8px) scale(1.02); filter: drop-shadow(0 20px 32px rgba(139, 92, 246, 0.35)); }
+  0%, 100% { transform: translateY(0px) scale(1); filter: drop-shadow(0 12px 24px var(--accent-muted)); }
+  50% { transform: translateY(-8px) scale(1.02); filter: drop-shadow(0 20px 32px var(--accent-2-muted)); }
 }
 
 .wave-logo-animated {
@@ -12,13 +12,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 30px;
-  padding: 38px 42px;
-  margin-bottom: 32px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(14, 22, 46, 0.85) 0%, rgba(9, 14, 31, 0.95) 100%), radial-gradient(circle at 80% 20%, rgba(0, 240, 255, 0.15) 0%, transparent 60%);
-  border: 1px solid rgba(0, 240, 255, 0.22);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  gap: var(--sp-8);
+  padding: var(--sp-10) var(--sp-10);
+  margin-bottom: var(--sp-8);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(14, 22, 46, 0.85) 0%, rgba(9, 14, 31, 0.95) 100%), radial-gradient(circle at 80% 20%, var(--accent-muted) 0%, transparent 60%);
+  border: 1px solid var(--accent-muted);
+  box-shadow: var(--shadow-xl), inset 0 1px 1px rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
 
@@ -29,7 +29,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #00F0FF, #3B82F6, #8B5CF6, #EC4899);
+  background: linear-gradient(90deg, var(--accent), #3B82F6, var(--accent-2), #EC4899);
 }
 
 .home-hero-content {
@@ -40,101 +40,102 @@
 .home-hero-badge {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  margin-bottom: 16px;
-  border-radius: 999px;
-  background: rgba(0, 240, 255, 0.08);
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  color: #00F0FF;
-  font-size: 11px;
-  font-weight: 800;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-radius: var(--radius-full);
+  background: var(--accent-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.18em;
 }
 
 .home-hero-content h1 {
-  margin: 0 0 10px 0;
-  font-size: 34px;
-  font-weight: 800;
+  margin: 0 0 var(--sp-2) 0;
+  font-size: var(--font-3xl);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.5px;
-  background: linear-gradient(135deg, #FFFFFF 30%, #94A3B8 100%);
+  line-height: var(--line-height-tight);
+  background: linear-gradient(135deg, #FFFFFF 30%, var(--text-muted) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .home-hero-content .home-sub {
-  margin: 0 0 24px 0;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--muted);
+  margin: 0 0 var(--sp-6) 0;
+  font-size: var(--font-lg);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-muted);
   max-width: 520px;
 }
 
 .home-hero-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 20px;
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
 }
 
 .btn-hero-play {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 26px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #00F0FF 0%, #2563EB 50%, #8B5CF6 100%);
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-6);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent) 0%, #2563EB 50%, var(--accent-2) 100%);
   color: #FFFFFF;
-  font-size: 14.5px;
-  font-weight: 700;
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-bold);
   border: none;
-  box-shadow: 0 8px 24px rgba(0, 240, 255, 0.35);
+  box-shadow: 0 8px 24px var(--accent-muted);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-hero-play:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(0, 240, 255, 0.5);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .btn-hero-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 22px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--radius-full);
+  background: var(--hover);
+  border: 1px solid var(--border);
   color: var(--text);
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   backdrop-filter: blur(10px);
-  transition: background 0.2s, border-color 0.2s;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .btn-hero-secondary:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--active);
+  border-color: var(--text-dim);
 }
 
 .home-hero-emblem {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  padding-right: 20px;
+  padding-right: var(--sp-5);
 }
 
 [data-theme="light"] .home-hero-banner {
-  background: linear-gradient(135deg, rgba(240, 248, 255, 0.95) 0%, rgba(220, 237, 255, 0.95) 100%), radial-gradient(circle at 80% 20%, rgba(0, 170, 212, 0.12) 0%, transparent 60%);
-  border-color: rgba(0, 170, 212, 0.2);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, rgba(240, 248, 255, 0.95) 0%, rgba(220, 237, 255, 0.95) 100%), radial-gradient(circle at 80% 20%, var(--accent-muted) 0%, transparent 60%);
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: var(--shadow-lg), inset 0 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 [data-theme="light"] .home-hero-badge {
-  background: rgba(0, 170, 212, 0.08);
-  border-color: rgba(0, 170, 212, 0.25);
+  background: var(--accent-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--accent);
 }
 
