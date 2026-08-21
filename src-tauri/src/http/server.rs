@@ -74,8 +74,9 @@ route_handler!(block_artist_toggle, "blocks.artist.toggle");
 
 pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
     let state = ServerState { app, bridge, token };
-    let media = Router::new()
-        .route("/audio", get(audio_proxy).options(|| async {
+    let media = Router::new().route(
+        "/audio",
+        get(audio_proxy).options(|| async {
             let mut res = Response::new(Body::empty());
             *res.status_mut() = StatusCode::NO_CONTENT;
             res.headers_mut().insert(
@@ -91,7 +92,8 @@ pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
                 HeaderValue::from_static("range"),
             );
             res
-        }));
+        }),
+    );
     let health = Router::new()
         .route("/health", get(health))
         .route("/api/v1/health", get(health))
@@ -270,12 +272,13 @@ async fn audio_proxy(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
     let stream = response.bytes_stream();
-    let body = Body::from_stream(stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let body = Body::from_stream(stream.map_err(std::io::Error::other));
     let mut res = Response::new(body);
     *res.status_mut() = status;
     res.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,
-        HeaderValue::from_str(&content_type).unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+        HeaderValue::from_str(&content_type)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
     );
     res.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -283,17 +286,20 @@ async fn audio_proxy(
     );
     if let Some(cl) = content_length {
         if let Ok(v) = HeaderValue::from_str(&cl) {
-            res.headers_mut().insert(axum::http::header::CONTENT_LENGTH, v);
+            res.headers_mut()
+                .insert(axum::http::header::CONTENT_LENGTH, v);
         }
     }
     if let Some(ar) = accept_ranges {
         if let Ok(v) = HeaderValue::from_str(&ar) {
-            res.headers_mut().insert(axum::http::header::ACCEPT_RANGES, v);
+            res.headers_mut()
+                .insert(axum::http::header::ACCEPT_RANGES, v);
         }
     }
     if let Some(cr) = content_range {
         if let Ok(v) = HeaderValue::from_str(&cr) {
-            res.headers_mut().insert(axum::http::header::CONTENT_RANGE, v);
+            res.headers_mut()
+                .insert(axum::http::header::CONTENT_RANGE, v);
         }
     }
     res

@@ -23,8 +23,10 @@ export const STALL_TIMEOUT_MS = 12000;
 
 export const PLAY_START_TIMEOUT_MS = 10000;
 
-const PREFETCH_BATCH = 20;
-const PREFETCH_CONCURRENCY = 4;
+// yt-dlp держит всего 4 слота на всё приложение: широкий префетч занимает их все
+// и задерживает резолв по клику, расходуя их на треки, до которых обычно не доходят.
+const PREFETCH_BATCH = 5;
+const PREFETCH_CONCURRENCY = 2;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const res: T[][] = [];

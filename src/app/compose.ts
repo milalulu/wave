@@ -161,7 +161,8 @@ export async function composeServices(): Promise<AppServices> {
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
     resolveUri: async (track) => {
-      const cached = streamCache.get(track.id);
+      const quality = track.provider === "youtube" ? loadYtQuality() : "";
+      const cached = streamCache.get(track.id, quality);
       if (cached) return cached;
 
       if (isBlockedProvider(track.provider)) {
@@ -176,7 +177,7 @@ export async function composeServices(): Promise<AppServices> {
       const url = raw.includes("googlevideo.com")
         ? `${PROXY_BASE}/audio?url=${encodeURIComponent(raw)}`
         : raw;
-      streamCache.set(track.id, url);
+      streamCache.set(track.id, url, quality);
       return url;
     },
     invalidateStream: (trackId) => {
