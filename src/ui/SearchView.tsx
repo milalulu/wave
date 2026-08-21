@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { searchAll } from "../app/compose";
+import { streamPrewarmer } from "../core/player/streamPrewarm";
 import { getCachedResults, setCachedResults } from "../app/searchCache";
 import type { Album, Artist, SearchResults } from "../core/types";
 import { TrackRow } from "./TrackRow";
@@ -79,6 +80,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     const cached = getCachedResults(cacheKey);
     if (cached) {
       setResults(cached);
+      streamPrewarmer.prewarm(cached.flatMap((r) => r.tracks));
       return;
     }
     if (enabledProviders.length === 0) {
@@ -93,6 +95,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         if (cancelled) return;
         setCachedResults(cacheKey, r);
         setResults(r);
+        streamPrewarmer.prewarm(r.flatMap((x) => x.tracks));
       })
       .catch((e) => {
         if (cancelled) return;
