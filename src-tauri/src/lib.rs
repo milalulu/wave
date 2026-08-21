@@ -626,6 +626,388 @@ fn stream_args(url: &str, fmt: &str, client: Option<&str>, cookies: &[String]) -
     args
 }
 
+// ─── Innertube API resolver (без yt-dlp, прямые HTTP-запросы) ───────────────
+
+struct InnertubeClient {
+    name: &'static str,
+    version: &'static str,
+    user_agent: &'static str,
+}
+
+static INNERTUBE_CLIENTS: &[InnertubeClient] = &[
+    InnertubeClient {
+        name: "ANDROID",
+        version: "19.09.37",
+        user_agent: "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+    },
+    InnertubeClient {
+        name: "IOS",
+        version: "19.09.3",
+        user_agent: "com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)",
+    },
+    InnertubeClient {
+        name: "ANDROID_MUSIC",
+        version: "7.27.52",
+        user_agent: "com.google.android.apps.youtube.music/7.27.52 (Linux; U; Android 11) gzip",
+    },
+];
+
+async fn try_innertube(
+    video_id: &str,
+    client: &InnertubeClient,
+) -> Result<String, String> {
+    let http = crate::http::client();
+    let payload = serde_json::json!({
+        "context": {
+            "client": {
+                "hl": "en",
+                "gl": "US",
+                "clientName": client.name,
+                "clientVersion": client.version,
+            }
+        },
+        "videoId": video_id,
+        "contentCheckOk": true,
+        "racyCheckOk": true,
+    });
+
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        http.post("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
+            .header("Content-Type", "application/json")
+            .header("User-Agent", client.user_agent)
+            .json(&payload)
+            .send(),
+    )
+    .await
+    .map_err(|_| format!("innertube({}): timeout", client.name))?
+    .map_err(|e| format!("innertube({}) request: {e}", client.name))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("innertube({}) HTTP {}", client.name, resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("innertube({}) parse: {e}", client.name))?;
+
+    let status = body["playabilityStatus"]["status"].as_str().unwrap_or("");
+    if status != "OK" {
+        let reason = body["playabilityStatus"]["reason"]
+            .as_str()
+            .unwrap_or("unknown");
+        return Err(format!("innertube({}): {} — {}", client.name, status, reason));
+    }
+
+    let formats = body["streamingData"]["adaptiveFormats"]
+        .as_array()
+        .ok_or_else(|| format!("innertube({}): no streaming data", client.name))?;
+
+    let mut audio: Vec<&serde_json::Value> = formats
+        .iter()
+        .filter(|f| f["mimeType"].as_str().unwrap_or("").starts_with("audio/"))
+        .filter(|f| {
+            f["url"]
+                .as_str()
+                .is_some_and(|u| !u.is_empty())
+        })
+        .collect();
+
+    if audio.is_empty() {
+        return Err(format!(
+            "innertube({}): no audio formats with direct URL",
+            client.name
+        ));
+    }
+
+    audio.sort_by(|a, b| {
+        let a_m4a = a["mimeType"]
+            .as_str()
+            .unwrap_or("")
+            .contains("mp4") as i32;
+        let b_m4a = b["mimeType"]
+            .as_str()
+            .unwrap_or("")
+            .contains("mp4") as i32;
+        let a_br = a["bitrate"].as_i64().unwrap_or(0);
+        let b_br = b["bitrate"].as_i64().unwrap_or(0);
+        b_m4a
+            .cmp(&a_m4a)
+            .then((a_br - 128000).abs().cmp(&(b_br - 128000).abs()))
+    });
+
+    audio
+        .first()
+        .and_then(|f| f["url"].as_str())
+        .map(|u| u.to_string())
+        .ok_or_else(|| format!("innertube({}): no URL", client.name))
+}
+
+#[tauri::command]
+async fn yt_resolve_innertube(video_id: String) -> Result<String, String> {
+    let mut last_err = String::new();
+    for client in INNERTUBE_CLIENTS {
+        match try_innertube(&video_id, client).await {
+            Ok(url) => return Ok(url),
+            Err(e) => last_err = e,
+        }
+    }
+    Err(last_err)
+}
+
+// Innertube поиск (без yt-dlp): быстрый HTTP-запрос к YouTube search API.
+#[tauri::command]
+async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
+    let http = crate::http::client();
+    let payload = serde_json::json!({
+        "context": {
+            "client": {
+                "hl": "en",
+                "gl": "US",
+                "clientName": "WEB",
+                "clientVersion": "2.20240101.00.00",
+            }
+        },
+        "query": query,
+    });
+
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
+            .header("Content-Type", "application/json")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            .json(&payload)
+            .send(),
+    )
+    .await
+    .map_err(|_| "innertube search: timeout".to_string())?
+    .map_err(|e| format!("innertube search: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("innertube search HTTP {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("innertube search parse: {e}"))?;
+
+    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"]
+        .as_array()
+        .ok_or("innertube search: no results")?;
+
+    let mut results = Vec::new();
+    let limit = limit.min(50) as usize;
+
+    for section in sections {
+        let Some(items) = section["itemSectionRenderer"]["contents"].as_array() else {
+            continue;
+        };
+        for item in items {
+            let Some(video) = item["videoRenderer"].as_object() else {
+                continue;
+            };
+            let id = video["videoId"].as_str().unwrap_or("");
+            if id.is_empty() {
+                continue;
+            }
+            let title = video["title"]["runs"]
+                .as_array()
+                .and_then(|r| r.first())
+                .and_then(|r| r["text"].as_str())
+                .unwrap_or("");
+            let channel = video["ownerText"]["runs"]
+                .as_array()
+                .and_then(|r| r.first())
+                .and_then(|r| r["text"].as_str());
+            let duration_str = video["lengthText"]["simpleText"].as_str();
+            let duration = duration_str.and_then(innertube_parse_duration);
+            let thumbnail = video["thumbnail"]["thumbnails"]
+                .as_array()
+                .and_then(|t| t.last())
+                .and_then(|t| t["url"].as_str());
+
+            results.push(serde_json::json!({
+                "id": id,
+                "title": title,
+                "uploader": channel,
+                "duration": duration,
+                "thumbnail": thumbnail,
+            }));
+
+            if results.len() >= limit {
+                break;
+            }
+        }
+        if results.len() >= limit {
+            break;
+        }
+    }
+
+    Ok(results)
+}
+
+fn innertube_parse_duration(text: &str) -> Option<i64> {
+    let parts: Vec<&str> = text.split(':').collect();
+    match parts.len() {
+        2 => {
+            let min = parts[0].parse::<i64>().ok()?;
+            let sec = parts[1].parse::<i64>().ok()?;
+            Some(min * 60 + sec)
+        }
+        3 => {
+            let hr = parts[0].parse::<i64>().ok()?;
+            let min = parts[1].parse::<i64>().ok()?;
+            let sec = parts[2].parse::<i64>().ok()?;
+            Some(hr * 3600 + min * 60 + sec)
+        }
+        _ => None,
+    }
+}
+
+// ─── SoundCloud native resolver (без yt-dlp) ───────────────────────────────
+
+static SC_CLIENT_ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+async fn sc_extract_client_id() -> Result<String, String> {
+    if let Some(id) = SC_CLIENT_ID.get() {
+        return Ok(id.clone());
+    }
+    let http = crate::http::client();
+    let page = http
+        .get("https://soundcloud.com")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
+        .send()
+        .await
+        .map_err(|e| format!("soundcloud page: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("soundcloud page read: {e}"))?;
+
+    for script_url in extract_script_urls(&page) {
+        let js = match http.get(&script_url).send().await {
+            Ok(r) => match r.text().await {
+                Ok(t) => t,
+                Err(_) => continue,
+            },
+            Err(_) => continue,
+        };
+        if let Some(id) = extract_client_id_from_js(&js) {
+            let _ = SC_CLIENT_ID.set(id.clone());
+            return Ok(id);
+        }
+    }
+    Err("soundcloud: could not extract client_id".into())
+}
+
+fn extract_script_urls(html: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    let marker = r#"src=""#;
+    let mut pos = 0;
+    while let Some(idx) = html[pos..].find(marker) {
+        let start = pos + idx + marker.len();
+        if let Some(end) = html[start..].find('"') {
+            let url = &html[start..start + end];
+            if url.contains("sndcdn.com/assets/") && url.ends_with(".js") {
+                urls.push(url.to_string());
+            }
+            pos = start + end + 1;
+        } else {
+            break;
+        }
+    }
+    urls
+}
+
+fn extract_client_id_from_js(js: &str) -> Option<String> {
+    let needle = "client_id=";
+    let mut idx = js.find(needle)?;
+    idx += needle.len();
+    while idx < js.len() && (js.as_bytes()[idx] == b' ' || js.as_bytes()[idx] == b':') {
+        idx += 1;
+    }
+    if idx >= js.len() {
+        return None;
+    }
+    let quote = js.as_bytes()[idx];
+    if quote != b'"' && quote != b'\'' {
+        return None;
+    }
+    idx += 1;
+    let end = js[idx..].find(quote as char)?;
+    let candidate = &js[idx..idx + end];
+    if candidate.len() == 32 && candidate.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Some(candidate.to_string());
+    }
+    None
+}
+
+#[tauri::command]
+async fn sc_resolve_stream(track_url: String) -> Result<String, String> {
+    let client_id = sc_extract_client_id().await?;
+    let http = crate::http::client();
+
+    let track_id = track_url
+        .split('/')
+        .next_back()
+        .unwrap_or("")
+        .split('?')
+        .next()
+        .unwrap_or("");
+
+    let api_url = format!(
+        "https://api-v2.soundcloud.com/tracks/soundcloud:tracks:{}/streaming?client_id={}",
+        track_id, client_id
+    );
+
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        http.get(&api_url)
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            .send(),
+    )
+    .await
+    .map_err(|_| "soundcloud: timeout".to_string())?
+    .map_err(|e| format!("soundcloud streaming: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("soundcloud streaming HTTP {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("soundcloud streaming parse: {e}"))?;
+
+    let progressive = body["http_mp3_128_url"]
+        .as_str()
+        .or_else(|| body["progressive_mp3_url"].as_str())
+        .or_else(|| body["http_opus_64_url"].as_str());
+
+    match progressive {
+        Some(url) if !url.is_empty() => Ok(url.to_string()),
+        _ => {
+            let hls = body["hls_opus_64_url"]
+                .as_str()
+                .or_else(|| body["hls_opus_128_url"].as_str());
+            match hls {
+                Some(url) if !url.is_empty() => Ok(url.to_string()),
+                _ => Err("soundcloud: no streaming URL in response".into()),
+            }
+        }
+    }
+}
+
 #[tauri::command]
 async fn http_fetch_json(
     method: String,
@@ -821,6 +1203,18 @@ pub fn run() {
             sql: "CREATE INDEX IF NOT EXISTS idx_history_played_at ON history(played_at DESC);",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "queue state persistence",
+            sql: "CREATE TABLE IF NOT EXISTS queue_state (id TEXT PRIMARY KEY, tracks_json TEXT NOT NULL, track_index INTEGER NOT NULL DEFAULT 0, position REAL NOT NULL DEFAULT 0);",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "extra indexes",
+            sql: "CREATE INDEX IF NOT EXISTS idx_liked_tracks_id ON liked_tracks(id); CREATE INDEX IF NOT EXISTS idx_saved_albums_id ON saved_albums(id); CREATE INDEX IF NOT EXISTS idx_saved_artists_id ON saved_artists(id);",
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -872,6 +1266,9 @@ pub fn run() {
             yt_stream_fast,
             dl_stream,
             dl_stream_fast,
+            yt_resolve_innertube,
+            yt_search_innertube,
+            sc_resolve_stream,
             vk_search,
             http_fetch_json,
             http_fetch_text,

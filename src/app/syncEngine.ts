@@ -115,6 +115,7 @@ export function startSyncEngine() {
           crossfadeMs: state.crossfadeMs,
           discoveryRate: state.discoveryRate,
           historyDecayDays: state.historyDecayDays,
+          preferredLanguages: state.preferredLanguages,
           autoGenerateThreshold: state.autoGenerateThreshold,
           equalizer: state.snapshot.equalizer,
           theme: state.theme,
@@ -205,6 +206,7 @@ export async function pullRemoteData(userId: string) {
       state.setCrossfadeMs(settings.crossfadeMs);
       state.setDiscoveryRate(settings.discoveryRate);
       state.setHistoryDecayDays(settings.historyDecayDays);
+      state.setPreferredLanguages(settings.preferredLanguages ?? []);
       state.setAutoGenerateThreshold(settings.autoGenerateThreshold);
       state.setEqualizer(settings.equalizer);
       state.setTheme(settings.theme as import("./themeStore").Theme);

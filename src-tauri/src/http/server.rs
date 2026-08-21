@@ -270,7 +270,7 @@ async fn audio_proxy(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
     let stream = response.bytes_stream();
-    let body = Body::from_stream(stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let body = Body::from_stream(stream.map_err(std::io::Error::other));
     let mut res = Response::new(body);
     *res.status_mut() = status;
     res.headers_mut().insert(
@@ -280,6 +280,10 @@ async fn audio_proxy(
     res.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
         HeaderValue::from_static("*"),
+    );
+    res.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=3600"),
     );
     if let Some(cl) = content_length {
         if let Ok(v) = HeaderValue::from_str(&cl) {

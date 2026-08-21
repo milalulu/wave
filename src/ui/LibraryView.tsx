@@ -93,11 +93,14 @@ export function LibraryView() {
   );
 }
 
+type SortKey = "default" | "title" | "artist" | "album";
+
 function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[]; empty: string; exportName?: string; filterable?: boolean }) {
   const { t } = useI18n();
   const notify = useApp((s) => s.notify);
   const currentId = useApp((s) => s.snapshot.current?.id ?? null);
   const [filter, setFilter] = useState("");
+  const [sort, setSort] = useState<SortKey>("default");
 
   const visible = filterable
     ? tracks.filter((tr) => {
@@ -110,9 +113,12 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
       })
     : tracks;
 
-  
-  
-  const firstCurrent = visible.findIndex((tr) => tr.id === currentId);
+  const sorted = [...visible];
+  if (sort === "title") sorted.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sort === "artist") sorted.sort((a, b) => (a.artist ?? "").localeCompare(b.artist ?? ""));
+  else if (sort === "album") sorted.sort((a, b) => (a.album ?? "").localeCompare(b.album ?? ""));
+
+  const firstCurrent = sorted.findIndex((tr) => tr.id === currentId);
 
   const exportTracks = async (format: "m3u" | "json") => {
     const path = await save({
@@ -122,13 +128,13 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
     if (!path) return;
     const content =
       format === "m3u"
-        ? buildM3U(visible)
+        ? buildM3U(sorted)
         : JSON.stringify(
             {
               format: "wave-library",
               version: 1,
               name: exportName,
-              tracks: visible,
+              tracks: sorted,
             },
             null,
             2,
@@ -167,11 +173,22 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
           </button>
         </div>
       )}
-      {visible.length === 0 ? (
+      <div className="library-sort">
+        {(["default", "title", "artist", "album"] as SortKey[]).map((key) => (
+          <button
+            key={key}
+            className={`chip ${sort === key ? "active" : ""}`}
+            onClick={() => setSort(key)}
+          >
+            {t("library").sort[key]}
+          </button>
+        ))}
+      </div>
+      {sorted.length === 0 ? (
         <p className="muted">{t("search").noResults}</p>
       ) : (
         <VirtualList
-          items={visible}
+          items={sorted}
           rowKey={(track, i) => `${track.id}:${i}`}
           renderRow={(track, i) => (
             <TrackRow track={track} index={i + 1} nowPlaying={firstCurrent === i} />

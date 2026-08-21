@@ -1,6 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../core/types";
-import type { Storage } from "../core/database/Storage";
+import type { QueueState, Storage } from "../core/database/Storage";
 
 const DB_NAME = "sqlite:wave.db";
 
@@ -147,5 +147,27 @@ export class SqliteStorage implements Storage {
 
   async removePlaylist(id: string): Promise<void> {
     await (await this.requireDb()).execute("DELETE FROM playlists WHERE id = $1", [id]);
+  }
+
+  async saveQueueState(state: QueueState): Promise<void> {
+    const db = await this.requireDb();
+    await db.execute("DELETE FROM queue_state");
+    await db.execute(
+      "INSERT INTO queue_state (id, tracks_json, track_index, position) VALUES ('current', $1, $2, $3)",
+      [JSON.stringify(state.tracks), state.index, state.position],
+    );
+  }
+
+  async loadQueueState(): Promise<QueueState | null> {
+    const rows = await (await this.requireDb()).select<
+      { tracks_json: string; track_index: number; position: number }[]
+    >("SELECT tracks_json, track_index, position FROM queue_state WHERE id = 'current' LIMIT 1");
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      tracks: JSON.parse(r.tracks_json) as Track[],
+      index: r.track_index,
+      position: r.position,
+    };
   }
 }

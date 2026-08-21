@@ -124,7 +124,7 @@ export function buildListeningProfile(
   };
 }
 
-export function profileToSearchTerms(profile: ListeningProfile): string[] {
+export function profileToSearchTerms(profile: ListeningProfile, languages?: string[]): string[] {
   const terms: string[] = [];
   const seen = new Set<string>();
   const add = (t: string): void => {
@@ -140,6 +140,10 @@ export function profileToSearchTerms(profile: ListeningProfile): string[] {
     add(genre);
   }
 
+  if (languages) {
+    for (const term of languages) add(term);
+  }
+
   if (profile.energyPreference < 0.3) {
     add("chill");
     add("lo-fi");
@@ -153,7 +157,7 @@ export function profileToSearchTerms(profile: ListeningProfile): string[] {
     add("unplugged");
   }
 
-  return terms.slice(0, 10);
+  return terms.slice(0, 15);
 }
 
 export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
@@ -241,8 +245,8 @@ export function timeAdjustedMoodDistribution(
   return adjusted;
 }
 
-export function timeAwareSearchTerms(profile: ListeningProfile, timeCtx: TimeContext): string[] {
-  const terms = profileToSearchTerms(profile);
+export function timeAwareSearchTerms(profile: ListeningProfile, timeCtx: TimeContext, languages?: string[]): string[] {
+  const terms = profileToSearchTerms(profile, languages);
   const extra: string[] = [];
 
   switch (timeCtx.timeOfDay) {

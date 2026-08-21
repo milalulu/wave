@@ -17,6 +17,31 @@ interface SearchViewProps {
 }
 
 const FILTER_KEY = "wave-search-providers";
+const RECENT_KEY = "wave-recent-searches";
+const MAX_RECENT = 12;
+
+function loadRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(q: string): void {
+  if (!q.trim()) return;
+  const recent = loadRecent().filter((r) => r !== q);
+  recent.unshift(q);
+  if (recent.length > MAX_RECENT) recent.length = MAX_RECENT;
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+}
+
+function clearRecent(): void {
+  localStorage.removeItem(RECENT_KEY);
+}
 
 function loadFilter(): string[] | null {
   try {
@@ -39,6 +64,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[] | null>(loadFilter());
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecent());
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
@@ -93,6 +119,11 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         if (cancelled) return;
         setCachedResults(cacheKey, r);
         setResults(r);
+        const engine = useApp.getState().services?.engine;
+        if (engine) {
+          const topTracks = r.flatMap((s) => s.tracks.slice(0, 3));
+          engine.preResolve(topTracks);
+        }
       })
       .catch((e) => {
         if (cancelled) return;
@@ -119,6 +150,10 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     e.preventDefault();
     window.clearTimeout(debounceRef.current);
     onQuery(input.trim());
+    if (input.trim()) {
+      saveRecent(input.trim());
+      setRecentSearches(loadRecent());
+    }
   };
 
   const allSelected = selected === null || selected.length === providers.length;
@@ -184,6 +219,23 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {!input.trim() && recentSearches.length > 0 && (
+        <div className="recent-searches">
+          <div className="recent-header">
+            <span className="muted">{t("search").recentSearches}</span>
+            <button className="btn small" onClick={() => { clearRecent(); setRecentSearches([]); }}>
+              {t("search").clearRecent}
+            </button>
+          </div>
+          <div className="recent-chips">
+            {recentSearches.map((q) => (
+              <button key={q} className="chip" onClick={() => { setInput(q); onQuery(q); saveRecent(q); setRecentSearches(loadRecent()); }}>
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {results && (

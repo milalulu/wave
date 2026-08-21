@@ -162,3 +162,11 @@ export function toggleBlockedArtist(name: string): boolean {
   writeArray(BLOCKED_ARTISTS_KEY, next);
   return blocked;
 }
+
+export function clearBlockedTracks(): void {
+  writeArray(BLOCKED_TRACKS_KEY, []);
+}
+
+export function clearBlockedArtists(): void {
+  writeArray(BLOCKED_ARTISTS_KEY, []);
+}

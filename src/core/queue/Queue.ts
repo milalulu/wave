@@ -65,6 +65,7 @@ export class Queue {
   }
 
   append(track: Track): void {
+    if (this.tracks.some((t) => t.id === track.id)) return;
     this.tracks.push(track);
     const newIdx = this.tracks.length - 1;
     const hasCurrent = this.current() !== null;
@@ -81,6 +82,7 @@ export class Queue {
   }
 
   insertNext(track: Track): void {
+    if (this.tracks.some((t) => t.id === track.id)) return;
     this.tracks.push(track);
     const newIdx = this.tracks.length - 1;
     if (this.current() !== null) {

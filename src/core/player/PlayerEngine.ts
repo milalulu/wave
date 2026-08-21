@@ -24,13 +24,7 @@ export const STALL_TIMEOUT_MS = 12000;
 export const PLAY_START_TIMEOUT_MS = 10000;
 
 const PREFETCH_BATCH = 20;
-const PREFETCH_CONCURRENCY = 4;
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const res: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
-  return res;
-}
+const PREFETCH_CONCURRENCY = 8;
 
 interface PlayerEngineOptions {
   rng?: () => number;
@@ -72,7 +66,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private retries = 0;
   private maxRetries: number;
   private playSeq = 0;
-  private preloadCache = new Map<string, string | Promise<string>>();
+  private preloadCache = new Map<string, string | Promise<string | undefined>>();
   private preloadedId: string | null = null;
   private prefetchedIds = new Set<string>();
   private prefetchInFlight = false;
@@ -115,7 +109,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         this.duration = duration;
         this.emit("time", { position, duration });
         const remaining = duration - position;
-        if (remaining < 60 && remaining > 0) {
+        if (remaining < 30 && remaining > 0) {
           void this.preloadNext();
         }
         void this.maybeUpgradePreview(duration);
@@ -392,9 +386,25 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
      this.adapter.setStereoWidth(pan);
    }
 
-   setAutoGenerateThreshold(threshold: number): void {
-     this.autoGenerateThreshold = Math.max(1, threshold);
-   }
+  setAutoGenerateThreshold(threshold: number): void {
+    this.autoGenerateThreshold = Math.max(1, threshold);
+  }
+
+  preResolve(tracks: Track[]): void {
+    if (!this.resolveUri) return;
+    for (const track of tracks.slice(0, 5)) {
+      if (this.prefetchedIds.has(track.id) || this.preloadCache.has(track.id)) continue;
+      if (!track.uri) continue;
+      const promise = this.resolveUri(track).then((uri) => {
+        this.prefetchedIds.add(track.id);
+        return uri;
+      }).catch(() => {
+        this.preloadCache.delete(track.id);
+        return undefined;
+      });
+      this.preloadCache.set(track.id, promise);
+    }
+  }
 
    
    setPauseAfterTrack(on: boolean): void {
@@ -444,6 +454,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       void this.playCurrent();
     }
     this.emitQueue();
+    void this.prefetchBatch();
   }
 
   removeFromQueue(trackIndex: number): void {
@@ -498,7 +509,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (this.state === "paused") return;
 
     const isMediaError = message.startsWith("audio error code");
-    if (isMediaError) {
+    const isStreamError = message.includes("403") || message.includes("stream URL returned");
+    if (isMediaError || isStreamError) {
       const track = this.queue.current();
       if (track && this.invalidateStream) {
         this.invalidateStream(track.id);
@@ -552,6 +564,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const uri = cached
         ? (cached instanceof Promise ? await cached : cached)
         : (this.resolveUri ? await this.resolveUri(track) : track.uri);
+      if (!uri) throw new Error("no stream URL");
       if (seq !== this.playSeq) return;
 
       await validateStreamUrl(uri);
@@ -584,10 +597,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async playWithGuard(): Promise<void> {
     let settled = false;
     let timer: number | undefined;
-    const timeout = new Promise<void>((resolve) => {
+    const timeout = new Promise<never>((_resolve, reject) => {
       timer = globalThis.setTimeout(() => {
         settled = true;
-        resolve();
+        reject(new Error("play() timed out"));
       }, PLAY_START_TIMEOUT_MS);
     });
     const play = this.adapter.play().then(
@@ -659,21 +672,38 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.prefetchInFlight = true;
     try {
       const seq = this.playSeq;
-      const batches = chunk(toFetch, PREFETCH_CONCURRENCY);
-      for (const batch of batches) {
-        if (seq !== this.playSeq) return;
-        await Promise.allSettled(
-          batch.map((track) => {
-            if (!track.uri) return Promise.resolve();
-            const promise = this.resolveUri!(track).then((uri) => {
-              this.prefetchedIds.add(track.id);
-              return uri;
-            });
+      let active = 0;
+      let idx = 0;
+      await new Promise<void>((resolve) => {
+        const next = () => {
+          while (active < PREFETCH_CONCURRENCY && idx < toFetch.length) {
+            const track = toFetch[idx++];
+            if (!track.uri) continue;
+            active++;
+            const promise = this.resolveUri!(track).then(
+              (uri) => {
+                this.prefetchedIds.add(track.id);
+                return uri;
+              },
+              () => {
+                this.preloadCache.delete(track.id);
+                return undefined;
+              },
+            );
             this.preloadCache.set(track.id, promise);
-            return promise;
-          })
-        );
-      }
+            promise.finally(() => {
+              active--;
+              if (seq !== this.playSeq || (active === 0 && idx >= toFetch.length)) {
+                resolve();
+              } else {
+                next();
+              }
+            });
+          }
+          if (active === 0 && idx >= toFetch.length) resolve();
+        };
+        next();
+      });
       if (seq !== this.playSeq) return;
       const first = upcoming[0];
       if (first) {

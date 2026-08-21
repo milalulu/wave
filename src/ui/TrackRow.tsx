@@ -59,11 +59,17 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
 
   useEffect(() => {
     if (!menuOpen) return;
-    const close = (): void => setMenuOpen(false);
-    document.addEventListener("click", close);
+    const close = (e: Event): void => {
+      const target = (e as MouseEvent).target as HTMLElement | null;
+      if (!target) return;
+      if (menuRef.current?.contains(target)) return;
+      if (target.closest(".more-btn")) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
     document.addEventListener("scroll", close, true);
     return () => {
-      document.removeEventListener("click", close);
+      document.removeEventListener("mousedown", close);
       document.removeEventListener("scroll", close, true);
     };
   }, [menuOpen]);
@@ -106,7 +112,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
       tabIndex={0}
       role="button"
       aria-label={`${track.title} — ${track.artist ?? ""}`}
-      onDoubleClick={onPlay}
+      onClick={onPlay}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlay(); } }}
       draggable
       onDragStart={(e) => {

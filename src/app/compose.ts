@@ -35,6 +35,7 @@ import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
 import { PROXY_BASE } from "../core/player/WebAudioAdapter";
+import { normalizeSearchResults } from "../core/search/normalizeSearch";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
@@ -226,6 +227,10 @@ export async function composeServices(): Promise<AppServices> {
    wave = new WaveEngine(storage, providers, new SmartWaveSource());
    wave.setHistoryDecayDays(loadHistoryDecayDays());
    wave.setDiscoveryRate(loadDiscoveryRate());
+   const { loadPreferredLanguages } = await import("./preferredLanguages");
+   wave.setPreferredLanguages(loadPreferredLanguages());
+   const { loadOnboardingArtists } = await import("./onboarding");
+   wave.setOnboardingArtists(loadOnboardingArtists());
   const lyrics = new LyricsService(httpGateway);
   const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
 
@@ -268,12 +273,13 @@ export async function searchAll(
   query: string,
 ): Promise<SearchResults[]> {
   const results = await Promise.allSettled(providers.map((p) => p.search(query)));
-  return filterPreviewResults(
+  const filtered = filterPreviewResults(
     results
       .filter((r): r is PromiseFulfilledResult<SearchResults> => r.status === "fulfilled")
       .map((r) => r.value),
     isExcludePreviewsEnabled(),
   );
+  return normalizeSearchResults(filtered, query);
 }
 
 export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {
@@ -318,12 +324,15 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
   const resolved = await Promise.allSettled(
     candidates.map(async (c) => {
       if (c.meta?.noPlay !== true && c.uri) return c;
-      for (const p of audioProviders) {
-        try {
-          const results = await p.search(`${c.artist ?? ""} ${c.title}`.trim());
-          const match = results.tracks[0];
-          if (match && match.uri) return match;
-        } catch {}
+      const providerResults = await Promise.allSettled(
+        audioProviders.map((p) =>
+          p.search(`${c.artist ?? ""} ${c.title}`.trim()),
+        ),
+      );
+      for (const r of providerResults) {
+        if (r.status !== "fulfilled") continue;
+        const match = r.value.tracks[0];
+        if (match && match.uri) return match;
       }
       return null;
     }),

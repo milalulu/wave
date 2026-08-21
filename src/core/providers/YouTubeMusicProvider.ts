@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
@@ -36,7 +37,17 @@ export class YouTubeMusicProvider implements MusicProvider {
     const key = query.trim().replace(/\s+/g, " ").toLowerCase();
     const hit = this.searchCache.get(key);
     if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
-    const entries = await this.gateway.search(query, 20);
+
+    let entries: YtSearchResult[];
+    try {
+      entries = await invoke<YtSearchResult[]>("yt_search_innertube", {
+        query,
+        limit: 20,
+      });
+    } catch {
+      entries = await this.gateway.search(query, 20);
+    }
+
     const tracks: Track[] = entries.map((e, i) => ({
       id: `youtube:track:${e.id}`,
       provider: this.id,
@@ -62,6 +73,14 @@ export class YouTubeMusicProvider implements MusicProvider {
     const key = `${id}:${quality}`;
     const hit = this.streamCache.get(key);
     if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
+
+    try {
+      const url = await invoke<string>("yt_resolve_innertube", { videoId: id });
+      this.streamCache.set(key, { url, at: Date.now() });
+      this.prune(this.streamCache, STREAM_TTL_MS);
+      return url;
+    } catch {}
+
     const url = await this.gateway.stream(id, quality);
     this.streamCache.set(key, { url, at: Date.now() });
     this.prune(this.streamCache, STREAM_TTL_MS);

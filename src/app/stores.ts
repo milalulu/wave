@@ -23,6 +23,8 @@ import { loadDiscoveryRate, saveDiscoveryRate, DISCOVERY_MIN, DISCOVERY_MAX } fr
 import { loadHistoryDecayDays, saveHistoryDecayDays, HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "./historyDecay";
 import { loadAutoGenerateThreshold, saveAutoGenerateThreshold, AUTO_GEN_MIN, AUTO_GEN_MAX } from "./autoGenerateThreshold";
 import { loadAudioEffects, saveAudioEffects } from "./audioEffects";
+import { loadPreferredLanguages, savePreferredLanguages } from "./preferredLanguages";
+import { isOnboardingCompleted, completeOnboarding as persistOnboarding } from "./onboarding";
 import { loadTheme, saveTheme, applyTheme, onSystemThemeChange, type Theme } from "./themeStore";
 import { getCachedCover } from "../core/cover/CoverCache";
 import { clearCoverCache } from "../core/cover/CoverCache";
@@ -39,6 +41,8 @@ import {
   setExcludePreviewsEnabled,
   toggleBlockedArtist,
   toggleBlockedTrack,
+  clearBlockedTracks,
+  clearBlockedArtists,
 } from "./platformSettings";
 import { providerLabel } from "../ui/providers";
 import { t } from "../core/i18n";
@@ -68,6 +72,7 @@ export interface DownloadItem {
 interface AppState {
   services: AppServices | null;
   ready: boolean;
+  onboardingCompleted: boolean;
   snapshot: PlayerSnapshot;
   
 
@@ -107,6 +112,7 @@ interface AppState {
   unsharePlaylist: (playlistId: string, email: string) => Promise<void>;
   loadShares: (playlistId: string) => Promise<void>;
   loadSharedPlaylists: () => Promise<void>;
+  completeOnboarding: (artistNames: string[]) => void;
   init: () => Promise<void>;
   refreshLibrary: () => Promise<void>;
   play: (tracks: Track[], index?: number) => Promise<void>;
@@ -124,6 +130,7 @@ interface AppState {
   clearQueue: () => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
+  saveQueueAsPlaylist: (name: string) => Promise<void>;
   toggleLike: (track?: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
@@ -143,6 +150,8 @@ interface AppState {
   blockedArtists: string[];
   unblockTrack: (id: string) => void;
   unblockArtist: (name: string) => void;
+  unblockAllTracks: () => void;
+  unblockAllArtists: () => void;
   clearCaches: () => void;
   lyrics: LyricsResult | null;
   lyricsLoading: boolean;
@@ -186,6 +195,8 @@ interface AppState {
    setDiscoveryRate: (rate: number) => void;
    historyDecayDays: number;
    setHistoryDecayDays: (days: number) => void;
+   preferredLanguages: string[];
+   setPreferredLanguages: (languages: string[]) => void;
    autoGenerateThreshold: number;
    setAutoGenerateThreshold: (threshold: number) => void;
    bassBoost: number;
@@ -226,6 +237,7 @@ const isTabView = (v: AppState["view"]): boolean => TAB_VIEWS.has(v);
 export const useApp = create<AppState>()((set, get) => ({
   services: null,
   ready: false,
+  onboardingCompleted: isOnboardingCompleted(),
   snapshot: emptySnapshot,
   position: 0,
   duration: 0,
@@ -429,6 +441,15 @@ export const useApp = create<AppState>()((set, get) => ({
     return initPromise;
   },
 
+  completeOnboarding: (artistNames: string[]) => {
+    persistOnboarding(artistNames);
+    set({ onboardingCompleted: true });
+    const { services } = get();
+    if (services?.wave) {
+      services.wave.setOnboardingArtists(artistNames);
+    }
+  },
+
   reloadServices: async () => {
     const { services } = get();
     if (!services) return;
@@ -520,6 +541,12 @@ export const useApp = create<AppState>()((set, get) => ({
     get().services?.engine.removeFromQueue(index);
   },
 
+  saveQueueAsPlaylist: async (name) => {
+    const { services, snapshot } = get();
+    if (!services || snapshot.queue.length === 0) return;
+    await get().createPlaylist(name, [...snapshot.queue]);
+  },
+
   toggleLike: async (track) => {
     const { services, snapshot } = get();
     const target = track ?? snapshot.current;
@@ -601,6 +628,13 @@ export const useApp = create<AppState>()((set, get) => ({
     }
     if (!dir) {
       try {
+        dir = await invoke<string>("app_download_dir");
+      } catch {
+        dir = "";
+      }
+    }
+    if (!dir) {
+      try {
         const picked = await open({ directory: true, multiple: false });
         if (typeof picked === "string") {
           dir = picked;
@@ -610,14 +644,6 @@ export const useApp = create<AppState>()((set, get) => ({
             
           }
         }
-      } catch {
-        
-      }
-    }
-    if (!dir) {
-      
-      try {
-        dir = await invoke<string>("app_download_dir");
       } catch {
         
       }
@@ -832,6 +858,14 @@ export const useApp = create<AppState>()((set, get) => ({
     toggleBlockedArtist(name);
     set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
   },
+  unblockAllTracks: () => {
+    clearBlockedTracks();
+    set({ blockedTrackIds: [] });
+  },
+  unblockAllArtists: () => {
+    clearBlockedArtists();
+    set({ blockedArtists: [] });
+  },
 
   clearCaches: () => {
     clearSearchCache();
@@ -948,6 +982,12 @@ export const useApp = create<AppState>()((set, get) => ({
      saveHistoryDecayDays(clamped);
      set({ historyDecayDays: clamped });
      get().services?.wave.setHistoryDecayDays(clamped);
+   },
+   preferredLanguages: loadPreferredLanguages(),
+   setPreferredLanguages: (languages) => {
+     savePreferredLanguages(languages);
+     set({ preferredLanguages: languages });
+     get().services?.wave.setPreferredLanguages(languages);
    },
   autoGenerateThreshold: loadAutoGenerateThreshold(),
   setAutoGenerateThreshold: (threshold) => {
