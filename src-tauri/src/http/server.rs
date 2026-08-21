@@ -272,8 +272,7 @@ async fn audio_proxy(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
     let stream = response.bytes_stream();
-    let body =
-        Body::from_stream(stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+    let body = Body::from_stream(stream.map_err(std::io::Error::other));
     let mut res = Response::new(body);
     *res.status_mut() = status;
     res.headers_mut().insert(
