@@ -1710,12 +1710,17 @@ if (enjoy) {
 // Interactive EQ with Web Audio API
 const EQ_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
 const EQ_LABELS = ['60','170','310','600','1K','3K','6K','12K','14K','16K'];
-let audioCtx, eqFilters = [], ambientNodes = [], isPlaying = false;
+let audioCtx, eqFilters = [], isPlaying = false;
 let eqGains = new Array(10).fill(0);
+const bgAudio = new Audio('bg.mp3');
+bgAudio.loop = true;
+bgAudio.volume = 0.35;
 
 function initAudio() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaElementSource(bgAudio);
+  let lastNode = source;
   EQ_FREQS.forEach((freq, i) => {
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'peaking';
@@ -1723,75 +1728,28 @@ function initAudio() {
     filter.Q.value = 1.4;
     filter.gain.value = 0;
     eqFilters.push(filter);
+    lastNode.connect(filter);
+    lastNode = filter;
   });
+  lastNode.connect(audioCtx.destination);
 }
 
 function startAmbient() {
   initAudio();
-  const masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.12;
-
-  // Chain: sources -> filters -> master -> dest
-  let lastNode = masterGain;
-  eqFilters.forEach(f => { lastNode.connect(f); lastNode = f; });
-  lastNode.connect(audioCtx.destination);
-
-  // Generate ambient: layered detuned oscillators + noise
-  const oscTypes = ['sine','triangle','sine','triangle','sine'];
-  const baseFreqs = [110, 164.81, 220, 277.18, 329.63];
-  oscTypes.forEach((type, i) => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.value = baseFreqs[i];
-    osc.detune.value = (Math.random()-0.5)*20;
-    gain.gain.value = 0.06 / (i+1);
-    // Slow LFO on gain for movement
-    const lfo = audioCtx.createOscillator();
-    const lfoGain = audioCtx.createGain();
-    lfo.frequency.value = 0.1 + Math.random()*0.3;
-    lfoGain.gain.value = 0.03;
-    lfo.connect(lfoGain);
-    lfoGain.connect(gain.gain);
-    lfo.start();
-    osc.connect(gain);
-    gain.connect(masterGain);
-    osc.start();
-    ambientNodes.push(osc, lfo);
-  });
-
-  // Filtered noise layer
-  const bufferSize = 2 * audioCtx.sampleRate;
-  const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-  const output = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
-  const noise = audioCtx.createBufferSource();
-  noise.buffer = noiseBuffer;
-  noise.loop = true;
-  const noiseFilter = audioCtx.createBiquadFilter();
-  noiseFilter.type = 'lowpass';
-  noiseFilter.frequency.value = 400;
-  const noiseGain = audioCtx.createGain();
-  noiseGain.gain.value = 0.03;
-  noise.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
-  noiseGain.connect(masterGain);
-  noise.start();
-  ambientNodes.push(noise);
-
+  bgAudio.play();
   isPlaying = true;
 }
 
 function toggleEqAudio() {
-  if (!audioCtx) { startAmbient(); return; }
   const btn = document.getElementById('mute-btn');
+  if (!audioCtx) { startAmbient(); return; }
   if (isPlaying) {
-    audioCtx.suspend();
+    bgAudio.pause();
     isPlaying = false;
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
     btn.classList.add('muted');
   } else {
-    audioCtx.resume();
+    bgAudio.play();
     isPlaying = true;
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>';
     btn.classList.remove('muted');
