@@ -116,7 +116,13 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
     providers.push(
       new SoundCloudProvider({
         search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
-        stream: (url) => invoke("dl_stream_fast", { url }),
+        stream: async (url) => {
+          try {
+            return await invoke<string>("dl_stream_fast", { url });
+          } catch {
+            return invoke<string>("dl_stream", { url });
+          }
+        },
       }),
     );
   }

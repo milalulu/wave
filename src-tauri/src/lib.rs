@@ -411,6 +411,8 @@ async fn resolve_stream(
             &cookies,
         ),
     ]);
+    let mut progressive_url: Option<String> = None;
+    let mut hls_url: Option<String> = None;
     let mut last_err: Option<String> = None;
     for args in attempts {
         match run_ytdlp(app, args, 90).await {
@@ -421,10 +423,17 @@ async fn resolve_stream(
                     .find(|l| !l.trim().is_empty())
                     .map(|l| l.trim().to_string());
                 if let Some(u) = u {
-                    if !u.contains(".m3u8") && !u.contains(".mpd") && !u.is_empty() {
-                        return Ok(u);
+                    if u.is_empty() {
+                        continue;
                     }
-                    last_err = Some("yt-dlp: got unplayable manifest".into());
+                    if u.contains(".m3u8") || u.contains(".mpd") {
+                        if hls_url.is_none() {
+                            hls_url = Some(u);
+                        }
+                    } else {
+                        progressive_url = Some(u);
+                        break;
+                    }
                 }
             }
             Ok(None) => {
@@ -432,6 +441,12 @@ async fn resolve_stream(
             }
             Err(e) => last_err = Some(e),
         }
+    }
+    if let Some(u) = progressive_url {
+        return Ok(u);
+    }
+    if let Some(u) = hls_url {
+        return Ok(u);
     }
     Err(last_err.unwrap_or_else(|| "yt-dlp: no playable stream".into()))
 }
@@ -480,6 +495,8 @@ async fn yt_stream_fast(
 
     let clients = ["android", "web_safari"];
 
+    let mut progressive_url: Option<String> = None;
+    let mut hls_url: Option<String> = None;
     for client in clients {
         let mut args = vec![
             url_str.clone(),
@@ -502,51 +519,89 @@ async fn yt_stream_fast(
                 .find(|l| !l.trim().is_empty())
                 .map(|l| l.trim().to_string())
             {
-                if !u.is_empty() && !u.contains(".m3u8") && !u.contains(".mpd") {
-                    return Ok(u);
+                if u.is_empty() {
+                    continue;
+                }
+                if u.contains(".m3u8") || u.contains(".mpd") {
+                    if hls_url.is_none() {
+                        hls_url = Some(u);
+                    }
+                } else {
+                    progressive_url = Some(u);
+                    break;
                 }
             }
         }
+    }
+    if let Some(u) = progressive_url {
+        return Ok(u);
+    }
+    if let Some(u) = hls_url {
+        return Ok(u);
     }
 
     // Фолбэк на полный resolve_stream с 7 попытками
     resolve_stream(&app, &url_str, Some(&quality_str), false).await
 }
 
-/// Быстрый резолв произвольного URL (SoundCloud и т.д.): 1 попытка, 10с таймаут.
+/// Быстрый резолв произвольного URL (SoundCloud и т.д.): 2 попытки, 10с таймаут,
+/// с фолбэком на полный resolve_stream (7 попыток).
 #[tauri::command]
 async fn dl_stream_fast(
     app: tauri::AppHandle,
     url: String,
 ) -> Result<String, String> {
-    let args = vec![
-        url.clone(),
-        "--no-playlist".to_string(),
-        "-f".to_string(),
-        "ba[ext=m4a]/ba[ext=mp3]/ba".to_string(),
-        "-g".to_string(),
-        "--no-warnings".to_string(),
-        "--socket-timeout".to_string(),
-        "5".to_string(),
+    let cookies = ytdlp_cookies_args(&app);
+    let attempts = vec![
+        // Попытка 1: mp3 (SoundCloud обычно отдаёт mp3)
+        {
+            let mut args = vec![
+                url.clone(),
+                "--no-playlist".to_string(),
+                "-f".to_string(),
+                "ba[ext=mp3]/ba".to_string(),
+                "-g".to_string(),
+                "--no-warnings".to_string(),
+                "--socket-timeout".to_string(),
+                "5".to_string(),
+            ];
+            args.extend(cookies.iter().cloned());
+            args
+        },
+        // Попытка 2: любой аудиоформат
+        {
+            let mut args = vec![
+                url.clone(),
+                "--no-playlist".to_string(),
+                "-f".to_string(),
+                "ba".to_string(),
+                "-g".to_string(),
+                "--no-warnings".to_string(),
+                "--socket-timeout".to_string(),
+                "5".to_string(),
+            ];
+            args.extend(cookies.iter().cloned());
+            args
+        },
     ];
 
-    match run_ytdlp(&app, args, 10).await {
-        Ok(Some(stdout)) => {
-            let u = stdout
+    for args in attempts {
+        if let Ok(Some(stdout)) = run_ytdlp(&app, args, 10).await {
+            if let Some(u) = stdout
                 .lines()
                 .rev()
                 .find(|l| !l.trim().is_empty())
-                .map(|l| l.trim().to_string());
-            if let Some(u) = u {
-                if !u.is_empty() && !u.contains(".m3u8") && !u.contains(".mpd") {
+                .map(|l| l.trim().to_string())
+            {
+                if !u.is_empty() {
                     return Ok(u);
                 }
             }
-            Err("dl_stream_fast: no playable stream".into())
         }
-        Ok(None) => Err("dl_stream_fast: no stream".into()),
-        Err(e) => Err(e),
     }
+
+    // Фолбэк на полный resolve_stream (SoundCloud может требовать больше попыток)
+    resolve_stream(&app, &url, None, true).await
 }
 
 fn stream_args(url: &str, fmt: &str, client: Option<&str>, cookies: &[String]) -> Vec<String> {
