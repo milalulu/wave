@@ -864,6 +864,84 @@
     font-size: 11px; color: #00F0FF;
   }
 
+  /* ── How it works ── */
+  .steps-section { position:relative; z-index:1; width:100%; max-width:860px; margin-top:100px; padding:0 20px; }
+  .steps-row { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:12px; }
+  @media(max-width:768px){ .steps-row{grid-template-columns:1fr;} }
+  .step-card { position:relative; padding:28px 22px; border-radius:16px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); text-align:center; opacity:0; transform:translateY(20px); transition:all 0.6s cubic-bezier(.22,1,.36,1); }
+  .step-card.visible { opacity:1; transform:translateY(0); }
+  .step-card:hover { border-color:rgba(0,240,255,0.2); transform:translateY(-4px); }
+  .step-num { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,var(--cyan),var(--purple)); font-size:16px; font-weight:900; color:#fff; margin-bottom:16px; }
+  .step-visual { width:100%; height:120px; border-radius:10px; margin-bottom:16px; overflow:hidden; position:relative; }
+  .step-title { font-size:16px; font-weight:700; color:#fff; margin-bottom:6px; }
+  .step-desc { font-size:13px; line-height:1.5; color:#94A3B8; }
+  .sv-search { background:#0D1326; display:flex; flex-direction:column; padding:12px; gap:8px; }
+  .sv-search-bar { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid #1E2950; background:#060914; font-size:12px; color:#64748B; }
+  .sv-search-bar svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  .sv-results { display:flex; flex-direction:column; gap:4px; }
+  .sv-result { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; font-size:11px; color:#94A3B8; animation:sv-slide-in 0.5s ease-out both; }
+  .sv-result:nth-child(1){animation-delay:0.2s;} .sv-result:nth-child(2){animation-delay:0.5s;} .sv-result:nth-child(3){animation-delay:0.8s;}
+  @keyframes sv-slide-in { from{opacity:0;transform:translateX(-10px);} to{opacity:1;transform:translateX(0);} }
+  .sv-mini-cover { width:24px; height:24px; border-radius:4px; flex-shrink:0; }
+  .sv-result-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sv-result-src { font-size:9px; font-weight:600; text-transform:uppercase; padding:1px 4px; border-radius:3px; flex-shrink:0; }
+  .sv-play { background:#0D1326; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  .sv-play-cover { width:56px; height:56px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.4); animation:sv-cover-pulse 2s ease-in-out infinite; }
+  @keyframes sv-cover-pulse { 0%,100%{box-shadow:0 8px 24px rgba(0,0,0,0.4);transform:scale(1);} 50%{box-shadow:0 12px 32px rgba(0,240,255,0.2);transform:scale(1.04);} }
+  .sv-play-title { font-size:12px; font-weight:600; color:#F1F5F9; }
+  .sv-play-artist { font-size:10px; color:#64748B; }
+  .sv-play-bar { display:flex; align-items:center; gap:8px; }
+  .sv-play-btn { width:32px; height:32px; border-radius:50%; background:#F1F5F9; color:#111; display:grid; place-items:center; }
+  .sv-play-btn svg { width:14px; height:14px; fill:currentColor; }
+  .sv-play-progress { width:100px; height:3px; border-radius:2px; background:#1E2950; overflow:hidden; }
+  .sv-play-progress-fill { width:0%; height:100%; border-radius:2px; background:linear-gradient(90deg,#00F0FF,#8B5CF6); animation:sv-progress 4s linear infinite; }
+  @keyframes sv-progress { from{width:0%;} to{width:100%;} }
+  .sv-enjoy { background:#0D1326; display:flex; align-items:flex-end; justify-content:center; gap:3px; padding:20px; }
+  .sv-eq-bar { width:6px; border-radius:3px; background:linear-gradient(to top,var(--cyan),var(--purple)); animation:sv-eq-bounce ease-in-out infinite alternate; }
+  @keyframes sv-eq-bounce { from{height:8px;} to{height:100%;} }
+
+  /* ── Interactive EQ ── */
+  .eq-section { position:relative; z-index:1; width:100%; max-width:720px; margin-top:100px; padding:0 20px; }
+  .eq-demo { border:1px solid rgba(255,255,255,0.06); border-radius:16px; background:rgba(255,255,255,0.02); padding:28px 24px; margin-top:12px; }
+  .eq-controls { display:flex; align-items:flex-end; justify-content:center; gap:14px; margin-bottom:16px; min-height:180px; }
+  .eq-band { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .eq-slider-track { width:8px; height:140px; border-radius:4px; background:#1E2950; position:relative; cursor:pointer; }
+  .eq-slider-fill { position:absolute; left:0; width:100%; border-radius:4px; background:linear-gradient(to top,var(--cyan),var(--purple)); transition:height 0.05s; }
+  .eq-slider-fill.neg { background:linear-gradient(to bottom,var(--magenta),var(--purple)); }
+  .eq-slider-thumb { position:absolute; left:50%; transform:translate(-50%,-50%); width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid var(--cyan); box-shadow:0 2px 8px rgba(0,0,0,0.4); cursor:grab; transition:box-shadow 0.2s; z-index:2; }
+  .eq-slider-thumb:hover { box-shadow:0 2px 12px rgba(0,240,255,0.4); }
+  .eq-center-line { position:absolute; top:50%; left:0; right:0; height:1px; background:#2a3050; z-index:1; }
+  .eq-label { font-size:10px; color:#64748B; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; }
+  .eq-freq { font-size:9px; color:#4a5070; text-align:center; }
+  .eq-vis { display:flex; align-items:flex-end; justify-content:center; gap:2px; height:40px; margin-bottom:12px; }
+  .eq-vis-bar { width:4px; border-radius:2px; background:linear-gradient(to top,var(--cyan),var(--purple)); transition:height 0.05s; }
+  .eq-btn-row { display:flex; justify-content:center; gap:10px; margin-top:12px; }
+  .eq-preset-btn { padding:6px 14px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:#94A3B8; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+  .eq-preset-btn:hover { border-color:var(--cyan); color:#F1F5F9; }
+  .eq-preset-btn.active { background:rgba(0,240,255,0.1); border-color:var(--cyan); color:var(--cyan); }
+  .eq-play-btn { padding:8px 20px; border-radius:999px; border:none; background:linear-gradient(135deg,var(--cyan),var(--purple)); color:#fff; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+  .eq-play-btn:hover { transform:scale(1.04); box-shadow:0 6px 20px rgba(0,240,255,0.3); }
+
+  /* ── Roadmap ── */
+  .roadmap-section { position:relative; z-index:1; width:100%; max-width:720px; margin-top:100px; padding:0 20px; padding-bottom:60px; }
+  .roadmap-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  @media(max-width:600px){ .roadmap-grid{grid-template-columns:1fr;} }
+  .rm-card { padding:20px; border-radius:14px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); transition:all 0.3s; opacity:0; transform:translateY(16px); }
+  .rm-card.visible { opacity:1; transform:translateY(0); }
+  .rm-card:hover { border-color:rgba(0,240,255,0.15); }
+  .rm-status { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+  .rm-dot { width:6px; height:6px; border-radius:50%; }
+  .rm-status.done .rm-dot { background:#84cc16; }
+  .rm-status.done { color:#84cc16; }
+  .rm-status.progress .rm-dot { background:#f59e0b; animation:rm-pulse 1.5s ease-in-out infinite; }
+  .rm-status.progress { color:#f59e0b; }
+  .rm-status.planned .rm-dot { background:#64748B; }
+  .rm-status.planned { color:#64748B; }
+  @keyframes rm-pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .rm-title { font-size:15px; font-weight:700; color:#F1F5F9; margin-bottom:4px; }
+  .rm-desc { font-size:12px; line-height:1.5; color:#94A3B8; }
+  .rm-card.full { grid-column:1/-1; }
+
   /* ── Footer ── */
   .footer {
     position: relative;
@@ -1444,6 +1522,115 @@
   </div>
 </section>
 
+<!-- How it works -->
+<section class="steps-section">
+  <div class="section-label">Simple</div>
+  <div class="section-title">How it works</div>
+  <div class="steps-row">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-visual sv-search">
+        <div class="sv-search-bar">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span id="typer-target">daft punk</span>
+        </div>
+        <div class="sv-results">
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff4d4d,#333)"></div><div class="sv-result-name">Get Lucky</div><div class="sv-result-src" style="color:#ff4d4d;background:rgba(255,77,77,0.1)">YT</div></div>
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#1db954,#333)"></div><div class="sv-result-name">Around the World</div><div class="sv-result-src" style="color:#1db954;background:rgba(29,185,84,0.1)">SP</div></div>
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff8800,#333)"></div><div class="sv-result-name">One More Time</div><div class="sv-result-src" style="color:#ff8800;background:rgba(255,136,0,0.1)">SC</div></div>
+        </div>
+      </div>
+      <div class="step-title">Search anything</div>
+      <div class="step-desc">One search bar, all platforms — YouTube, Spotify, SoundCloud, Deezer, iTunes</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-visual sv-play">
+        <div class="sv-play-cover" style="background:linear-gradient(135deg,#e94560,#1a1a2e)"></div>
+        <div class="sv-play-title">Get Lucky</div>
+        <div class="sv-play-artist">Daft Punk</div>
+        <div class="sv-play-bar">
+          <div class="sv-play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+          <div class="sv-play-progress"><div class="sv-play-progress-fill"></div></div>
+        </div>
+      </div>
+      <div class="step-title">Hit play</div>
+      <div class="step-desc">Instant streaming with crossfade, EQ, bass boost, and smart queue management</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-visual sv-enjoy" id="sv-enjoy"></div>
+      <div class="step-title">Enjoy the experience</div>
+      <div class="step-desc">Synced lyrics, recommendations, MediaSession — it just works</div>
+    </div>
+  </div>
+</section>
+
+<!-- Interactive EQ -->
+<section class="eq-section">
+  <div class="section-label">Experience</div>
+  <div class="section-title">Try the equalizer</div>
+  <div class="eq-demo">
+    <div class="eq-vis" id="eq-vis"></div>
+    <div class="eq-controls" id="eq-controls"></div>
+    <div class="eq-btn-row">
+      <button class="eq-play-btn" id="eq-play-btn" onclick="toggleEqAudio()">Start ambient</button>
+      <button class="eq-preset-btn" onclick="eqPreset('flat')">Flat</button>
+      <button class="eq-preset-btn" onclick="eqPreset('bass')">Bass boost</button>
+      <button class="eq-preset-btn" onclick="eqPreset('vocal')">Vocal</button>
+      <button class="eq-preset-btn" onclick="eqPreset('bright')">Bright</button>
+    </div>
+  </div>
+</section>
+
+<!-- Roadmap -->
+<section class="roadmap-section">
+  <div class="section-label">Future</div>
+  <div class="section-title">Roadmap</div>
+  <div class="roadmap-grid">
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Multi-source streaming</div>
+      <div class="rm-desc">YouTube, Spotify, SoundCloud, Deezer, iTunes, VK — all in one player</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Smart recommendations</div>
+      <div class="rm-desc">MusicBrainz enrichment, skip detection, RollingContext, 70/20/10 queue balance</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">HTTP API</div>
+      <div class="rm-desc">32 REST endpoints for Jarvis, voice assistants, and external scripts</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Cross-platform</div>
+      <div class="rm-desc">Windows, Linux, Android with MediaSession, notifications, auto-updates</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
+      <div class="rm-title">AI DJ mode</div>
+      <div class="rm-desc">Auto-mix transitions, key detection, BPM matching — seamless sets</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
+      <div class="rm-title">Collaborative queues</div>
+      <div class="rm-desc">Share a queue with friends, vote on next track, party mode</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
+      <div class="rm-title">Audio Scrobbling</div>
+      <div class="rm-desc">Last.fm scrobble integration with full history sync</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
+      <div class="rm-title">Lyrics editor</div>
+      <div class="rm-desc">Community-driven lyrics sync and translation</div>
+    </div>
+  </div>
+</section>
+
 <footer class="footer">
   <p>Wave Music Player &middot; <a href="https://github.com/milalulu/wave">GitHub</a> &middot; Apache 2.0 License</p>
 </footer>
@@ -1490,7 +1677,218 @@ const observer = new IntersectionObserver((entries) => {
     }
   });
 }, { threshold: 0.15 });
-document.querySelectorAll('.feat, .mockup, .stack-item, .theme-card, .tl-item, .faq-item').forEach(f => observer.observe(f));
+document.querySelectorAll('.feat, .mockup, .stack-item, .theme-card, .tl-item, .faq-item, .step-card, .rm-card').forEach(f => observer.observe(f));
+
+// Step 3 enjoy bars
+const enjoy = document.getElementById('sv-enjoy');
+if (enjoy) {
+  for (let i = 0; i < 16; i++) {
+    const b = document.createElement('div');
+    b.className = 'sv-eq-bar';
+    b.style.cssText = `animation-duration:${0.4+Math.random()*0.6}s; animation-delay:${i*0.05}s; opacity:${0.5+Math.random()*0.5};`;
+    enjoy.appendChild(b);
+  }
+}
+
+// Interactive EQ with Web Audio API
+const EQ_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+const EQ_LABELS = ['60','170','310','600','1K','3K','6K','12K','14K','16K'];
+let audioCtx, eqFilters = [], ambientNodes = [], isPlaying = false;
+let eqGains = new Array(10).fill(0);
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  EQ_FREQS.forEach((freq, i) => {
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'peaking';
+    filter.frequency.value = freq;
+    filter.Q.value = 1.4;
+    filter.gain.value = 0;
+    eqFilters.push(filter);
+  });
+}
+
+function startAmbient() {
+  initAudio();
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.12;
+
+  // Chain: sources -> filters -> master -> dest
+  let lastNode = masterGain;
+  eqFilters.forEach(f => { lastNode.connect(f); lastNode = f; });
+  lastNode.connect(audioCtx.destination);
+
+  // Generate ambient: layered detuned oscillators + noise
+  const oscTypes = ['sine','triangle','sine','triangle','sine'];
+  const baseFreqs = [110, 164.81, 220, 277.18, 329.63];
+  oscTypes.forEach((type, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = baseFreqs[i];
+    osc.detune.value = (Math.random()-0.5)*20;
+    gain.gain.value = 0.06 / (i+1);
+    // Slow LFO on gain for movement
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfo.frequency.value = 0.1 + Math.random()*0.3;
+    lfoGain.gain.value = 0.03;
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+    lfo.start();
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    ambientNodes.push(osc, lfo);
+  });
+
+  // Filtered noise layer
+  const bufferSize = 2 * audioCtx.sampleRate;
+  const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const output = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  noise.loop = true;
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.value = 400;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.value = 0.03;
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(masterGain);
+  noise.start();
+  ambientNodes.push(noise);
+
+  isPlaying = true;
+}
+
+function stopAmbient() {
+  if (!audioCtx) return;
+  ambientNodes.forEach(n => { try{n.stop();}catch(e){} });
+  ambientNodes = [];
+  isPlaying = false;
+}
+
+function toggleEqAudio() {
+  const btn = document.getElementById('eq-play-btn');
+  if (isPlaying) { stopAmbient(); btn.textContent = 'Start ambient'; }
+  else { startAmbient(); btn.textContent = 'Stop ambient'; }
+}
+
+function setEqBand(index, value) {
+  eqGains[index] = value;
+  if (eqFilters[index]) eqFilters[index].gain.value = value;
+  updateEqUI();
+}
+
+function eqPreset(name) {
+  const presets = {
+    flat:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bass:   [8, 6, 4, 1, 0, 0, 0, 0, 0, 0],
+    vocal:  [-2, 0, 2, 4, 5, 4, 2, 0, 0, 0],
+    bright: [0, 0, 0, 0, 0, 2, 4, 6, 8, 8],
+  };
+  eqGains = [...presets[name]];
+  eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
+  updateEqUI();
+  document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// Build EQ sliders
+const eqCtrl = document.getElementById('eq-controls');
+EQ_FREQS.forEach((freq, i) => {
+  const band = document.createElement('div');
+  band.className = 'eq-band';
+  const track = document.createElement('div');
+  track.className = 'eq-slider-track';
+  const fill = document.createElement('div');
+  fill.className = 'eq-slider-fill';
+  fill.id = 'eq-fill-' + i;
+  const thumb = document.createElement('div');
+  thumb.className = 'eq-slider-thumb';
+  thumb.id = 'eq-thumb-' + i;
+  const center = document.createElement('div');
+  center.className = 'eq-center-line';
+  const label = document.createElement('div');
+  label.className = 'eq-label';
+  label.id = 'eq-label-' + i;
+  label.textContent = '0 dB';
+  const freqLabel = document.createElement('div');
+  freqLabel.className = 'eq-freq';
+  freqLabel.textContent = EQ_LABELS[i];
+  track.appendChild(center);
+  track.appendChild(fill);
+  track.appendChild(thumb);
+  band.appendChild(label);
+  band.appendChild(track);
+  band.appendChild(freqLabel);
+  eqCtrl.appendChild(band);
+
+  // Drag
+  let dragging = false;
+  function onDrag(e) {
+    const rect = track.getBoundingClientRect();
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    const pct = Math.max(0, Math.min(1, 1 - y / rect.height));
+    const db = Math.round((pct * 24) - 12); // -12 to +12
+    setEqBand(i, db);
+  }
+  thumb.addEventListener('mousedown', (e) => { dragging = true; onDrag(e); });
+  thumb.addEventListener('touchstart', (e) => { dragging = true; onDrag(e); }, {passive:true});
+  document.addEventListener('mousemove', (e) => { if (dragging) onDrag(e); });
+  document.addEventListener('touchmove', (e) => { if (dragging) onDrag(e); }, {passive:true});
+  document.addEventListener('mouseup', () => { dragging = false; });
+  document.addEventListener('touchend', () => { dragging = false; });
+  track.addEventListener('click', onDrag);
+});
+
+function updateEqUI() {
+  eqGains.forEach((db, i) => {
+    const fill = document.getElementById('eq-fill-' + i);
+    const thumb = document.getElementById('eq-thumb-' + i);
+    const label = document.getElementById('eq-label-' + i);
+    if (!fill) return;
+    const pct = (db + 12) / 24; // 0..1
+    const halfH = 70; // px from center
+    const offset = (0.5 - pct) * 140;
+    if (db >= 0) {
+      fill.className = 'eq-slider-fill';
+      fill.style.top = '50%';
+      fill.style.bottom = 'auto';
+      fill.style.height = (pct * 70) + 'px';
+    } else {
+      fill.className = 'eq-slider-fill neg';
+      fill.style.top = (50 + (1-pct)*50) + '%';
+      fill.style.bottom = 'auto';
+      fill.style.height = ((1-pct) * 70) + 'px';
+    }
+    thumb.style.top = (50 - (db/12)*50) + '%';
+    label.textContent = (db > 0 ? '+' : '') + db + ' dB';
+  });
+}
+updateEqUI();
+
+// Vis bars for EQ
+const eqVis = document.getElementById('eq-vis');
+if (eqVis) {
+  for (let i = 0; i < 24; i++) {
+    const b = document.createElement('div');
+    b.className = 'eq-vis-bar';
+    b.style.height = '4px';
+    b.dataset.idx = i;
+    eqVis.appendChild(b);
+  }
+  setInterval(() => {
+    document.querySelectorAll('.eq-vis-bar').forEach((b, i) => {
+      const h = 4 + Math.random() * (isPlaying ? 32 : 8) + (eqGains[i % 10] + 12) / 24 * 16;
+      b.style.height = h + 'px';
+    });
+  }, 80);
+}
 
 // API demo data
 const apiData = {
