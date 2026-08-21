@@ -565,10 +565,7 @@ async fn yt_stream_fast(
 /// Быстрый резолв произвольного URL (SoundCloud и т.д.): 2 попытки, 10с таймаут,
 /// с фолбэком на полный resolve_stream (7 попыток).
 #[tauri::command]
-async fn dl_stream_fast(
-    app: tauri::AppHandle,
-    url: String,
-) -> Result<String, String> {
+async fn dl_stream_fast(app: tauri::AppHandle, url: String) -> Result<String, String> {
     let cookies = ytdlp_cookies_args(&app);
     let attempts = vec![
         // Попытка 1: mp3 (SoundCloud обычно отдаёт mp3)
