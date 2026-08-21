@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Track } from "../core/types";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
+import { usePopoverDismiss } from "./usePopoverDismiss";
 
 interface TagEditorProps {
   track: Track;
@@ -34,6 +35,8 @@ export function TagEditor({ track, onClose }: TagEditorProps) {
   const [cover, setCover] = useState<string | undefined>(track.coverUrl);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const modalRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(modalRef, true, onClose);
 
   useEffect(() => {
     const path = track.meta?.path;
@@ -89,7 +92,7 @@ export function TagEditor({ track, onClose }: TagEditorProps) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal tag-editor" onClick={(e) => e.stopPropagation()}>
+      <div className="modal tag-editor" ref={modalRef} onClick={(e) => e.stopPropagation()}>
         <h3>{t("trackMenu").editTags}</h3>
         {loading && <p className="muted">{t("common").loading}</p>}
         {!loading && (

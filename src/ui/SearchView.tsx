@@ -8,7 +8,7 @@ import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
-import { SearchIcon } from "./icons";
+import { SearchIcon, RefreshCwIcon } from "./icons";
 
 interface SearchViewProps {
   query: string;
@@ -132,8 +132,12 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("search").placeholder}
-          autoFocus
         />
+        {input && (
+          <button type="button" className="icon-btn search-clear" onClick={() => { setInput(""); onQuery(""); }}>
+            ✕
+          </button>
+        )}
         <button className="btn" type="submit" disabled={loading}>
           {loading ? t("common").loading : t("search").placeholder}
         </button>
@@ -161,7 +165,14 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         ))}
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error">
+          {error}{" "}
+          <button className="btn small" onClick={() => { setError(null); onQuery(query); }}>
+            <RefreshCwIcon size={14} /> Retry
+          </button>
+        </p>
+      )}
       {loading && (
         <div className="skeleton-results">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -205,6 +216,13 @@ function Results({
 
   return (
     <div className="results">
+      {(tracks.length > 0 || albums.length > 0 || artists.length > 0) && (
+        <p className="muted search-count">
+          {tracks.length} {t("search").tracks.toLowerCase()} · {" "}
+          {albums.length} {t("search").albums.toLowerCase()} · {" "}
+          {artists.length} {t("search").artists.toLowerCase()}
+        </p>
+      )}
       {previewsHidden && (
         <p className="muted">
           {t("search").previewsHidden}{" "}
@@ -219,7 +237,7 @@ function Results({
           <div className="track-list">
             <VirtualList
               items={tracks}
-              rowKey={(track) => track.id}
+              rowKey={(track) => `${track.provider}:${track.id}`}
               renderRow={(track, i) => <TrackRow track={track} index={i + 1} />}
             />
           </div>
@@ -267,7 +285,7 @@ export function AlbumCard({ album, onClick }: { album: Album; onClick?: () => vo
       {album.coverUrl ? (
         <Cover src={album.coverUrl} alt="" />
       ) : (
-        <div className="media-card-empty">A</div>
+        <div className="media-card-empty">{album.title.charAt(0).toUpperCase()}</div>
       )}
       <span className="media-card-title">{album.title}</span>
       <small>{album.artist}</small>

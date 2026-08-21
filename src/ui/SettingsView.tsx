@@ -58,6 +58,7 @@ const ENV_KEYS = [
   "WAVE_LASTFM_API_KEY",
   "WAVE_LASTFM_API_SECRET",
   "WAVE_LASTFM_SESSION_KEY",
+  "WAVE_API_TOKEN",
 ] as const;
 
 function fromRust(cfg: AppConfigResult): Record<string, string> {
@@ -119,6 +120,7 @@ export function SettingsView() {
   const stereoWidth = useApp((s) => s.stereoWidth);
   const setStereoWidth = useApp((s) => s.setStereoWidth);
   const [config, setConfig] = useState<Record<string, string>>({});
+  const savedConfigRef = useRef<Record<string, string>>({});
   const [localDir, setLocalDir] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, string>>({});
@@ -144,6 +146,7 @@ export function SettingsView() {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -243,7 +246,9 @@ export function SettingsView() {
   const loadConfig = async () => {
     try {
       const cfg = await invoke<AppConfigResult>("app_config");
-      setConfig(fromRust(cfg));
+      const loaded = fromRust(cfg);
+      setConfig(loaded);
+      savedConfigRef.current = { ...loaded };
       const dir = localStorage.getItem("wave-local-dir");
       if (dir) setLocalDir(dir);
     } catch {
@@ -264,6 +269,7 @@ export function SettingsView() {
     try {
       await invoke("save_app_config", { config: payload });
       localStorage.setItem("wave-local-dir", localDir);
+      savedConfigRef.current = { ...config };
       await useApp.getState().reloadServices();
       notify(t("toasts").settingsSaved);
     } catch (e) {
@@ -384,8 +390,9 @@ export function SettingsView() {
                   {t("settings").themeSystem}
                 </button>
               </div>
-              <button className="btn btn-primary" onClick={saveConfig}>
+              <button className={`btn btn-primary ${JSON.stringify(config) !== JSON.stringify(savedConfigRef.current) ? "dirty" : ""}`} onClick={saveConfig}>
                 <SaveIcon size={16} /> {t("settings").save}
+                {JSON.stringify(config) !== JSON.stringify(savedConfigRef.current) && <span className="dirty-dot" />}
               </button>
               <button className="btn" onClick={loadConfig}>
                 <RefreshCwIcon size={16} /> {t("settings").load}
@@ -408,11 +415,20 @@ export function SettingsView() {
                 <div className="input-group">
                   <input
                     id={key}
-                    type={type}
+                    type={type === "password" && !showSecrets[key] ? "password" : "text"}
                     placeholder={placeholder}
                     value={config[key] || ""}
                     onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.value }))}
                   />
+                  {type === "password" && (
+                    <button
+                      className="btn small"
+                      onClick={() => setShowSecrets((s) => ({ ...s, [key]: !s[key] }))}
+                      title={showSecrets[key] ? "Hide" : "Show"}
+                    >
+                      {showSecrets[key] ? "🙈" : "👁"}
+                    </button>
+                  )}
                   {detect && (
                     <button
                       className="btn small"

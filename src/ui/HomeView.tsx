@@ -47,6 +47,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
   const history = useApp((s) => s.services?.history);
   const loadPlaylists = useApp((s) => s.loadPlaylists);
   const togglePlay = useApp((s) => s.togglePlay);
+  const play = useApp((s) => s.play);
   const openLocalDirectory = useApp((s) => s.openLocalDirectory);
   const startRadio = useApp((s) => s.startRadio);
   const [recent, setRecent] = useState<HistoryEntry[]>([]);
@@ -60,7 +61,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     if (!history) return;
     void history.getHistory(isMobile ? 12 : 6).then((entries) => {
       if (!cancelled) setRecent(entries);
-    });
+    }).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -107,6 +108,10 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             <div className="mh-empty-icon"><WaveIcon size={40} /></div>
             <h1>{t("app").welcome}</h1>
             <p>{t("home").welcomeSubtitle}</p>
+            <button className="btn btn-hero-play" onClick={() => onNavigate("search")} style={{ marginTop: 16 }}>
+              <SearchIcon size={18} />
+              {t("home").heroSearch}
+            </button>
           </div>
         )}
 
@@ -118,7 +123,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
                 <button
                   key={`${entry.track.id}:${entry.playedAt}`}
                   className="mh-recent-card"
-                  onClick={() => onNavigate("nowPlaying")}
+                  onClick={() => void play([entry.track], 0)}
                 >
                   <div className="mh-recent-cover">
                     {entry.track.coverUrl ? (

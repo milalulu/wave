@@ -133,6 +133,7 @@ export interface Translations {
     freshDiscoveries: string;
     freshDiscoveriesDesc: string;
     play: string;
+    tracksCount: (n: number) => string;
   };
   playlist: {
     title: string;
@@ -345,6 +346,9 @@ export interface Translations {
     artistUnblocked: string;
     cachesCleared: string;
     updateAvailable: (version: string) => string;
+    queueAdded: string;
+    playNextAdded: string;
+    radioStarted: string;
   };
   tagEditor: {
     title: string;
@@ -527,6 +531,7 @@ export const translations: Record<Locale, Translations> = {
       freshDiscoveries: "Fresh Discoveries",
       freshDiscoveriesDesc: "One track from each of your top artists",
       play: "Play",
+      tracksCount: (n: number) => `${n} tracks`,
     },
     playlist: {
       title: "Playlists",
@@ -742,6 +747,9 @@ export const translations: Record<Locale, Translations> = {
       artistUnblocked: "Artist restored in Wave",
       cachesCleared: "Caches cleared",
       updateAvailable: (v: string) => `Update Wave to ${v}?`,
+      queueAdded: "Added to queue",
+      playNextAdded: "Will play next",
+      radioStarted: "Radio started",
     },
     tagEditor: {
       title: "Title",
@@ -922,6 +930,7 @@ export const translations: Record<Locale, Translations> = {
       freshDiscoveries: "Новые открытия",
       freshDiscoveriesDesc: "Один трек от каждого из ваших топ-исполнителей",
       play: "Воспроизвести",
+      tracksCount: (n: number) => `${n} треков`,
     },
     playlist: {
       title: "Плейлисты",
@@ -1137,6 +1146,9 @@ export const translations: Record<Locale, Translations> = {
       artistUnblocked: "Артист снова в Wave",
       cachesCleared: "Кеши очищены",
       updateAvailable: (v: string) => `Обновить Wave до ${v}?`,
+      queueAdded: "Добавлено в очередь",
+      playNextAdded: "Воспроизведётся следующим",
+      radioStarted: "Радио запущено",
     },
     tagEditor: {
       title: "Название",

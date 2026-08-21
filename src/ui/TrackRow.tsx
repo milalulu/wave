@@ -18,6 +18,7 @@ function formatDuration(seconds?: number): string {
 interface TrackRowProps {
   track: Track;
   index?: number;
+  playCount?: number;
   
   nowPlaying?: boolean;
   onDragStart?: (e: DragEvent<HTMLDivElement>, track: Track) => void;
@@ -26,7 +27,7 @@ interface TrackRowProps {
   onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }
 
-export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
+export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
   const { t } = useI18n();
   const isCurrentTrack = useApp((s) => nowPlaying !== undefined ? nowPlaying : s.snapshot.current?.id === track.id);
   const likedIds = useApp((s) => s.likedIds);
@@ -54,6 +55,7 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
   const startRadio = useApp((s) => s.startRadio);
   const toggleBlockTrack = useApp((s) => s.toggleBlockTrack);
   const toggleBlockArtist = useApp((s) => s.toggleBlockArtist);
+  const notify = useApp((s) => s.notify);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -101,8 +103,11 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
     <div
       className={`track-row ${isCurrent ? "track-current" : ""} ${noPlay ? "track-noplay" : ""}`}
       title={noPlay ? t("common").noAudio : undefined}
+      tabIndex={0}
+      role="button"
+      aria-label={`${track.title} — ${track.artist ?? ""}`}
       onDoubleClick={onPlay}
-      onClick={onPlay}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlay(); } }}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("application/x-wave-track", JSON.stringify(track));
@@ -156,6 +161,9 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
       </div>
       {track.album && <span className="track-album">{track.album}</span>}
       <span className="track-duration">{noPlay ? "—" : formatDuration(track.duration)}</span>
+      {playCount !== undefined && (
+        <span className="track-play-count" title={`${playCount}×`}>{playCount}×</span>
+      )}
       <div className="track-actions">
         <button
           className={`icon-btn more-btn ${menuOpen ? "active" : ""}`}
@@ -185,21 +193,21 @@ export const TrackRow = memo(function TrackRow({ track, index, nowPlaying, onDra
           <button onClick={() => { void play([track], 0); setMenuOpen(false); }}>
             <PlayIcon size={14} /> {t("common").play}
           </button>
-          <button onClick={() => { addToQueue(track); setMenuOpen(false); }}>
+          <button onClick={() => { addToQueue(track); notify(t("toasts").queueAdded); setMenuOpen(false); }}>
             {t("common").addToQueue}
           </button>
-          <button onClick={() => { playNext(track); setMenuOpen(false); }}>
+          <button onClick={() => { playNext(track); notify(t("toasts").playNextAdded); setMenuOpen(false); }}>
             {t("common").playNext}
           </button>
-          <button onClick={() => { void startRadio(track); setMenuOpen(false); }}>
+          <button onClick={() => { void startRadio(track); notify(t("toasts").radioStarted); setMenuOpen(false); }}>
             <RadioIcon size={14} /> {t("player").radio}
           </button>
           {track.artist && (
-            <button onClick={() => { toggleBlockArtist(track.artist ?? ""); setMenuOpen(false); }}>
+            <button onClick={() => { toggleBlockArtist(track.artist ?? ""); notify(artistBlocked ? t("toasts").artistUnblocked : t("toasts").artistBlocked); setMenuOpen(false); }}>
               {artistBlocked ? t("trackMenu").unblockArtist : t("trackMenu").blockArtist}
             </button>
           )}
-          <button onClick={() => { toggleBlockTrack(track); setMenuOpen(false); }}>
+          <button onClick={() => { toggleBlockTrack(track); notify(trackBlocked ? t("toasts").trackUnblocked : t("toasts").trackBlocked); setMenuOpen(false); }}>
             {trackBlocked ? t("trackMenu").unblockTrack : t("trackMenu").blockTrack}
           </button>
           {canDownload && (

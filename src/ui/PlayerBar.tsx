@@ -21,6 +21,7 @@ import {
   PreviousIcon,
   QueueIcon,
   RadioIcon,
+  RefreshCwIcon,
   RepeatIcon,
   RepeatOneIcon,
   ShuffleIcon,
@@ -98,6 +99,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const duration = track?.duration ?? storeDuration;
   const liked = track ? likedIds.has(track.id) : false;
   const buffering = snapshot.state === "loading";
+  const hasError = snapshot.state === "error";
   const sleepActive = sleepUntil !== null || pauseAfterTrack;
   const sleepLabel = pauseAfterTrack
     ? t("player").sleepTimerOptions.afterTrack
@@ -111,12 +113,14 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
 
   const playButton = (
     <button
-      className="play-btn"
+      className={`play-btn ${hasError ? "error" : ""}`}
       onClick={() => void togglePlay()}
-      disabled={buffering && snapshot.state !== "playing"}
-      title={buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
+      disabled={false}
+      title={hasError ? "Retry" : buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
     >
-      {buffering ? (
+      {hasError ? (
+        <RefreshCwIcon size={24} />
+      ) : buffering ? (
         <SpinnerIcon size={26} />
       ) : snapshot.state === "playing" ? (
         <PauseIcon size={24} />
@@ -148,6 +152,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             step={1}
             value={Math.min(position, duration || 0)}
             disabled={!track}
+            aria-label="Seek"
             onChange={(e) => seek(Number(e.target.value))}
           />
           <span className="time">{formatTime(duration)}</span>
@@ -302,6 +307,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             step={1}
             value={Math.min(position, duration || 0)}
             disabled={!track}
+            aria-label="Seek"
             onChange={(e) => seek(Number(e.target.value))}
           />
           <span className="time">{formatTime(duration)}</span>
@@ -335,6 +341,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           min={0}
           max={100}
           value={Math.round(snapshot.volume * 100)}
+          aria-label="Volume"
           onChange={(e) => setVolume(Number(e.target.value))}
         />
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
@@ -407,6 +414,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
                       max={12}
                       step={1}
                       value={snapshot.equalizer[i] ?? 0}
+                      aria-label={`${freq >= 1000 ? `${freq / 1000}k` : freq} Hz`}
                       onChange={(e) => {
                         const next = [...snapshot.equalizer];
                         while (next.length <= i) next.push(0);
@@ -449,6 +457,31 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
                   {tf("player").sleepTimerOptions.minutes(m)}
                 </button>
               ))}
+              <div className="sleep-custom">
+                <input
+                  type="number"
+                  min={1}
+                  max={480}
+                  placeholder="..."
+                  className="sleep-custom-input"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = Number((e.target as HTMLInputElement).value);
+                      if (val > 0) { setSleepMinutes(val); setSleepOpen(false); }
+                    }
+                  }}
+                />
+                <button
+                  className="btn small"
+                  onClick={(e) => {
+                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                    const val = Number(input?.value);
+                    if (val > 0) { setSleepMinutes(val); setSleepOpen(false); }
+                  }}
+                >
+                  OK
+                </button>
+              </div>
               <button
                 onClick={() => {
                   setSleepAfterTrack();

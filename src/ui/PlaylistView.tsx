@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
+import { usePopoverDismiss } from "./usePopoverDismiss";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
@@ -42,6 +43,10 @@ export function PlaylistView() {
   const [shareEmail, setShareEmail] = useState("");
   const [sharePermission, setSharePermission] = useState<"editor" | "viewer">("editor");
   const [shareLoading, setShareLoading] = useState(false);
+  const createModalRef = useRef<HTMLDivElement>(null);
+  const shareModalRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(createModalRef, showCreate, () => setShowCreate(false));
+  usePopoverDismiss(shareModalRef, showShare, () => setShowShare(false));
   const sharePlaylist = useApp((s) => s.sharePlaylist);
   const unsharePlaylist = useApp((s) => s.unsharePlaylist);
   const playlistShares = useApp((s) => s.playlistShares);
@@ -60,6 +65,7 @@ export function PlaylistView() {
               provider: "local",
               uri: "",
               title: `${t("common").unknown} ${i + 1}`,
+              meta: { noPlay: true },
             })) as Track[],
           );
         }
@@ -193,7 +199,7 @@ export function PlaylistView() {
 
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" ref={createModalRef} onClick={(e) => e.stopPropagation()}>
             <h3>{t("playlist").newPlaylist}</h3>
             <input
               value={newName}
@@ -324,7 +330,7 @@ export function PlaylistView() {
 
       {showShare && (
         <div className="modal-overlay" onClick={() => setShowShare(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" ref={shareModalRef} onClick={(e) => e.stopPropagation()}>
             <h3>{t("playlist").share}</h3>
             <div className="form-group">
               <label>{t("playlist").shareEmail}</label>

@@ -30,6 +30,8 @@ interface SidebarProps {
 export function Sidebar({ view, onView }: SidebarProps) {
   const { t } = useI18n();
   const openLocalDirectory = useApp((s) => s.openLocalDirectory);
+  const downloads = useApp((s) => s.downloads);
+  const activeDownloads = downloads.filter((d) => d.status === "running" || d.status === "queued").length;
 
   const items: { key: ViewKey; label: string; icon: (p: { size?: number }) => ReactElement }[] = [
     { key: "home", label: t("nav").home, icon: HomeIcon },
@@ -45,18 +47,22 @@ export function Sidebar({ view, onView }: SidebarProps) {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo" onClick={() => onView("home")} style={{ cursor: "pointer" }}>
+      <button className="sidebar-logo" onClick={() => onView("home")} aria-label="Home">
         <WaveLogoMark size={78} />
-      </div>
-      <nav className="sidebar-nav">
+      </button>
+      <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">
         {items.map((item) => (
           <button
             key={item.key}
             className={`nav-item ${view === item.key ? "active" : ""}`}
             onClick={() => onView(item.key)}
+            aria-current={view === item.key ? "page" : undefined}
           >
             <item.icon size={18} />
             <span>{item.label}</span>
+            {item.key === "downloads" && activeDownloads > 0 && (
+              <span className="nav-badge">{activeDownloads}</span>
+            )}
           </button>
         ))}
       </nav>

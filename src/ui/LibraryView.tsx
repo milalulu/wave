@@ -185,6 +185,7 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
 function StatsView() {
   const { t } = useI18n();
   const history = useApp((s) => s.services?.history);
+  const loadArtist = useApp((s) => s.loadArtist);
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [period, setPeriod] = useState<"day" | "week" | "month" | "all">("all");
 
@@ -245,11 +246,16 @@ function StatsView() {
         <h3>{t("library").topArtists}</h3>
         <div className="track-list">
           {topArtists.map(([artist, count], i) => (
-            <div key={artist} className="track-row">
+            <div
+              key={artist}
+              className="track-row"
+              style={{ cursor: "pointer" }}
+              onClick={() => { if (artist && artist !== t("common").unknown) loadArtist("lastfm", artist); }}
+            >
               <span className="track-index">{i + 1}</span>
               <div className="track-main">
                 <span className="track-title">{artist}</span>
-                <span className="track-artist">{count} {t("library").totalPlays}</span>
+                <span className="track-artist">{count}×</span>
               </div>
             </div>
           ))}
@@ -260,7 +266,7 @@ function StatsView() {
         <h3>{t("library").topTracks}</h3>
         <div className="track-list">
           {topTracks.map(([key, { count, track }], i) => (
-            <TrackRow key={key} track={{ ...track, title: `${count}× ${track.title}` }} index={i + 1} />
+            <TrackRow key={key} track={track} index={i + 1} playCount={count} />
           ))}
         </div>
       </section>
@@ -296,7 +302,7 @@ function SmartPlaylistsView({ playlists }: { playlists: SmartPlaylist[] }) {
             </div>
           </div>
           <div className="smart-card-meta">
-            {pl.tracks.length} tracks
+            {t("smart").tracksCount(pl.tracks.length)}
           </div>
           <button
             className="btn small smart-play-btn"

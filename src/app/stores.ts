@@ -121,6 +121,7 @@ interface AppState {
   playNext: (track: Track) => void;
   clearQueue: () => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
+  removeFromQueue: (index: number) => void;
   toggleLike: (track?: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
@@ -504,6 +505,10 @@ export const useApp = create<AppState>()((set, get) => ({
 
   moveQueueItem: (fromIndex, toIndex) => {
     get().services?.engine.moveInQueue(fromIndex, toIndex);
+  },
+
+  removeFromQueue: (index) => {
+    get().services?.engine.removeFromQueue(index);
   },
 
   toggleLike: async (track) => {
