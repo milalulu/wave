@@ -5,7 +5,6 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TrackRow } from "./TrackRow";
-import { WaveTitle } from "./icons";
 import type { HistoryEntry } from "../core/types";
 import {
   DownloadIcon,
@@ -203,9 +202,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
       {/* Immersive Hero Banner matching the brand asset sheet */}
       <header className="home-hero-banner">
         <div className="home-hero-content">
-          <div className="home-hero-badge">
-            <WaveTitle height={120} />
-          </div>
           <p className="home-sub">{t("home").heroSubtitle}</p>
           <div className="home-hero-actions">
             <button className="btn btn-hero-play" onClick={() => onNavigate("wave")}>
