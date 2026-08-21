@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/badge/download-v0.2.1-00aad4?style=for-the-badge&logo=windows&logoColor=white" /></a>
-  <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-gray?style=for-the-badge" /></a>
+  <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
 </p>
 
@@ -260,7 +260,7 @@ cd src-tauri && cargo fmt --check && cargo clippy && cargo build
 
 ## Лицензия
 
-MIT License — см. [LICENSE](LICENSE).
+Apache 2.0 License — см. [LICENSE](LICENSE).
 
 **Disclaimer:** проект использует недокументированные API (SoundCloud, VK, YouTube через yt-dlp). Авторы не несут ответственности за нарушение ToS сторонних сервисов.
 
