@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/milalulu/wave/releases">
+  <a href="https://milalulu.github.io/wave/">
     <img src="https://raw.githubusercontent.com/milalulu/wave/master/public/logo.svg" width="120" />
   </a>
 </p>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wave — Music Player</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --cyan: #00aad4;
+    --purple: #7c5cff;
+    --magenta: #d030ff;
+    --bg: #05040f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: #e0e0e0;
+    overflow-x: hidden;
+  }
+
+  /* ── Ambient background ── */
+  .glow-1, .glow-2 {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+  }
+  .glow-1 {
+    width: 600px; height: 600px;
+    top: -10%; left: 30%;
+    background: radial-gradient(circle, rgba(124,92,255,0.15) 0%, transparent 70%);
+    animation: glow-drift 8s ease-in-out infinite alternate;
+  }
+  .glow-2 {
+    width: 500px; height: 500px;
+    bottom: -10%; right: 20%;
+    background: radial-gradient(circle, rgba(0,170,212,0.12) 0%, transparent 70%);
+    animation: glow-drift 8s ease-in-out infinite alternate-reverse;
+  }
+  @keyframes glow-drift {
+    from { transform: translate(0, 0) scale(1); opacity: 0.7; }
+    to   { transform: translate(40px, 30px) scale(1.15); opacity: 1; }
+  }
+
+  /* ── Particles ── */
+  .particles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .p {
+    position: absolute;
+    border-radius: 50%;
+    animation: float linear infinite;
+    opacity: 0;
+  }
+  @keyframes float {
+    0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+    10%  { opacity: 0.8; }
+    90%  { opacity: 0.3; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  /* ── Hero section ── */
+  .hero {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10vh;
+  }
+
+  /* ── Rings behind logo ── */
+  .rings {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(124,92,255,0.15);
+    animation: ring-pulse 4s ease-in-out infinite;
+  }
+  .ring:nth-child(1) { width: 280px; height: 280px; animation-delay: 0s; }
+  .ring:nth-child(2) { width: 340px; height: 340px; border-color: rgba(0,170,212,0.1); animation-delay: 0.6s; }
+  .ring:nth-child(3) { width: 400px; height: 400px; border-color: rgba(208,48,255,0.08); animation-delay: 1.2s; }
+  @keyframes ring-pulse {
+    0%, 100% { opacity: 0.3; transform: translate(-50%,-50%) scale(0.96); }
+    50%      { opacity: 0.8; transform: translate(-50%,-50%) scale(1.04); }
+  }
+
+  /* ── Logo ── */
+  .logo-container {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    opacity: 0;
+    animation: hero-in 1s cubic-bezier(.22,1,.36,1) 0.2s forwards;
+  }
+  .logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 24px rgba(0,170,212,0.4)) drop-shadow(0 0 60px rgba(124,92,255,0.2));
+    animation: logo-breathe 4s ease-in-out infinite;
+  }
+  @keyframes logo-breathe {
+    0%, 100% { filter: drop-shadow(0 0 24px rgba(0,170,212,0.4)) drop-shadow(0 0 60px rgba(124,92,255,0.2)); transform: scale(1); }
+    50%      { filter: drop-shadow(0 0 40px rgba(0,170,212,0.6)) drop-shadow(0 0 80px rgba(124,92,255,0.35)); transform: scale(1.03); }
+  }
+  @keyframes hero-in {
+    from { opacity: 0; transform: translateY(30px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ── Title ── */
+  .title-section {
+    margin-top: 32px;
+    text-align: center;
+    opacity: 0;
+    animation: hero-in 0.9s cubic-bezier(.22,1,.36,1) 0.6s forwards;
+  }
+  .title-text {
+    font-size: 72px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 50%, var(--magenta) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(124,92,255,0.4));
+  }
+  .subtitle-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 10px;
+  }
+  .sub-line {
+    width: 50px; height: 1.5px; border-radius: 2px;
+  }
+  .sub-line.l { background: linear-gradient(90deg, transparent, var(--cyan)); }
+  .sub-line.r { background: linear-gradient(90deg, var(--purple), transparent); }
+  .subtitle-text {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Wave SVG ── */
+  .wave-svg {
+    margin-top: 32px;
+    opacity: 0;
+    animation: hero-in 0.8s ease 1.0s forwards;
+  }
+
+  /* ── Equalizer ── */
+  .eq {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 32px;
+    margin-top: 36px;
+    opacity: 0;
+    animation: hero-in 0.6s ease 1.4s forwards;
+  }
+  .eq-bar {
+    width: 4px;
+    border-radius: 3px;
+    background: linear-gradient(to top, var(--purple), var(--cyan));
+    animation: eq-bounce linear infinite alternate;
+    transform-origin: bottom;
+  }
+  @keyframes eq-bounce {
+    from { transform: scaleY(0.15); }
+    to   { transform: scaleY(1); }
+  }
+
+  /* ── Download buttons ── */
+  .downloads {
+    margin-top: 48px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0;
+    animation: hero-in 0.8s ease 1.6s forwards;
+  }
+  .dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: 12px;
+    border: 1px solid rgba(124,92,255,0.3);
+    background: rgba(124,92,255,0.08);
+    color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(8px);
+  }
+  .dl-btn:hover {
+    background: rgba(124,92,255,0.2);
+    border-color: var(--purple);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(124,92,255,0.2);
+  }
+  .dl-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  /* ── Features grid ── */
+  .features {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    max-width: 860px;
+    width: 90%;
+    margin-top: 80px;
+    padding-bottom: 80px;
+  }
+  .feat {
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(124,92,255,0.12);
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(12px);
+    transition: all 0.35s ease;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .feat.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .feat:hover {
+    border-color: rgba(0,170,212,0.3);
+    background: rgba(0,170,212,0.04);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,170,212,0.08);
+  }
+  .feat-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  .feat-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #fff;
+  }
+  .feat-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #888;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    position: relative;
+    z-index: 1;
+    padding: 40px 0;
+    text-align: center;
+    color: #555;
+    font-size: 12px;
+  }
+  .footer a { color: var(--cyan); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  @keyframes hero-in {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="glow-1"></div>
+<div class="glow-2"></div>
+<div class="particles" id="particles"></div>
+
+<section class="hero">
+
+  <!-- Rings -->
+  <div class="rings">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
+  </div>
+
+  <!-- Logo -->
+  <div class="logo-container">
+    <img class="logo-img" src="logo.svg" alt="Wave" />
+  </div>
+
+  <!-- Title -->
+  <div class="title-section">
+    <div class="title-text">WAVE</div>
+    <div class="subtitle-row">
+      <div class="sub-line l"></div>
+      <div class="subtitle-text">Music Player</div>
+      <div class="sub-line r"></div>
+    </div>
+  </div>
+
+  <!-- Animated wave -->
+  <svg class="wave-svg" width="500" height="60" viewBox="0 0 500 60" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="wg" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="var(--cyan)" stop-opacity="0" />
+        <stop offset="30%" stop-color="var(--cyan)" stop-opacity="1" />
+        <stop offset="70%" stop-color="var(--purple)" stop-opacity="1" />
+        <stop offset="100%" stop-color="var(--magenta)" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+    <path fill="none" stroke="url(#wg)" stroke-width="2" stroke-linecap="round" opacity="0.7">
+      <animate attributeName="d"
+        values="M0,30 C25,30 40,5 70,5 C100,5 115,55 145,55 C175,55 190,5 220,5 C250,5 265,55 295,55 C325,55 340,5 370,5 C400,5 415,55 445,55 C465,55 480,30 500,30;
+              M0,30 C25,30 40,55 70,55 C100,55 115,5 145,5 C175,5 190,55 220,55 C250,55 265,5 295,5 C325,5 340,55 370,55 C400,55 415,5 445,5 C465,5 480,30 500,30;
+              M0,30 C25,30 40,5 70,5 C100,5 115,55 145,55 C175,55 190,5 220,5 C250,5 265,55 295,55 C325,55 340,5 370,5 C400,5 415,55 445,55 C465,55 480,30 500,30"
+        dur="4s" repeatCount="indefinite" />
+    </path>
+    <path fill="none" stroke="url(#wg)" stroke-width="1" stroke-linecap="round" opacity="0.3">
+      <animate attributeName="d"
+        values="M0,30 C30,30 50,10 80,10 C110,10 130,50 160,50 C190,50 210,10 240,10 C270,10 290,50 320,50 C350,50 370,10 400,10 C430,10 450,50 480,50 C495,50 500,30 500,30;
+              M0,30 C30,30 50,50 80,50 C110,50 130,10 160,10 C190,10 210,50 240,50 C270,50 290,10 320,10 C350,10 370,50 400,50 C430,50 450,10 480,10 C495,10 500,30 500,30;
+              M0,30 C30,30 50,10 80,10 C110,10 130,50 160,50 C190,50 210,10 240,10 C270,10 290,50 320,50 C350,50 370,10 400,10 C430,10 450,50 480,50 C495,50 500,30 500,30"
+        dur="4s" repeatCount="indefinite" />
+    </path>
+  </svg>
+
+  <!-- Equalizer -->
+  <div class="eq" id="eq"></div>
+
+  <!-- Download -->
+  <div class="downloads">
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_x64_en-US.msi">
+      <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      Windows
+    </a>
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.2.1_amd64.deb">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor" font-weight="bold">.deb</text></svg>
+      Linux
+    </a>
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/wave-android.apk">
+      <svg viewBox="0 0 24 24"><path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V7H6v11zM3.5 7C2.67 7 2 7.67 2 8.5v7c0 .83.67 1.5 1.5 1.5S5 16.33 5 15.5v-7C5 7.67 4.33 7 3.5 7zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zM15.53 2.16l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48A5.84 5.84 0 0012 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31A5.96 5.96 0 006 5h12c0-1.44-.5-2.77-1.47-3.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/></svg>
+      Android
+    </a>
+  </div>
+
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="feat">
+    <div class="feat-icon">🔍</div>
+    <div class="feat-title">Multi-source search</div>
+    <div class="feat-desc">iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK, local files — all in one search bar</div>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🎵</div>
+    <div class="feat-title">Smart recommendations</div>
+    <div class="feat-desc">My Wave — personalized mix from your likes, listening history, and top genres across all providers</div>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">⚡</div>
+    <div class="feat-title">Fast streaming</div>
+    <div class="feat-desc">Parallel yt-dlp resolution, global stream cache, streaming proxy — tracks load in seconds</div>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🎨</div>
+    <div class="feat-title">Beautiful player</div>
+    <div class="feat-desc">Crossfade, 10-band equalizer, bass boost, reverb, lyrics sync — full audio experience</div>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🔗</div>
+    <div class="feat-title">HTTP API</div>
+    <div class="feat-desc">REST endpoints for Jarvis, voice assistants, and external scripts — full player control</div>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">📱</div>
+    <div class="feat-title">Cross-platform</div>
+    <div class="feat-desc">Windows, Linux, Android — with MediaSession, notifications, and auto-updates</div>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>Wave Music Player &middot; <a href="https://github.com/milalulu/wave">GitHub</a> &middot; Apache 2.0 License</p>
+</footer>
+
+<script>
+// Particles
+const pc = document.getElementById('particles');
+const colors = ['#00aad4','#7c5cff','#d030ff','#00f0c8','#ff3cf7'];
+for (let i = 0; i < 35; i++) {
+  const p = document.createElement('div');
+  p.className = 'p';
+  const size = 1.5 + Math.random() * 3;
+  p.style.cssText = `
+    width:${size}px; height:${size}px;
+    left:${Math.random()*100}%;
+    background:${colors[i % colors.length]};
+    animation-duration:${7 + Math.random()*12}s;
+    animation-delay:${Math.random()*10}s;
+  `;
+  pc.appendChild(p);
+}
+
+// Equalizer bars
+const eq = document.getElementById('eq');
+for (let i = 0; i < 20; i++) {
+  const b = document.createElement('div');
+  b.className = 'eq-bar';
+  const h = 10 + Math.random() * 22;
+  b.style.cssText = `
+    height:${h}px;
+    animation-duration:${0.35 + Math.random()*0.5}s;
+    animation-delay:${i * 0.05}s;
+    opacity:${0.4 + Math.random()*0.6};
+  `;
+  eq.appendChild(b);
+}
+
+// Scroll reveal for features
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 100);
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.feat').forEach(f => observer.observe(f));
+</script>
+
+</body>
+</html>
