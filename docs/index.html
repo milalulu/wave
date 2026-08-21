@@ -647,6 +647,223 @@
     .mock-player-side { display: none; }
   }
 
+  /* ── Theme switcher ── */
+  .theme-section {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 960px;
+    margin-top: 100px; padding: 0 20px;
+  }
+  .theme-row {
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .theme-card {
+    width: 260px; border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer; transition: all 0.3s;
+    opacity: 0; transform: translateY(16px);
+  }
+  .theme-card.visible { opacity: 1; transform: translateY(0); }
+  .theme-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  .theme-card.active { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(0,170,212,0.3); }
+  .theme-preview {
+    padding: 14px; min-height: 140px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .theme-card-info {
+    padding: 10px 14px; text-align: center;
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .theme-card-name { font-size: 14px; font-weight: 700; color: #fff; }
+  .theme-card-desc { font-size: 11px; color: #64748B; margin-top: 2px; }
+  /* mini mock elements */
+  .tm-bar { height: 6px; border-radius: 3px; }
+  .tm-row { display: flex; gap: 6px; align-items: center; }
+  .tm-cover { width: 28px; height: 28px; border-radius: 5px; flex-shrink: 0; }
+  .tm-line { height: 8px; border-radius: 4px; flex: 1; }
+  .tm-line.sm { max-width: 60%; }
+  .tm-chip { padding: 3px 8px; border-radius: 999px; font-size: 9px; border: 1px solid; }
+  .tm-nav { display: flex; gap: 4px; }
+  .tm-nav-dot { width: 18px; height: 18px; border-radius: 6px; }
+  /* dark preview */
+  .tp-dark { background: #060914; }
+  .tp-dark .tm-bar { background: #1E2950; }
+  .tp-dark .tm-cover { background: linear-gradient(135deg,#1E2950,#0D1326); }
+  .tp-dark .tm-line { background: #1E2950; }
+  .tp-dark .tm-line.sm { background: #0D1326; }
+  .tp-dark .tm-chip { border-color: #1E2950; color: #94A3B8; }
+  .tp-dark .tm-chip.on { border-color: #00F0FF; color: #00F0FF; background: rgba(0,240,255,0.08); }
+  .tp-dark .tm-nav-dot { background: #0D1326; }
+  .tp-dark .tm-nav-dot.on { background: #141C38; }
+  /* light preview */
+  .tp-light { background: #f5f6fa; }
+  .tp-light .tm-bar { background: #d1d5e0; }
+  .tp-light .tm-cover { background: linear-gradient(135deg,#eef0f6,#d1d5e0); }
+  .tp-light .tm-line { background: #d1d5e0; }
+  .tp-light .tm-line.sm { background: #eef0f6; }
+  .tp-light .tm-chip { border-color: #d1d5e0; color: #6b7280; }
+  .tp-light .tm-chip.on { border-color: #7c5cff; color: #7c5cff; background: rgba(124,92,255,0.08); }
+  .tp-light .tm-nav-dot { background: #eef0f6; }
+  .tp-light .tm-nav-dot.on { background: #d1d5e0; }
+  /* amoled preview */
+  .tp-amoled { background: #000; }
+  .tp-amoled .tm-bar { background: #1a1a1a; }
+  .tp-amoled .tm-cover { background: linear-gradient(135deg,#141414,#0a0a0a); }
+  .tp-amoled .tm-line { background: #1a1a1a; }
+  .tp-amoled .tm-line.sm { background: #0a0a0a; }
+  .tp-amoled .tm-chip { border-color: #1a1a1a; color: #888; }
+  .tp-amoled .tm-chip.on { border-color: #7c5cff; color: #7c5cff; background: rgba(124,92,255,0.1); }
+  .tp-amoled .tm-nav-dot { background: #0a0a0a; }
+  .tp-amoled .tm-nav-dot.on { background: #141414; }
+
+  /* ── Changelog ── */
+  .changelog {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 720px;
+    margin-top: 100px; padding: 0 20px;
+  }
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 8px; top: 0; bottom: 0;
+    width: 2px; background: linear-gradient(to bottom, var(--cyan), var(--purple), transparent);
+  }
+  .tl-item {
+    position: relative; margin-bottom: 28px;
+    opacity: 0; transform: translateX(-16px);
+    transition: all 0.5s cubic-bezier(.22,1,.36,1);
+  }
+  .tl-item.visible { opacity: 1; transform: translateX(0); }
+  .tl-dot {
+    position: absolute; left: -24px; top: 4px;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--cyan);
+    background: var(--bg);
+  }
+  .tl-item:nth-child(even) .tl-dot { border-color: var(--purple); }
+  .tl-version {
+    font-size: 18px; font-weight: 800; color: #fff;
+    display: inline-block;
+  }
+  .tl-date { font-size: 12px; color: #64748B; margin-left: 10px; }
+  .tl-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-left: 8px; vertical-align: 1px;
+  }
+  .tl-tag.feat { background: rgba(0,240,255,0.1); color: #00F0FF; }
+  .tl-tag.fix { background: rgba(255,93,115,0.1); color: #FF5D73; }
+  .tl-tag.perf { background: rgba(132,204,22,0.1); color: #84cc16; }
+  .tl-tag.docs { background: rgba(139,92,246,0.1); color: #8B5CF6; }
+  .tl-body { margin-top: 6px; font-size: 13px; line-height: 1.6; color: #94A3B8; }
+  .tl-body ul { list-style: none; padding: 0; }
+  .tl-body li { padding: 2px 0; padding-left: 14px; position: relative; }
+  .tl-body li::before { content: '→'; position: absolute; left: 0; color: var(--cyan); font-size: 11px; }
+
+  /* ── FAQ ── */
+  .faq-section {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 720px;
+    margin-top: 100px; padding: 0 20px;
+    padding-bottom: 40px;
+  }
+  .faq-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .faq-item {
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    overflow: hidden;
+    transition: all 0.3s;
+    opacity: 0; transform: translateY(12px);
+  }
+  .faq-item.visible { opacity: 1; transform: translateY(0); }
+  .faq-item:hover { border-color: rgba(0,170,212,0.15); }
+  .faq-q {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #e0e0e0;
+    transition: color 0.2s;
+  }
+  .faq-q:hover { color: #fff; }
+  .faq-chevron {
+    width: 18px; height: 18px; flex-shrink: 0;
+    transition: transform 0.3s;
+    color: #64748B;
+  }
+  .faq-item.open .faq-chevron { transform: rotate(180deg); color: var(--cyan); }
+  .faq-a {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(.22,1,.36,1);
+  }
+  .faq-item.open .faq-a { max-height: 200px; }
+  .faq-a-inner {
+    padding: 0 18px 14px;
+    font-size: 13px; line-height: 1.6; color: #94A3B8;
+  }
+
+  /* ── API demo ── */
+  .api-section {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 800px;
+    margin-top: 100px; padding: 0 20px;
+  }
+  .api-demo {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 14px; margin-top: 12px;
+  }
+  @media (max-width: 768px) { .api-demo { grid-template-columns: 1fr; } }
+  .api-panel {
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    overflow: hidden;
+  }
+  .api-panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: #64748B;
+  }
+  .api-endpoints { padding: 8px; display: flex; flex-direction: column; gap: 3px; max-height: 320px; overflow-y: auto; }
+  .api-ep {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .api-ep:hover { background: rgba(255,255,255,0.04); }
+  .api-ep.active { background: rgba(0,240,255,0.08); }
+  .api-method {
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 9px; font-weight: 800;
+    letter-spacing: 0.5px; min-width: 32px; text-align: center;
+  }
+  .api-method.get { background: rgba(132,204,22,0.12); color: #84cc16; }
+  .api-method.post { background: rgba(0,240,255,0.12); color: #00F0FF; }
+  .api-path { color: #94A3B8; font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; }
+  .api-response {
+    padding: 14px;
+    font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.6;
+    color: #94A3B8; min-height: 260px;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .api-json-key { color: #00F0FF; }
+  .api-json-str { color: #84cc16; }
+  .api-json-num { color: #f59e0b; }
+  .api-json-bool { color: #ec4899; }
+  .api-note {
+    margin-top: 10px; padding: 12px 16px;
+    border-radius: 10px; border: 1px solid rgba(0,240,255,0.15);
+    background: rgba(0,240,255,0.04);
+    font-size: 12px; color: #94A3B8; line-height: 1.5;
+  }
+  .api-note code {
+    background: rgba(0,240,255,0.08); padding: 1px 5px;
+    border-radius: 4px; font-family: ui-monospace, monospace;
+    font-size: 11px; color: #00F0FF;
+  }
+
   /* ── Footer ── */
   .footer {
     position: relative;
@@ -1058,6 +1275,175 @@
   </div>
 </section>
 
+<!-- Theme Switcher -->
+<section class="theme-section">
+  <div class="section-label">Personalize</div>
+  <div class="section-title">Pick your theme</div>
+  <div class="theme-row">
+    <div class="theme-card tp-dark active" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">Dark</div><div class="theme-card-desc">Default deep navy</div></div>
+    </div>
+    <div class="theme-card tp-light" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">Light</div><div class="theme-card-desc">Clean & minimal</div></div>
+    </div>
+    <div class="theme-card tp-amoled" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">AMOLED</div><div class="theme-card-desc">True black</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Changelog -->
+<section class="changelog">
+  <div class="section-label">History</div>
+  <div class="section-title">Changelog</div>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-version">0.2.1</div><span class="tl-date">Aug 2026</span>
+      <span class="tl-tag perf">perf</span>
+      <div class="tl-body"><ul>
+        <li>YouTube streaming via proxy — load time halved, CORS eliminated</li>
+        <li>Parallel yt-dlp resolution (android + web_safari clients)</li>
+        <li>Global stream cache (45min TTL, 500 entries)</li>
+      </ul></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-version">0.2.0</div><span class="tl-date">Aug 2026</span>
+      <span class="tl-tag feat">feat</span>
+      <div class="tl-body"><ul>
+        <li>SoundCloud streaming fix (3 root causes)</li>
+        <li>Full P0–P2 audit — 18 UX improvements</li>
+        <li>Hero polish, sidebar logo, window icons</li>
+        <li>Fast yt-dlp resolve + prefetch batch</li>
+      </ul></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-version">0.1.0</div><span class="tl-date">Jul 2026</span>
+      <span class="tl-tag feat">feat</span>
+      <div class="tl-body"><ul>
+        <li>Smart recommendations — MusicBrainz enrichment</li>
+        <li>Skip detection, RollingContext, TransitionScoring</li>
+        <li>70/20/10 queue balance algorithm</li>
+        <li>HTTP REST API (32 endpoints)</li>
+        <li>Cross-platform: Windows, Linux, Android</li>
+      </ul></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-version">0.0.1</div><span class="tl-date">Jun 2026</span>
+      <span class="tl-tag feat">feat</span>
+      <div class="tl-body"><ul>
+        <li>Initial release — multi-source music player</li>
+        <li>YouTube, Spotify, SoundCloud, Deezer, iTunes, VK</li>
+        <li>Equalizer, bass boost, reverb, crossfade</li>
+        <li>Lyrics sync, MediaSession, notifications</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section">
+  <div class="section-label">Questions</div>
+  <div class="section-title">FAQ</div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        Is Wave free?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">Yes. Wave is fully free and open-source under the Apache 2.0 license. No accounts, no subscriptions, no ads.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        What music sources are supported?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">YouTube, YouTube Music, Spotify, SoundCloud, Deezer, iTunes/Apple Music, VK, Last.fm, and local files — all searchable from a single search bar.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        Does it work offline?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">Yes. You can play local files offline. Streamed tracks require an internet connection, but the queue, recommendations, and UI all work without it.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        What is "My Wave"?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">My Wave is the smart recommendation engine. It analyzes your listening history, liked tracks, skip patterns, and genre preferences across all providers to generate a personalized mix — 70% familiar favorites, 20% related discoveries, 10% wild cards.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        Can I control Wave from Jarvis or voice assistants?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">Yes. Wave exposes a full HTTP REST API on <code>127.0.0.1:8299</code> with 32 endpoints — play, pause, search, queue, volume, lyrics, and more. Any script, curl command, or voice assistant can control it.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        Does it collect my data?
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-a"><div class="faq-a-inner">No. Wave is 100% local. No telemetry, no analytics, no accounts. Your listening history and preferences stay on your device.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- API Demo -->
+<section class="api-section">
+  <div class="section-label">Developers</div>
+  <div class="section-title">HTTP API</div>
+  <div class="api-demo">
+    <div class="api-panel">
+      <div class="api-panel-header">Endpoints</div>
+      <div class="api-endpoints" id="api-endpoints">
+        <div class="api-ep active" onclick="showApi(this, 'status')"><span class="api-method get">GET</span><span class="api-path">/api/v1/status</span></div>
+        <div class="api-ep" onclick="showApi(this, 'queue')"><span class="api-method get">GET</span><span class="api-path">/api/v1/queue</span></div>
+        <div class="api-ep" onclick="showApi(this, 'search')"><span class="api-method post">POST</span><span class="api-path">/api/v1/search</span></div>
+        <div class="api-ep" onclick="showApi(this, 'play')"><span class="api-method post">POST</span><span class="api-path">/api/v1/play</span></div>
+        <div class="api-ep" onclick="showApi(this, 'pause')"><span class="api-method post">POST</span><span class="api-path">/api/v1/pause</span></div>
+        <div class="api-ep" onclick="showApi(this, 'next')"><span class="api-method post">POST</span><span class="api-path">/api/v1/next</span></div>
+        <div class="api-ep" onclick="showApi(this, 'volume')"><span class="api-method post">POST</span><span class="api-path">/api/v1/volume</span></div>
+        <div class="api-ep" onclick="showApi(this, 'lyrics')"><span class="api-method get">GET</span><span class="api-path">/api/v1/lyrics</span></div>
+        <div class="api-ep" onclick="showApi(this, 'wave')"><span class="api-method post">POST</span><span class="api-path">/api/v1/wave/start</span></div>
+        <div class="api-ep" onclick="showApi(this, 'history')"><span class="api-method get">GET</span><span class="api-path">/api/v1/history</span></div>
+        <div class="api-ep" onclick="showApi(this, 'like')"><span class="api-method post">POST</span><span class="api-path">/api/v1/like</span></div>
+        <div class="api-ep" onclick="showApi(this, 'sources')"><span class="api-method get">GET</span><span class="api-path">/api/v1/sources</span></div>
+      </div>
+    </div>
+    <div class="api-panel">
+      <div class="api-panel-header">Response</div>
+      <div class="api-response" id="api-response"></div>
+    </div>
+  </div>
+  <div class="api-note">
+    All endpoints run on <code>127.0.0.1:8299</code>. Example: <code>curl http://127.0.0.1:8299/api/v1/status</code>
+  </div>
+</section>
+
 <footer class="footer">
   <p>Wave Music Player &middot; <a href="https://github.com/milalulu/wave">GitHub</a> &middot; Apache 2.0 License</p>
 </footer>
@@ -1095,16 +1481,138 @@ for (let i = 0; i < 20; i++) {
   eq.appendChild(b);
 }
 
-// Scroll reveal for features, mockup, and stack items
+// Scroll reveal for features, mockup, stack items, theme cards, timeline, FAQ
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((e, i) => {
     if (e.isIntersecting) {
-      setTimeout(() => e.target.classList.add('visible'), i * 100);
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
       observer.unobserve(e.target);
     }
   });
 }, { threshold: 0.15 });
-document.querySelectorAll('.feat, .mockup, .stack-item').forEach(f => observer.observe(f));
+document.querySelectorAll('.feat, .mockup, .stack-item, .theme-card, .tl-item, .faq-item').forEach(f => observer.observe(f));
+
+// API demo data
+const apiData = {
+  status: `{
+  <span class="api-json-key">"status"</span>: <span class="api-json-str">"playing"</span>,
+  <span class="api-json-key">"track"</span>: {
+    <span class="api-json-key">"title"</span>: <span class="api-json-str">"Blinding Lights"</span>,
+    <span class="api-json-key">"artist"</span>: <span class="api-json-str">"The Weeknd"</span>,
+    <span class="api-json-key">"duration"</span>: <span class="api-json-num">202</span>,
+    <span class="api-json-key">"position"</span>: <span class="api-json-num">72</span>,
+    <span class="api-json-key">"source"</span>: <span class="api-json-str">"youtube"</span>
+  },
+  <span class="api-json-key">"volume"</span>: <span class="api-json-num">0.65</span>,
+  <span class="api-json-key">"shuffle"</span>: <span class="api-json-bool">false</span>,
+  <span class="api-json-key">"repeat"</span>: <span class="api-json-str">"off"</span>
+}`,
+  queue: `{
+  <span class="api-json-key">"queue"</span>: [
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Blinding Lights"</span>, <span class="api-json-key">"artist"</span>: <span class="api-json-str">"The Weeknd"</span> },
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Levitating"</span>, <span class="api-json-key">"artist"</span>: <span class="api-json-str">"Dua Lipa"</span> },
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Heat Waves"</span>, <span class="api-json-key">"artist"</span>: <span class="api-json-str">"Glass Animals"</span> }
+  ],
+  <span class="api-json-key">"current"</span>: <span class="api-json-num">0</span>,
+  <span class="api-json-key">"total"</span>: <span class="api-json-num">3</span>
+}`,
+  search: `<span class="api-json-str">// POST /api/v1/search</span>
+<span class="api-json-str">// Body: { "query": "daft punk" }</span>
+
+{
+  <span class="api-json-key">"results"</span>: [
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Get Lucky"</span>, <span class="api-json-key">"source"</span>: <span class="api-json-str">"youtube"</span> },
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Around the World"</span>, <span class="api-json-key">"source"</span>: <span class="api-json-str">"spotify"</span> },
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"One More Time"</span>, <span class="api-json-key">"source"</span>: <span class="api-json-str">"soundcloud"</span> }
+  ],
+  <span class="api-json-key">"total"</span>: <span class="api-json-num">47</span>
+}`,
+  play: `<span class="api-json-str">// POST /api/v1/play</span>
+<span class="api-json-str">// Body: { "query": "daft punk get lucky" }</span>
+
+{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"track"</span>: {
+    <span class="api-json-key">"title"</span>: <span class="api-json-str">"Get Lucky"</span>,
+    <span class="api-json-key">"artist"</span>: <span class="api-json-str">"Daft Punk ft. Pharrell Williams"</span>,
+    <span class="api-json-key">"source"</span>: <span class="api-json-str">"youtube"</span>
+  }
+}`,
+  pause: `{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"status"</span>: <span class="api-json-str">"paused"</span>
+}`,
+  next: `{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"track"</span>: {
+    <span class="api-json-key">"title"</span>: <span class="api-json-str">"Levitating"</span>,
+    <span class="api-json-key">"artist"</span>: <span class="api-json-str">"Dua Lipa"</span>
+  }
+}`,
+  volume: `<span class="api-json-str">// POST /api/v1/volume</span>
+<span class="api-json-str">// Body: { "volume": 0.8 }</span>
+
+{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"volume"</span>: <span class="api-json-num">0.8</span>
+}`,
+  lyrics: `{
+  <span class="api-json-key">"lyrics"</span>: [
+    { <span class="api-json-key">"time"</span>: <span class="api-json-num">0</span>, <span class="api-json-key">"text"</span>: <span class="api-json-str">"I've been tryna call"</span> },
+    { <span class="api-json-key">"time"</span>: <span class="api-json-num">4</span>, <span class="api-json-key">"text"</span>: <span class="api-json-str">"I said ooh, I'm blinded by the lights"</span> },
+    { <span class="api-json-key">"time"</span>: <span class="api-json-num">8</span>, <span class="api-json-key">"text"</span>: <span class="api-json-str">"No, I can't sleep until I feel your touch"</span> }
+  ],
+  <span class="api-json-key">"synced"</span>: <span class="api-json-bool">true</span>
+}`,
+  wave: `<span class="api-json-str">// POST /api/v1/wave/start</span>
+<span class="api-json-str">// Starts personalized "My Wave" mix</span>
+
+{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"message"</span>: <span class="api-json-str">"Wave started — 25 tracks queued"</span>
+}`,
+  history: `{
+  <span class="api-json-key">"history"</span>: [
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Blinding Lights"</span>, <span class="api-json-key">"artist"</span>: <span class="api-json-str">"The Weeknd"</span>, <span class="api-json-key">"played_at"</span>: <span class="api-json-num">1692000000</span> },
+    { <span class="api-json-key">"title"</span>: <span class="api-json-str">"Levitating"</span>, <span class="api-json-key">"artist"</span>: <span class="api-json-str">"Dua Lipa"</span>, <span class="api-json-key">"played_at"</span>: <span class="api-json-num">1691996400</span> }
+  ],
+  <span class="api-json-key">"total"</span>: <span class="api-json-num">842</span>
+}`,
+  like: `<span class="api-json-str">// POST /api/v1/like</span>
+<span class="api-json-str">// Body: { "title": "Blinding Lights", "artist": "The Weeknd" }</span>
+
+{
+  <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
+  <span class="api-json-key">"liked"</span>: <span class="api-json-bool">true</span>
+}`,
+  sources: `{
+  <span class="api-json-key">"sources"</span>: {
+    <span class="api-json-key">"youtube"</span>: <span class="api-json-bool">true</span>,
+    <span class="api-json-key">"spotify"</span>: <span class="api-json-bool">true</span>,
+    <span class="api-json-key">"soundcloud"</span>: <span class="api-json-bool">true</span>,
+    <span class="api-json-key">"deezer"</span>: <span class="api-json-bool">true</span>,
+    <span class="api-json-key">"itunes"</span>: <span class="api-json-bool">true</span>,
+    <span class="api-json-key">"vk"</span>: <span class="api-json-bool">false</span>
+  }
+}`
+};
+showApi(document.querySelector('.api-ep'), 'status');
+
+function showApi(el, key) {
+  document.querySelectorAll('.api-ep').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('api-response').innerHTML = apiData[key];
+}
+
+function toggleFaq(q) {
+  const item = q.parentElement;
+  item.classList.toggle('open');
+}
+
+function setTheme(card) {
+  document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+}
 </script>
 
 </body>
