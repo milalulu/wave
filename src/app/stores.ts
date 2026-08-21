@@ -24,6 +24,7 @@ import { loadHistoryDecayDays, saveHistoryDecayDays, HISTORY_DECAY_MIN, HISTORY_
 import { loadAutoGenerateThreshold, saveAutoGenerateThreshold, AUTO_GEN_MIN, AUTO_GEN_MAX } from "./autoGenerateThreshold";
 import { loadAudioEffects, saveAudioEffects } from "./audioEffects";
 import { loadTheme, saveTheme, applyTheme, onSystemThemeChange, type Theme } from "./themeStore";
+import { streamPrewarmer } from "../core/player/streamPrewarm";
 import { getCachedCover } from "../core/cover/CoverCache";
 import { clearCoverCache } from "../core/cover/CoverCache";
 import { clearSearchCache } from "./searchCache";
@@ -282,6 +283,7 @@ export const useApp = create<AppState>()((set, get) => ({
     try {
       const detail = await provider.getAlbum(albumId);
       set({ albumDetail: detail });
+      streamPrewarmer.prewarm(detail.tracks);
       get().setView("album");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
@@ -295,6 +297,7 @@ export const useApp = create<AppState>()((set, get) => ({
     try {
       const detail = await provider.getArtist(artistId);
       set({ artistDetail: detail });
+      streamPrewarmer.prewarm(detail.topTracks);
       get().setView("artist");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
@@ -304,7 +307,11 @@ export const useApp = create<AppState>()((set, get) => ({
 
   playlists: [],
   selectedPlaylistId: null,
-  setSelectedPlaylist: (id) => set({ selectedPlaylistId: id }),
+  setSelectedPlaylist: (id) => {
+    set({ selectedPlaylistId: id });
+    const playlist = get().playlists.find((p) => p.id === id);
+    if (playlist?.tracks) streamPrewarmer.prewarm(playlist.tracks);
+  },
   sharedPlaylists: [],
   playlistShares: [],
   loadPlaylists: async () => {

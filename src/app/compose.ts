@@ -34,6 +34,7 @@ import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
+import { streamPrewarmer } from "../core/player/streamPrewarm";
 import { PROXY_BASE } from "../core/player/WebAudioAdapter";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
@@ -158,28 +159,31 @@ export async function composeServices(): Promise<AppServices> {
 
   // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
+  const resolveUri = async (track: Track): Promise<string> => {
+    const quality = track.provider === "youtube" ? loadYtQuality() : "";
+    const cached = streamCache.get(track.id, quality);
+    if (cached) return cached;
+
+    if (isBlockedProvider(track.provider)) {
+      throw new Error(`provider blocked: ${track.provider}`);
+    }
+    if (offlineEnabled()) {
+      const local = localUriFor(track);
+      if (local) return local;
+    }
+    const provider = providers.find((p) => p.id === track.provider);
+    const raw = provider ? await provider.resolveUri(track) : track.uri;
+    const url = raw.includes("googlevideo.com")
+      ? `${PROXY_BASE}/audio?url=${encodeURIComponent(raw)}`
+      : raw;
+    streamCache.set(track.id, url, quality);
+    return url;
+  };
+  streamPrewarmer.setResolver(resolveUri);
+
   const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
-    resolveUri: async (track) => {
-      const quality = track.provider === "youtube" ? loadYtQuality() : "";
-      const cached = streamCache.get(track.id, quality);
-      if (cached) return cached;
-
-      if (isBlockedProvider(track.provider)) {
-        throw new Error(`provider blocked: ${track.provider}`);
-      }
-      if (offlineEnabled()) {
-        const local = localUriFor(track);
-        if (local) return local;
-      }
-      const provider = providers.find((p) => p.id === track.provider);
-      const raw = provider ? await provider.resolveUri(track) : track.uri;
-      const url = raw.includes("googlevideo.com")
-        ? `${PROXY_BASE}/audio?url=${encodeURIComponent(raw)}`
-        : raw;
-      streamCache.set(track.id, url, quality);
-      return url;
-    },
+    resolveUri,
     invalidateStream: (trackId) => {
       streamCache.invalidate(trackId);
       const match = trackId.match(/^([^:]+):/);
