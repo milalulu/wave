@@ -1290,6 +1290,149 @@
   </div>
 </section>
 
+<!-- Theme Switcher -->
+<section class="theme-section">
+  <div class="section-label">Personalize</div>
+  <div class="section-title">Pick your theme</div>
+  <div class="theme-row">
+    <div class="theme-card tp-dark active" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">Dark</div><div class="theme-card-desc">Default deep navy</div></div>
+    </div>
+    <div class="theme-card tp-light" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">Light</div><div class="theme-card-desc">Clean & minimal</div></div>
+    </div>
+    <div class="theme-card tp-amoled" onclick="setTheme(this)">
+      <div class="theme-preview">
+        <div class="tm-bar" style="width:100%"></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
+        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
+      </div>
+      <div class="theme-card-info"><div class="theme-card-name">AMOLED</div><div class="theme-card-desc">True black</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="steps-section">
+  <div class="section-label">Simple</div>
+  <div class="section-title">How it works</div>
+  <div class="steps-row">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-visual sv-search">
+        <div class="sv-search-bar">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span id="typer-target">daft punk</span>
+        </div>
+        <div class="sv-results">
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff4d4d,#333)"></div><div class="sv-result-name">Get Lucky</div><div class="sv-result-src" style="color:#ff4d4d;background:rgba(255,77,77,0.1)">YT</div></div>
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#1db954,#333)"></div><div class="sv-result-name">Around the World</div><div class="sv-result-src" style="color:#1db954;background:rgba(29,185,84,0.1)">SP</div></div>
+          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff8800,#333)"></div><div class="sv-result-name">One More Time</div><div class="sv-result-src" style="color:#ff8800;background:rgba(255,136,0,0.1)">SC</div></div>
+        </div>
+      </div>
+      <div class="step-title">Search anything</div>
+      <div class="step-desc">One search bar, all platforms — YouTube, Spotify, SoundCloud, Deezer, iTunes</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-visual sv-play">
+        <div class="sv-play-cover" style="background:linear-gradient(135deg,#e94560,#1a1a2e)"></div>
+        <div class="sv-play-title">Get Lucky</div>
+        <div class="sv-play-artist">Daft Punk</div>
+        <div class="sv-play-bar">
+          <div class="sv-play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+          <div class="sv-play-progress"><div class="sv-play-progress-fill"></div></div>
+        </div>
+      </div>
+      <div class="step-title">Hit play</div>
+      <div class="step-desc">Instant streaming with crossfade, EQ, bass boost, and smart queue management</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-visual sv-enjoy" id="sv-enjoy"></div>
+      <div class="step-title">Enjoy the experience</div>
+      <div class="step-desc">Synced lyrics, recommendations, MediaSession — it just works</div>
+    </div>
+  </div>
+</section>
+
+<!-- Interactive EQ -->
+<section class="eq-section">
+  <div class="section-label">Experience</div>
+  <div class="section-title">Try the equalizer</div>
+  <div class="eq-demo">
+    <div class="eq-vis" id="eq-vis"></div>
+    <div class="eq-controls" id="eq-controls"></div>
+    <div class="eq-btn-row">
+      <button class="eq-preset-btn" onclick="eqPreset('flat')">Flat</button>
+      <button class="eq-preset-btn" onclick="eqPreset('bass')">Bass boost</button>
+      <button class="eq-preset-btn" onclick="eqPreset('vocal')">Vocal</button>
+      <button class="eq-preset-btn" onclick="eqPreset('bright')">Bright</button>
+    </div>
+  </div>
+</section>
+
+<!-- Roadmap -->
+<section class="roadmap-section">
+  <div class="section-label">Future</div>
+  <div class="section-title">Roadmap</div>
+  <div class="roadmap-grid">
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Multi-source streaming</div>
+      <div class="rm-desc">YouTube, Spotify, SoundCloud, Deezer, iTunes, VK — all in one player</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Smart recommendations</div>
+      <div class="rm-desc">MusicBrainz enrichment, skip detection, RollingContext, 70/20/10 queue balance</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">HTTP API</div>
+      <div class="rm-desc">32 REST endpoints for Jarvis, voice assistants, and external scripts</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
+      <div class="rm-title">Cross-platform</div>
+      <div class="rm-desc">Windows, Linux, Android with MediaSession, notifications, auto-updates</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
+      <div class="rm-title">AI DJ mode</div>
+      <div class="rm-desc">Auto-mix transitions, key detection, BPM matching — seamless sets</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
+      <div class="rm-title">Collaborative queues</div>
+      <div class="rm-desc">Share a queue with friends, vote on next track, party mode</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
+      <div class="rm-title">Audio Scrobbling</div>
+      <div class="rm-desc">Last.fm scrobble integration with full history sync</div>
+    </div>
+    <div class="rm-card">
+      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
+      <div class="rm-title">Lyrics editor</div>
+      <div class="rm-desc">Community-driven lyrics sync and translation</div>
+    </div>
+  </div>
+</section>
+
 <!-- Stack -->
 <section class="stack-section">
   <div class="section-label">Technology</div>
@@ -1367,41 +1510,6 @@
         <svg viewBox="0 0 128 128"><path fill="#4285F4" d="M112.8 64c0-3.2-.3-6.4-.8-9.4H64v17.8h27.2c-1.2 6.4-4.8 11.8-10.2 15.4v12.8h16.4c9.6-8.8 15.2-21.8 15.2-36.6z"/><path fill="#34A853" d="M64 116c13.6 0 25-4.6 33.4-12.2l-16.4-12.8c-4.6 3.2-10.4 5-17 5-13 0-24-8.8-28-20.6H19v13.2C27.4 104.4 44.6 116 64 116z"/><path fill="#FBBC05" d="M36 75.4c-2.2-6.4-2.2-13.2 0-19.6V52.6H19c-7.2 14.2-7.2 31 0 45.2l17-13.2z"/><path fill="#EA4335" d="M64 35.6c7.4 0 14 2.6 19.2 7.6l14.4-14.4C89 22.8 77.6 17 64 17 44.6 17 27.4 28.6 19 46l17 13.2c4-11.8 15-23.6 28-23.6z"/></svg>
       </div>
       <div class="stack-name">Chrome</div>
-    </div>
-  </div>
-</section>
-
-<!-- Theme Switcher -->
-<section class="theme-section">
-  <div class="section-label">Personalize</div>
-  <div class="section-title">Pick your theme</div>
-  <div class="theme-row">
-    <div class="theme-card tp-dark active" onclick="setTheme(this)">
-      <div class="theme-preview">
-        <div class="tm-bar" style="width:100%"></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
-      </div>
-      <div class="theme-card-info"><div class="theme-card-name">Dark</div><div class="theme-card-desc">Default deep navy</div></div>
-    </div>
-    <div class="theme-card tp-light" onclick="setTheme(this)">
-      <div class="theme-preview">
-        <div class="tm-bar" style="width:100%"></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
-      </div>
-      <div class="theme-card-info"><div class="theme-card-name">Light</div><div class="theme-card-desc">Clean & minimal</div></div>
-    </div>
-    <div class="theme-card tp-amoled" onclick="setTheme(this)">
-      <div class="theme-preview">
-        <div class="tm-bar" style="width:100%"></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div class="tm-row"><div class="tm-cover"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="tm-line"></div><div class="tm-line sm"></div></div></div>
-        <div style="display:flex;gap:4px;margin-top:4px"><div class="tm-chip on">All</div><div class="tm-chip">YT</div><div class="tm-chip">SP</div></div>
-      </div>
-      <div class="theme-card-info"><div class="theme-card-name">AMOLED</div><div class="theme-card-desc">True black</div></div>
     </div>
   </div>
 </section>
@@ -1537,114 +1645,6 @@
   </div>
   <div class="api-note">
     All endpoints run on <code>127.0.0.1:8299</code>. Example: <code>curl http://127.0.0.1:8299/api/v1/status</code>
-  </div>
-</section>
-
-<!-- How it works -->
-<section class="steps-section">
-  <div class="section-label">Simple</div>
-  <div class="section-title">How it works</div>
-  <div class="steps-row">
-    <div class="step-card">
-      <div class="step-num">1</div>
-      <div class="step-visual sv-search">
-        <div class="sv-search-bar">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <span id="typer-target">daft punk</span>
-        </div>
-        <div class="sv-results">
-          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff4d4d,#333)"></div><div class="sv-result-name">Get Lucky</div><div class="sv-result-src" style="color:#ff4d4d;background:rgba(255,77,77,0.1)">YT</div></div>
-          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#1db954,#333)"></div><div class="sv-result-name">Around the World</div><div class="sv-result-src" style="color:#1db954;background:rgba(29,185,84,0.1)">SP</div></div>
-          <div class="sv-result"><div class="sv-mini-cover" style="background:linear-gradient(135deg,#ff8800,#333)"></div><div class="sv-result-name">One More Time</div><div class="sv-result-src" style="color:#ff8800;background:rgba(255,136,0,0.1)">SC</div></div>
-        </div>
-      </div>
-      <div class="step-title">Search anything</div>
-      <div class="step-desc">One search bar, all platforms — YouTube, Spotify, SoundCloud, Deezer, iTunes</div>
-    </div>
-    <div class="step-card">
-      <div class="step-num">2</div>
-      <div class="step-visual sv-play">
-        <div class="sv-play-cover" style="background:linear-gradient(135deg,#e94560,#1a1a2e)"></div>
-        <div class="sv-play-title">Get Lucky</div>
-        <div class="sv-play-artist">Daft Punk</div>
-        <div class="sv-play-bar">
-          <div class="sv-play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
-          <div class="sv-play-progress"><div class="sv-play-progress-fill"></div></div>
-        </div>
-      </div>
-      <div class="step-title">Hit play</div>
-      <div class="step-desc">Instant streaming with crossfade, EQ, bass boost, and smart queue management</div>
-    </div>
-    <div class="step-card">
-      <div class="step-num">3</div>
-      <div class="step-visual sv-enjoy" id="sv-enjoy"></div>
-      <div class="step-title">Enjoy the experience</div>
-      <div class="step-desc">Synced lyrics, recommendations, MediaSession — it just works</div>
-    </div>
-  </div>
-</section>
-
-<!-- Interactive EQ -->
-<section class="eq-section">
-  <div class="section-label">Experience</div>
-  <div class="section-title">Try the equalizer</div>
-  <div class="eq-demo">
-    <div class="eq-vis" id="eq-vis"></div>
-    <div class="eq-controls" id="eq-controls"></div>
-    <div class="eq-btn-row">
-      <button class="eq-preset-btn" onclick="eqPreset('flat')">Flat</button>
-      <button class="eq-preset-btn" onclick="eqPreset('bass')">Bass boost</button>
-      <button class="eq-preset-btn" onclick="eqPreset('vocal')">Vocal</button>
-      <button class="eq-preset-btn" onclick="eqPreset('bright')">Bright</button>
-    </div>
-  </div>
-</section>
-
-<!-- Roadmap -->
-<section class="roadmap-section">
-  <div class="section-label">Future</div>
-  <div class="section-title">Roadmap</div>
-  <div class="roadmap-grid">
-    <div class="rm-card">
-      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
-      <div class="rm-title">Multi-source streaming</div>
-      <div class="rm-desc">YouTube, Spotify, SoundCloud, Deezer, iTunes, VK — all in one player</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
-      <div class="rm-title">Smart recommendations</div>
-      <div class="rm-desc">MusicBrainz enrichment, skip detection, RollingContext, 70/20/10 queue balance</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
-      <div class="rm-title">HTTP API</div>
-      <div class="rm-desc">32 REST endpoints for Jarvis, voice assistants, and external scripts</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status done"><div class="rm-dot"></div>Done</div>
-      <div class="rm-title">Cross-platform</div>
-      <div class="rm-desc">Windows, Linux, Android with MediaSession, notifications, auto-updates</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
-      <div class="rm-title">AI DJ mode</div>
-      <div class="rm-desc">Auto-mix transitions, key detection, BPM matching — seamless sets</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
-      <div class="rm-title">Collaborative queues</div>
-      <div class="rm-desc">Share a queue with friends, vote on next track, party mode</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
-      <div class="rm-title">Audio Scrobbling</div>
-      <div class="rm-desc">Last.fm scrobble integration with full history sync</div>
-    </div>
-    <div class="rm-card">
-      <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
-      <div class="rm-title">Lyrics editor</div>
-      <div class="rm-desc">Community-driven lyrics sync and translation</div>
-    </div>
   </div>
 </section>
 
