@@ -206,7 +206,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <div className="home-hero-badge">
             <WaveTitle height={120} />
           </div>
-          <h1>{t("home").heroTitle}</h1>
           <p className="home-sub">{t("home").heroSubtitle}</p>
           <div className="home-hero-actions">
             <button className="btn btn-hero-play" onClick={() => onNavigate("wave")}>
