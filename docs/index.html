@@ -276,6 +276,311 @@
     color: #888;
   }
 
+  /* ── Showcase section ── */
+  .showcase {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 960px;
+    margin-top: 100px;
+    padding: 0 20px;
+  }
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-size: 36px;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: #fff;
+  }
+
+  /* Mockup window */
+  .mockup {
+    position: relative;
+    border-radius: 16px;
+    border: 1px solid rgba(124,92,255,0.2);
+    background: rgba(10,8,24,0.95);
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,92,255,0.1);
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s cubic-bezier(.22,1,.36,1);
+  }
+  .mockup.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Title bar */
+  .mockup-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .mockup-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .mockup-dot.r { background: #ff5f57; }
+  .mockup-dot.y { background: #febc2e; }
+  .mockup-dot.g { background: #28c840; }
+  .mockup-title {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    font-weight: 500;
+  }
+
+  /* Mockup body — 3-column layout */
+  .mockup-body {
+    display: grid;
+    grid-template-columns: 200px 1fr 260px;
+    min-height: 400px;
+  }
+  @media (max-width: 768px) {
+    .mockup-body { grid-template-columns: 1fr; }
+    .mock-sidebar, .mock-right { display: none; }
+  }
+
+  /* Sidebar */
+  .mock-sidebar {
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 16px;
+  }
+  .mock-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 2px;
+    transition: all 0.2s;
+  }
+  .mock-nav-item.active {
+    background: rgba(0,170,212,0.1);
+    color: var(--cyan);
+  }
+  .mock-nav-icon {
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    background: currentColor;
+    opacity: 0.3;
+  }
+  .mock-nav-item.active .mock-nav-icon { opacity: 0.7; }
+  .mock-nav-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 12px 0;
+  }
+
+  /* Main content */
+  .mock-main {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .mock-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 13px;
+    color: #555;
+  }
+  .mock-search-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    opacity: 0.5;
+  }
+  .mock-tracks { display: flex; flex-direction: column; gap: 2px; }
+  .mock-track {
+    display: grid;
+    grid-template-columns: 40px 1fr 80px 50px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+  .mock-track:hover { background: rgba(255,255,255,0.03); }
+  .mock-track.playing { background: rgba(0,170,212,0.08); }
+  .mock-cover {
+    width: 40px; height: 40px;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .mock-cover-inner {
+    width: 100%; height: 100%;
+    animation: cover-shimmer 3s ease-in-out infinite;
+  }
+  @keyframes cover-shimmer {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  .mock-track-info { display: flex; flex-direction: column; gap: 2px; }
+  .mock-track-name { font-size: 13px; color: #ccc; font-weight: 500; }
+  .mock-track-name.playing-name { color: var(--cyan); }
+  .mock-track-artist { font-size: 11px; color: #555; }
+  .mock-track-album { font-size: 11px; color: #444; }
+  .mock-track-dur { font-size: 11px; color: #444; text-align: right; }
+
+  /* Right panel — Now Playing */
+  .mock-right {
+    border-left: 1px solid rgba(255,255,255,0.06);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .mock-now-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #444;
+    font-weight: 700;
+  }
+  .mock-np-cover {
+    width: 180px; height: 180px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .mock-np-inner {
+    width: 100%; height: 100%;
+    animation: cover-shimmer 4s ease-in-out infinite;
+  }
+  .mock-np-title { font-size: 16px; font-weight: 700; color: #fff; text-align: center; }
+  .mock-np-artist { font-size: 13px; color: #666; text-align: center; }
+
+  /* Progress bar */
+  .mock-progress {
+    width: 100%;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .mock-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    width: 0%;
+    animation: progress-fill 8s linear infinite;
+  }
+  @keyframes progress-fill {
+    from { width: 0%; }
+    to { width: 100%; }
+  }
+  .mock-progress-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 10px;
+    color: #444;
+  }
+
+  /* Controls */
+  .mock-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .mock-ctrl {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .mock-ctrl:hover { color: #fff; }
+  .mock-ctrl.play-btn {
+    width: 48px; height: 48px;
+    background: var(--cyan);
+    color: #000;
+    box-shadow: 0 0 24px rgba(0,170,212,0.3);
+  }
+
+  /* ── Stack section ── */
+  .stack-section {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 960px;
+    margin-top: 100px;
+    padding: 0 20px;
+    padding-bottom: 60px;
+  }
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 12px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .stack-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  .stack-item.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .stack-item:hover {
+    border-color: rgba(0,170,212,0.25);
+    background: rgba(0,170,212,0.04);
+    transform: translateY(-4px);
+  }
+  .stack-icon {
+    width: 36px; height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: stack-float 3s ease-in-out infinite;
+  }
+  .stack-item:nth-child(odd) .stack-icon { animation-delay: 0.5s; }
+  @keyframes stack-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .stack-icon svg { width: 100%; height: 100%; }
+  .stack-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #777;
+    text-align: center;
+  }
+
   /* ── Footer ── */
   .footer {
     position: relative;
@@ -405,6 +710,236 @@
   </div>
 </section>
 
+<!-- Showcase -->
+<section class="showcase">
+  <div class="section-label">Interface</div>
+  <div class="section-title">How it looks</div>
+
+  <div class="mockup" id="mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <div class="mockup-title">Wave Music Player</div>
+    </div>
+    <div class="mockup-body">
+
+      <!-- Sidebar -->
+      <div class="mock-sidebar">
+        <div class="mock-nav-item active">
+          <div class="mock-nav-icon"></div>Home
+        </div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>My Wave
+        </div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>Search
+        </div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>Liked
+        </div>
+        <div class="mock-nav-divider"></div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>Queue
+        </div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>History
+        </div>
+        <div class="mock-nav-divider"></div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>Playlists
+        </div>
+        <div class="mock-nav-item">
+          <div class="mock-nav-icon"></div>Settings
+        </div>
+      </div>
+
+      <!-- Track list -->
+      <div class="mock-main">
+        <div class="mock-search">
+          <div class="mock-search-dot"></div>
+          Search YouTube, Spotify, SoundCloud...
+        </div>
+        <div class="mock-tracks">
+          <div class="mock-track playing">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#00aad4,#7c5cff)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name playing-name">Blinding Lights</div>
+              <div class="mock-track-artist">The Weeknd</div>
+            </div>
+            <div class="mock-track-album">After Hours</div>
+            <div class="mock-track-dur">3:22</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#d030ff,#00f0c8)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Levitating</div>
+              <div class="mock-track-artist">Dua Lipa</div>
+            </div>
+            <div class="mock-track-album">Future Nostalgia</div>
+            <div class="mock-track-dur">3:23</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#ff3cf7,#7c5cff)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Heat Waves</div>
+              <div class="mock-track-artist">Glass Animals</div>
+            </div>
+            <div class="mock-track-album">Dreamland</div>
+            <div class="mock-track-dur">3:59</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#00f0c8,#00aad4)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Stay</div>
+              <div class="mock-track-artist">The Kid LAROI, Justin Bieber</div>
+            </div>
+            <div class="mock-track-album">F*CK LOVE 3</div>
+            <div class="mock-track-dur">2:21</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#7c5cff,#ff3cf7)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Peaches</div>
+              <div class="mock-track-artist">Justin Bieber</div>
+            </div>
+            <div class="mock-track-album">Justice</div>
+            <div class="mock-track-dur">3:18</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#d030ff,#00aad4)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Montero</div>
+              <div class="mock-track-artist">Lil Nas X</div>
+            </div>
+            <div class="mock-track-album">Montero</div>
+            <div class="mock-track-dur">2:17</div>
+          </div>
+          <div class="mock-track">
+            <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#00f0c8,#d030ff)"></div></div>
+            <div class="mock-track-info">
+              <div class="mock-track-name">Good 4 U</div>
+              <div class="mock-track-artist">Olivia Rodrigo</div>
+            </div>
+            <div class="mock-track-album">SOUR</div>
+            <div class="mock-track-dur">2:58</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Now Playing -->
+      <div class="mock-right">
+        <div class="mock-now-label">Now Playing</div>
+        <div class="mock-np-cover">
+          <div class="mock-np-inner" style="background:linear-gradient(135deg,#00aad4 0%,#7c5cff 50%,#d030ff 100%)"></div>
+        </div>
+        <div class="mock-np-title">Blinding Lights</div>
+        <div class="mock-np-artist">The Weeknd</div>
+        <div class="mock-progress">
+          <div class="mock-progress-fill"></div>
+        </div>
+        <div class="mock-progress-row">
+          <span>1:12</span>
+          <span>3:22</span>
+        </div>
+        <div class="mock-controls">
+          <div class="mock-ctrl">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </div>
+          <div class="mock-ctrl play-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div class="mock-ctrl">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Stack -->
+<section class="stack-section">
+  <div class="section-label">Technology</div>
+  <div class="section-title">Built with</div>
+
+  <div class="stack-grid" id="stack">
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#00ADD8" d="M64 0C28.7 0 0 28.7 0 64s28.7 64 64 64 64-28.7 64-64S99.3 0 64 0zm-.1 9.1c23.7 0 44.3 11.5 57.3 29.2L76.1 81.8c-5.5-6.5-13.1-10.3-22-10.3-13.9 0-25.1 11.2-25.1 25.1 0 9 4.8 17 12.1 21.5l-19.7 15.7C19.4 132.1 0 100.1 0 64 0 34.1 19.6 8.3 48.8 1.7l15.1 7.4zm18.3 11.2l-18.6 14.7c5.5 6.6 13.3 10.5 22 10.5 14 0 25.3-11.3 25.3-25.3 0-8.8-4.6-16.7-11.6-21.2l14.4-11.4C114.8 26.6 91 17.1 64 17.1c-2.8 0-5.5.2-8.2.5l24.6 12.7z"/><path fill="#fff" d="M89.3 53.8L72.1 40.2c4-4.8 6.2-11 6.2-17.4 0-7.1-2.8-13.5-7.4-18.2l15.1-7.4C93.1 2.6 102 10.2 105 20.5L79.5 47.9c-2-1.2-4.3-1.8-6.6-1.8-5.5 0-10.3 3.6-11.9 8.6L38.5 36.2c8.5-10.5 21.2-17 35.4-17 4.5 0 8.8.7 12.9 2l2.5.6z"/></svg>
+      </div>
+      <div class="stack-name">Go</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#E44D26" d="M19.1 112.8L32 128l72.9-.3L128 112.8 117.6 0H10.4L19.1 112.8z"/><path fill="#F16529" d="M102.6 112.8H25.4L32.5 32h93z"/><path fill="#EBEBEB" d="M64 109.8H38.8L36.7 86h23.2v23.8zm0-47.6H34l-2.3-23h32.3v23z"/><path fill="#fff" d="M64 62.2H41.6l-.3-3.8H64V35.4H31.2l.6 6.8.6 7.6H64v12.4zm0 23.8H44.4l-.2 2.3-.5 6.1h19.9V86z"/></svg>
+      </div>
+      <div class="stack-name">HTML5</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#264DE4" d="M0 0h128v128H0z"/><path fill="#2965F1" d="M34.2 112.4l7.9-44.8h74.1l2.7-15H42.1l1.8-10.3h77.3l-11.3 64.1z"/><path fill="#fff" d="M78.4 112.4l5.8-32.8H57.9l.5-2.8h28.7l5.8-32.8H47.8l-12 68.4h42.6z"/><path fill="#EBEBEB" d="M78.4 112.4l5.8-32.8H57.9l.5-2.8h28.7l5.8-32.8H47.8l-12 68.4h42.6z"/><path fill="#fff" d="M56.6 56.8H79l-2.5 14.2H54.1z"/><path fill="#EBEBEB" d="M48.3 90.6l2.5-14.2h34l-2.5 14.2z"/></svg>
+      </div>
+      <div class="stack-name">CSS3</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#323330" d="M0 0h128v128H0z"/><path fill="#F7DF1E" d="M112.8 112.8H15.2V15.2h97.6z"/><path fill="#323330" d="M33.6 33.6h60.8v8.6H42.2v15.4h48v8.6H42.2V82h52.2v8.6H33.6z"/></svg>
+      </div>
+      <div class="stack-name">TypeScript</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#F7DF1E" d="M0 0h128v128H0z"/><path fill="#323330" d="M20.2 20.2h87.6v87.6H20.2z"/><path fill="#F7DF1E" d="M64 30.5c-18.8 0-30.5 14.4-30.5 30.5 0 16.2 11 30.5 30.5 30.5 15.3 0 24.7-10.1 27.7-24.3l-13.5-1.3c-1.6 7.6-6 12.3-14.2 12.3-9.6 0-15.8-7.2-15.8-17.2 0-10.4 6.5-17.5 16.5-17.5 8.4 0 12.9 4.7 14.5 11.5l13.5-1.7c-2-11.5-10.3-22.8-28-22.8zm-5.5 25c-5.5 0-8.8 3.8-8.8 9.2 0 5.3 3 9 8.8 9 5.7 0 9.3-3.8 9.3-9.2 0-5.7-3.5-9-9.3-9z"/></svg>
+      </div>
+      <div class="stack-name">React</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#FF6B35" d="M63.8 5.4C32.1 5.4 4.6 31.5 4.6 64.5c0 18.5 9.1 35.3 23.5 46l.3-.3-4.2-12.2c-3.8-10.6-6-22.1-6-33.5C18.2 40.1 38.2 18 63.8 18c7.3 0 14.2 1.7 20.3 4.8L72.1 36c-2.6-1.3-5.5-2.1-8.6-2.1-16.3 0-29.5 13.6-29.5 30.5 0 5.7 1.6 11 4.4 15.5l20.7-20.7 6 5.4L44.4 98.5l-.3.3c1.4.4 2.8.7 4.2.7 3 0 5.9-.6 8.5-1.7l24-24 6 5.4-25.5 25.5c18.6-11.4 31.2-31.6 31.2-54.7C92.7 31.5 80.9 5.4 63.8 5.4z"/></svg>
+      </div>
+      <div class="stack-name">Rust</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#41B883" d="M78.8 10L64 35.4 49.2 10H0l64 110 64-110z"/><path fill="#34495E" d="M78.8 10L64 35.4 49.2 10H25.6L64 76l38.4-66z"/></svg>
+      </div>
+      <div class="stack-name">Vue.js</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#E44D26" d="M19.1 112.8L32 128l72.9-.3L128 112.8 117.6 0H10.4L19.1 112.8z"/><path fill="#F16529" d="M102.6 112.8H25.4L32.5 32h93z"/><path fill="#EBEBEB" d="M64 109.8H38.8L36.7 86h23.2v23.8zm0-47.6H34l-2.3-23h32.3v23z"/><path fill="#fff" d="M64 62.2H41.6l-.3-3.8H64V35.4H31.2l.6 6.8.6 7.6H64v12.4zm0 23.8H44.4l-.2 2.3-.5 6.1h19.9V86z"/></svg>
+      </div>
+      <div class="stack-name">Svelte</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#000" d="M64 0C28.7 0 0 28.7 0 64s28.7 64 64 64 64-28.7 64-64S99.3 0 64 0z"/><path fill="#fff" d="M29.7 41.2l20.3-.7 1.3 22.5-20.3.7zm21.9 51.6l.7-20.3 20.3-.7-.7 20.3zm11.2-40.1l19.1 9.1-8.2 17.3-19.1-9.1zm10.5 11.1l8.2-17.3 19.1 9.1-8.2 17.3z"/></svg>
+      </div>
+      <div class="stack-name">yt-dlp</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#3776AB" d="M64 0C28.7 0 0 28.7 0 64s28.7 64 64 64 64-28.7 64-64S99.3 0 64 0zm0 11.5c28.7 0 52.5 23.8 52.5 52.5S92.7 116.5 64 116.5 11.5 92.7 11.5 64 35.3 11.5 64 11.5z"/><path fill="#FFD43B" d="M64 11.5c28.7 0 52.5 23.8 52.5 52.5S92.7 116.5 64 116.5 11.5 92.7 11.5 64 35.3 11.5 64 11.5z"/><path fill="#306998" d="M64 11.5c28.7 0 52.5 23.8 52.5 52.5S92.7 116.5 64 116.5 11.5 92.7 11.5 64 35.3 11.5 64 11.5z" opacity="0.5"/><path fill="#FFD43B" d="M64 116.5c-28.7 0-52.5-23.8-52.5-52.5S35.3 11.5 64 11.5c14.4 0 27.4 5.9 36.9 15.4l-15 15C81.1 37.5 73 34 64 34c-16.6 0-30 13.4-30 30s13.4 30 30 30c12.1 0 22.5-7.3 27.1-17.8H64v-19.8h47.7c.8 3.6 1.3 7.4 1.3 11.3 0 28.7-23.8 52.5-53 52.5z"/></svg>
+      </div>
+      <div class="stack-name">Tauri</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#333" d="M64 0C28.7 0 0 28.7 0 64s28.7 64 64 64 64-28.7 64-64S99.3 0 64 0z"/><path fill="#89E051" d="M42.4 42.4l14.8 14.8-14.8 14.8 5.3 5.3 20.1-20.1-20.1-20.1z"/><path fill="#89E051" d="M85.6 42.4l-14.8 14.8 14.8 14.8-5.3 5.3-20.1-20.1 20.1-20.1z" opacity="0.6"/><path fill="#C5C1D4" d="M42.4 85.6l14.8-14.8" opacity="0.4"/></svg>
+      </div>
+      <div class="stack-name">Node.js</div>
+    </div>
+    <div class="stack-item">
+      <div class="stack-icon">
+        <svg viewBox="0 0 128 128"><path fill="#4285F4" d="M112.8 64c0-3.2-.3-6.4-.8-9.4H64v17.8h27.2c-1.2 6.4-4.8 11.8-10.2 15.4v12.8h16.4c9.6-8.8 15.2-21.8 15.2-36.6z"/><path fill="#34A853" d="M64 116c13.6 0 25-4.6 33.4-12.2l-16.4-12.8c-4.6 3.2-10.4 5-17 5-13 0-24-8.8-28-20.6H19v13.2C27.4 104.4 44.6 116 64 116z"/><path fill="#FBBC05" d="M36 75.4c-2.2-6.4-2.2-13.2 0-19.6V52.6H19c-7.2 14.2-7.2 31 0 45.2l17-13.2z"/><path fill="#EA4335" d="M64 35.6c7.4 0 14 2.6 19.2 7.6l14.4-14.4C89 22.8 77.6 17 64 17 44.6 17 27.4 28.6 19 46l17 13.2c4-11.8 15-23.6 28-23.6z"/></svg>
+      </div>
+      <div class="stack-name">Chrome</div>
+    </div>
+  </div>
+</section>
+
 <footer class="footer">
   <p>Wave Music Player &middot; <a href="https://github.com/milalulu/wave">GitHub</a> &middot; Apache 2.0 License</p>
 </footer>
@@ -442,7 +977,7 @@ for (let i = 0; i < 20; i++) {
   eq.appendChild(b);
 }
 
-// Scroll reveal for features
+// Scroll reveal for features, mockup, and stack items
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((e, i) => {
     if (e.isIntersecting) {
@@ -451,7 +986,7 @@ const observer = new IntersectionObserver((entries) => {
     }
   });
 }, { threshold: 0.15 });
-document.querySelectorAll('.feat').forEach(f => observer.observe(f));
+document.querySelectorAll('.feat, .mockup, .stack-item').forEach(f => observer.observe(f));
 </script>
 
 </body>
