@@ -350,6 +350,11 @@ async fn yt_search(
     Ok(out)
 }
 
+/// Таймаут одной попытки yt-dlp и общий бюджет на весь резолв: без них цепочка
+/// из семи попыток растягивается на минуты вместо честной ошибки.
+const STREAM_ATTEMPT_TIMEOUT_SECS: u64 = 12;
+const STREAM_TOTAL_BUDGET_SECS: u64 = 30;
+
 async fn resolve_stream(
     app: &tauri::AppHandle,
     url: &str,
@@ -414,8 +419,16 @@ async fn resolve_stream(
     let mut progressive_url: Option<String> = None;
     let mut hls_url: Option<String> = None;
     let mut last_err: Option<String> = None;
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(STREAM_TOTAL_BUDGET_SECS);
     for args in attempts {
-        match run_ytdlp(app, args, 90).await {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            last_err = Some("yt-dlp: resolve budget exceeded".into());
+            break;
+        }
+        let timeout = STREAM_ATTEMPT_TIMEOUT_SECS.min(left.as_secs().max(1));
+        match run_ytdlp(app, args, timeout).await {
             Ok(Some(stdout)) => {
                 let u = stdout
                     .lines()

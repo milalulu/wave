@@ -17,6 +17,24 @@ export const BUFFER_TIME_UPDATE_MS = 250;
 
 export const BUFFER_CACHE_MAX = 4;
 
+/** Хосты из allowlist локального аудио-прокси (`/audio`). */
+const PROXYABLE_HOSTS = [
+  ".googlevideo.com",
+  ".sndcdn.com",
+  ".media-streaming.soundcloud.cloud",
+  ".dzcdn.net",
+  ".userapi.com",
+];
+
+/**
+ * Buffer-режим (полная загрузка трека в память) нужен только WebKitGTK/WKWebView,
+ * где `<audio>` виснет на потоковых URL. WebView2 и Chromium тянут поток Range-запросами.
+ */
+export function isWebKitEngine(): boolean {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  return !/Chrome\/|Chromium\/|Edg\//.test(ua);
+}
+
 type StateCb = (state: PlayerState) => void;
 type TimeCb = (position: number, duration: number) => void;
 type ElementMode = "element" | "buffer";
@@ -56,6 +74,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private probeTimer: number | undefined;
   private readyProbeTimer: number | undefined;
   private pendingElementSrc: string | null = null;
+  private elementProxyRetried = false;
   
   private playRequested = false;
 
@@ -449,6 +468,7 @@ export class WebAudioAdapter implements AudioAdapter {
     active.src = src;
     active.load();
     this.preloadedUri = null;
+    this.elementProxyRetried = false;
     this.scheduleProbe();
   }
 
@@ -751,6 +771,23 @@ export class WebAudioAdapter implements AudioAdapter {
     }, MEDIA_ELEMENT_READY_PROBE_MS);
   }
 
+  private proxyable(src: string): boolean {
+    if (src.startsWith(PROXY_BASE)) return false;
+    const host = this.hostOf(src).toLowerCase();
+    return PROXYABLE_HOSTS.some((suffix) => host.endsWith(suffix));
+  }
+
+  private retryViaProxy(src: string): void {
+    this.elementProxyRetried = true;
+    const proxied = `${PROXY_BASE}/audio?url=${encodeURIComponent(src)}`;
+    this.pendingElementSrc = proxied;
+    this.preloadedUri = null;
+    const active = this.activeElement();
+    active.src = proxied;
+    active.load();
+    if (this.playRequested) void active.play().catch(() => undefined);
+  }
+
   private runProbe(readyCheck: boolean): void {
     if (this.mode !== "element") return;
     const el = this.elements[0];
@@ -758,6 +795,12 @@ export class WebAudioAdapter implements AudioAdapter {
     const stuck = readyCheck ? el.readyState === 0 : el.currentSrc === "";
     if (!stuck) return;
     const src = this.pendingElementSrc;
+    // Chromium/WebView2 сам тянет поток Range-запросами; полная буферизация там только
+    // затягивает старт, поэтому пробуем тот же URL через локальный прокси (CORS + Range).
+    if (!isWebKitEngine()) {
+      if (src && !this.elementProxyRetried && this.proxyable(src)) this.retryViaProxy(src);
+      return;
+    }
     this.switchToBufferMode();
     if (!src) return;
     void this.bufLoad(src)

@@ -1,17 +1,23 @@
 const VALIDATE_TIMEOUT_MS = 3000;
 
-function isYouTubeUrl(url: string): boolean {
-  return (
-    url.includes("googlevideo.com") ||
-    url.includes("youtube.com") ||
-    url.includes("youtu.be") ||
-    url.includes("ytimg.com")
-  );
+// CDN, ссылки которых подписаны и одноразовы: HEAD-проверка перед стартом только
+// добавляет round-trip к клику, а протухание всё равно ловится по ошибке плеера.
+const SKIP_VALIDATION_HOSTS = [
+  "googlevideo.com",
+  "youtube.com",
+  "youtu.be",
+  "ytimg.com",
+  "sndcdn.com",
+  "media-streaming.soundcloud.cloud",
+];
+
+function skipValidation(url: string): boolean {
+  return SKIP_VALIDATION_HOSTS.some((host) => url.includes(host));
 }
 
 export async function validateStreamUrl(url: string): Promise<void> {
   if (!url.startsWith("http://") && !url.startsWith("https://")) return;
-  if (isYouTubeUrl(url)) return;
+  if (skipValidation(url)) return;
   if (url.includes("127.0.0.1:8299/audio")) return;
 
   const controller = new AbortController();
