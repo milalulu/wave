@@ -319,6 +319,26 @@ export interface Translations {
     start: string;
     empty: string;
     hint: string;
+    preview: string;
+    previewHint: string;
+    previewEmpty: string;
+    refresh: string;
+    playPreview: string;
+    blocked: string;
+    blockedDesc: string;
+    blockedEmpty: string;
+    unblock: string;
+    autoContinue: string;
+    autoContinueDesc: string;
+    genres: string;
+    genresDesc: string;
+    topGenres: string;
+    moods: string;
+    moodsDesc: string;
+    topMoods: string;
+    recent: string;
+    recentDesc: string;
+    recentEmpty: string;
   };
   toasts: {
     queueRestored: string;
@@ -720,6 +740,26 @@ export const translations: Record<Locale, Translations> = {
       start: "Start Wave",
       empty: "Wave is empty (no liked tracks or history)",
       hint: "Every launch is a fresh mix: likes and frequently played genres get more weight",
+      preview: "Preview Wave",
+      previewHint: "See what Wave would generate before playing",
+      previewEmpty: "Nothing to preview — like some tracks or listen to music first",
+      refresh: "Refresh",
+      playPreview: "Play",
+      blocked: "Blocked",
+      blockedDesc: "Tracks and artists excluded from Wave",
+      blockedEmpty: "No blocked tracks or artists",
+      unblock: "Unblock",
+      autoContinue: "Auto-continue",
+      autoContinueDesc: "Fill the queue when it ends",
+      genres: "Genres",
+      genresDesc: "Top genres in your library based on play history",
+      topGenres: "Top Genres",
+      moods: "Moods",
+      moodsDesc: "Mood profile based on your listening patterns",
+      topMoods: "Top Moods",
+      recent: "Recent Waves",
+      recentDesc: "Tracks from your last wave sessions",
+      recentEmpty: "Start your first wave to see history here",
     },
     toasts: {
       queueRestored: "Queue restored — press play",
@@ -1119,6 +1159,26 @@ export const translations: Record<Locale, Translations> = {
       start: "Запустить Wave",
       empty: "Wave пуст (нет лайков или истории)",
       hint: "Каждый запуск — свежая подборка: лайки и часто слушаемые жанры получают больший вес",
+      preview: "Предпросмотр Wave",
+      previewHint: "Посмотрите, что сгенерирует Wave, перед воспроизведением",
+      previewEmpty: "Нечего предпросматривать — сначала добавьте лайки или послушайте музыку",
+      refresh: "Обновить",
+      playPreview: "Воспроизвести",
+      blocked: "Заблокировано",
+      blockedDesc: "Треки и исполнители, исключённые из Wave",
+      blockedEmpty: "Нет заблокированных треков или исполнителей",
+      unblock: "Разблокировать",
+      autoContinue: "Автопродолжение",
+      autoContinueDesc: "Заполнять очередь, когда она заканчивается",
+      genres: "Жанры",
+      genresDesc: "Топ жанров в вашей библиотеке по истории прослушиваний",
+      topGenres: "Топ жанров",
+      moods: "Настроение",
+      moodsDesc: "Профиль настроения на основе ваших моделей прослушивания",
+      topMoods: "Топ настроений",
+      recent: "Недавние волны",
+      recentDesc: "Треки из ваших последних сессий Wave",
+      recentEmpty: "Запустите первую волну, чтобы увидеть историю здесь",
     },
     toasts: {
       queueRestored: "Очередь восстановлена — нажмите play",

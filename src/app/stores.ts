@@ -31,6 +31,8 @@ import { clearVariantsCache } from "./trackVariants";
 import { findTrackVariants, type TrackVariant } from "./trackVariants";
 import { registerDownload, unregisterDownload, offlineEnabled, setOfflineEnabled } from "./offline";
 import {
+  getBlockedTrackIds,
+  getBlockedArtists,
   isArtistBlocked,
   isExcludePreviewsEnabled,
   isTrackBlocked,
@@ -125,6 +127,9 @@ interface AppState {
   toggleLike: (track?: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
+  previewWave: () => Promise<void>;
+  previewTracks: Track[];
+  previewLoading: boolean;
   startSmartPlaylist: (type: SmartPlaylistType) => Promise<void>;
   openLocalDirectory: () => Promise<void>;
   variants: TrackVariant[];
@@ -134,6 +139,10 @@ interface AppState {
   addSimilar: () => Promise<void>;
   toggleBlockTrack: (track: Track) => void;
   toggleBlockArtist: (artist: string) => void;
+  blockedTrackIds: string[];
+  blockedArtists: string[];
+  unblockTrack: (id: string) => void;
+  unblockArtist: (name: string) => void;
   clearCaches: () => void;
   lyrics: LyricsResult | null;
   lyricsLoading: boolean;
@@ -553,6 +562,20 @@ export const useApp = create<AppState>()((set, get) => ({
       get().notify(e instanceof Error ? e.message : String(e));
     }
   },
+  previewTracks: [],
+  previewLoading: false,
+  previewWave: async () => {
+    const { services } = get();
+    if (!services) return;
+    set({ previewLoading: true });
+    try {
+      const tracks = await services.wave.generateWave(20);
+      set({ previewTracks: tracks, previewLoading: false });
+    } catch (e) {
+      set({ previewLoading: false });
+      get().notify(e instanceof Error ? e.message : String(e));
+    }
+  },
 
   startSmartPlaylist: async (type) => {
     const { services } = get();
@@ -790,11 +813,24 @@ export const useApp = create<AppState>()((set, get) => ({
   toggleBlockTrack: (track) => {
     const blocked = toggleBlockedTrack(track.id);
     get().notify(blocked ? t("toasts").trackBlocked : t("toasts").trackUnblocked);
+    set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
   },
 
   toggleBlockArtist: (artist) => {
     const blocked = toggleBlockedArtist(artist);
     get().notify(blocked ? t("toasts").artistBlocked : t("toasts").artistUnblocked);
+    set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
+  },
+
+  blockedTrackIds: [],
+  blockedArtists: [],
+  unblockTrack: (id) => {
+    toggleBlockedTrack(id);
+    set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
+  },
+  unblockArtist: (name) => {
+    toggleBlockedArtist(name);
+    set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
   },
 
   clearCaches: () => {
@@ -1079,6 +1115,9 @@ async function doInit(
   services.wave.setBlockFilter(
     (track) => !isTrackBlocked(track.id) && !isArtistBlocked(track.artist),
   );
+
+  // Инициализация заблокированных списков
+  set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
 
   // Skip reaction: откат контекста при быстром скипе
   services.engine.on("skipped", ({ percent }) => {
