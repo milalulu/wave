@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DragEvent } from "react";
 import type { Track } from "../core/types";
 import { useApp } from "../app/stores";
@@ -6,8 +7,9 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TagEditor } from "./TagEditor";
 import { providerLabel } from "./providers";
-import { HeartIcon, MoreIcon, PlayIcon, RadioIcon } from "./icons";
+import { HeartIcon, MoreIcon, PlayIcon, RadioIcon, DownloadIcon } from "./icons";
 import { isTrackBlocked, isArtistBlocked } from "../app/platformSettings";
+import { isTrackDownloaded } from "../app/offline";
 function formatDuration(seconds?: number): string {
   if (!seconds || !Number.isFinite(seconds)) return "—";
   const m = Math.floor(seconds / 60);
@@ -44,6 +46,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
   const inPlaylist = selectedPlaylistId !== null;
   const trackBlocked = useMemo(() => isTrackBlocked(track.id), [track.id]);
   const artistBlocked = useMemo(() => track.artist ? isArtistBlocked(track.artist) : false, [track.artist]);
+  const downloaded = useMemo(() => isTrackDownloaded(track.id), [track.id]);
   const playlists = useApp((s) => s.playlists);
   const toggleLike = useApp((s) => s.toggleLike);
   const play = useApp((s) => s.play);
@@ -167,6 +170,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
       </div>
       {track.album && <span className="track-album">{track.album}</span>}
       <span className="track-duration">{noPlay ? "—" : formatDuration(track.duration)}</span>
+      {downloaded && <span className="track-downloaded" title={t("common").downloaded}><DownloadIcon size={12} /></span>}
       {playCount !== undefined && (
         <span className="track-play-count" title={`${playCount}×`}>{playCount}×</span>
       )}
@@ -189,7 +193,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
           <HeartIcon size={16} filled={isLiked} />
         </button>
       </div>
-      {menuOpen && (
+      {menuOpen && createPortal(
         <div
           ref={menuRef}
           className={`row-menu ${menuPos ? "context" : ""}`}
@@ -257,7 +261,8 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
               {t("trackMenu").removeFromPlaylist}
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
       {editingTags && <TagEditor track={track} onClose={() => setEditingTags(false)} />}
     </div>

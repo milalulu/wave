@@ -27,6 +27,9 @@ export interface Translations {
     dlFailed: string;
     dlRetry: string;
     dlAlreadyQueued: string;
+    downloadedTracks: string;
+    noDownloadedTracks: string;
+    removeFile: string;
   };
   player: {
     play: string;
@@ -414,6 +417,7 @@ export interface Translations {
     noAudio: string;
     errorTitle: string;
     reload: string;
+    downloaded: string;
   };
   trackMenu: {
     editTags: string;
@@ -467,6 +471,9 @@ export const translations: Record<Locale, Translations> = {
       dlFailed: "Failed",
       dlRetry: "Retry",
       dlAlreadyQueued: "Already in the download queue",
+      downloadedTracks: "Downloaded tracks",
+      noDownloadedTracks: "No downloaded tracks yet",
+      removeFile: "Remove file",
     },
     player: {
       play: "Play",
@@ -870,6 +877,7 @@ export const translations: Record<Locale, Translations> = {
       noAudio: "No audio available",
       errorTitle: "Something went wrong",
       reload: "Reload",
+      downloaded: "Downloaded",
     },
     trackMenu: {
       editTags: "Edit tags",
@@ -921,6 +929,9 @@ export const translations: Record<Locale, Translations> = {
       dlFailed: "Ошибка",
       dlRetry: "Повторить",
       dlAlreadyQueued: "Уже в очереди загрузок",
+      downloadedTracks: "Скачанные треки",
+      noDownloadedTracks: "Нет скачанных треков",
+      removeFile: "Удалить файл",
     },
     player: {
       play: "Играть",
@@ -1324,6 +1335,7 @@ export const translations: Record<Locale, Translations> = {
       noAudio: "Аудио недоступно",
       errorTitle: "Что-то пошло не так",
       reload: "Перезагрузить",
+      downloaded: "Скачано",
     },
     trackMenu: {
       editTags: "Редактировать теги",

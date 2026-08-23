@@ -722,7 +722,29 @@ export const useApp = create<AppState>()((set, get) => ({
         outputPath,
         jobId: next.id,
       });
-      registerDownload(outputPath, next.track.artist, next.track.title);
+
+      let coverFile: string | undefined;
+      const coverUrl = next.track.coverUrl;
+      if (coverUrl && (coverUrl.startsWith("http://") || coverUrl.startsWith("https://"))) {
+        const coverExt = coverUrl.includes(".png") ? ".png" : ".jpg";
+        const coverPath = `${next.dir}/${safe(next.track.artist ?? "")} - ${safe(next.track.title ?? "")}${coverExt}`;
+        try {
+          await invoke("download_cover", { url: coverUrl, outputPath: coverPath });
+          coverFile = coverPath;
+        } catch {}
+      }
+
+      registerDownload(
+        outputPath,
+        next.track.artist,
+        next.track.title,
+        next.track.id,
+        next.track.provider,
+        coverUrl,
+        coverFile,
+        next.track.duration,
+        next.track.album,
+      );
       finish({ status: "done", percent: 100, filePath: outputPath });
     } catch (e) {
       finish({ status: "error", error: e instanceof Error ? e.message : String(e) });

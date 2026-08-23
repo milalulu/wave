@@ -6,8 +6,14 @@ const OFF_KEY = "wave-offline";
 
 export interface DownloadedFile {
   file: string;
+  trackId?: string;
+  provider?: string;
   artist?: string;
   title?: string;
+  coverUrl?: string;
+  coverFile?: string;
+  duration?: number;
+  album?: string;
 }
 
 export function offlineEnabled(): boolean {
@@ -21,9 +27,7 @@ export function offlineEnabled(): boolean {
 export function setOfflineEnabled(on: boolean): void {
   try {
     localStorage.setItem(OFF_KEY, on ? "1" : "0");
-  } catch {
-    
-  }
+  } catch {}
 }
 
 export function downloadedFiles(): DownloadedFile[] {
@@ -37,25 +41,56 @@ export function downloadedFiles(): DownloadedFile[] {
   }
 }
 
-export function registerDownload(file: string, artist?: string, title?: string): void {
+function persist(files: DownloadedFile[]): void {
   try {
-    const files = downloadedFiles().filter((f) => f.file !== file);
-    files.push({ file, artist, title });
     localStorage.setItem(DL_KEY, JSON.stringify(files));
-  } catch {
-    
-  }
+  } catch {}
+}
+
+export function registerDownload(
+  file: string,
+  artist?: string,
+  title?: string,
+  trackId?: string,
+  provider?: string,
+  coverUrl?: string,
+  coverFile?: string,
+  duration?: number,
+  album?: string,
+): void {
+  const files = downloadedFiles().filter((f) => f.file !== file);
+  files.push({ file, trackId, provider, artist, title, coverUrl, coverFile, duration, album });
+  persist(files);
 }
 
 export function unregisterDownload(file: string): void {
-  try {
-    localStorage.setItem(
-      DL_KEY,
-      JSON.stringify(downloadedFiles().filter((f) => f.file !== file)),
-    );
-  } catch {
-    
-  }
+  persist(downloadedFiles().filter((f) => f.file !== file));
+}
+
+export function isTrackDownloaded(trackId: string): boolean {
+  return downloadedFiles().some((f) => f.trackId === trackId);
+}
+
+export function downloadedFilePath(trackId: string): string | null {
+  const f = downloadedFiles().find((d) => d.trackId === trackId);
+  return f?.file ?? null;
+}
+
+export function downloadedTrackToTrack(df: DownloadedFile): Track {
+  const cover = df.coverFile
+    ? convertFileSrc(df.coverFile)
+    : df.coverUrl ?? undefined;
+  return {
+    id: `local:${df.trackId ?? encodeURIComponent(df.file)}`,
+    provider: df.provider ?? "local",
+    uri: convertFileSrc(df.file),
+    title: df.title ?? "Unknown",
+    artist: df.artist,
+    album: df.album,
+    coverUrl: cover,
+    duration: df.duration,
+    meta: { noPlay: false, url: convertFileSrc(df.file) },
+  };
 }
 
 const norm = (s: string): string =>
@@ -65,10 +100,14 @@ const norm = (s: string): string =>
     .trim();
 
 export function localUriFor(track: Track): string | null {
+  const files = downloadedFiles();
+
+  const byId = files.find((f) => f.trackId === track.id);
+  if (byId?.file) return convertFileSrc(byId.file);
+
   const title = norm(track.title);
   const artist = norm(track.artist ?? "");
-  const files = downloadedFiles();
-  
+
   const exact = files.filter((f) => {
     const ft = norm(f.title ?? "");
     const fa = norm(f.artist ?? "");
@@ -76,8 +115,7 @@ export function localUriFor(track: Track): string | null {
     return false;
   });
   if (exact[0]?.file) return convertFileSrc(exact[0].file);
-  
-  
+
   const loose = files.find((f) => {
     const ft = norm(f.title ?? "");
     const fa = norm(f.artist ?? "");

@@ -851,6 +851,147 @@ async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json
     Ok(results)
 }
 
+/// Поиск YouTube через innertube — возвращает треки, артистов (каналы) и альбомы (плейлисты).
+#[tauri::command]
+async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_json::Value, String> {
+    let http = crate::http::client();
+    let payload = serde_json::json!({
+        "context": {
+            "client": {
+                "hl": "en",
+                "gl": "US",
+                "clientName": "WEB",
+                "clientVersion": "2.20240101.00.00",
+            }
+        },
+        "query": query,
+    });
+
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
+            .header("Content-Type", "application/json")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            .json(&payload)
+            .send(),
+    )
+    .await
+    .map_err(|_| "innertube search full: timeout".to_string())?
+    .map_err(|e| format!("innertube search full: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("innertube search full HTTP {}", resp.status()));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("innertube search full parse: {e}"))?;
+
+    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"]
+        .as_array()
+        .ok_or("innertube search full: no results")?;
+
+    let limit = limit.min(50) as usize;
+    let mut tracks = Vec::new();
+    let mut artists = Vec::new();
+    let mut albums = Vec::new();
+
+    for section in sections {
+        let Some(items) = section["itemSectionRenderer"]["contents"].as_array() else {
+            continue;
+        };
+        for item in items {
+            if let Some(video) = item.get("videoRenderer").and_then(|v| v.as_object()) {
+                let id = video["videoId"].as_str().unwrap_or("");
+                if id.is_empty() { continue; }
+                let title = video["title"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|r| r["text"].as_str())
+                    .unwrap_or("");
+                let channel = video["ownerText"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|r| r["text"].as_str());
+                let duration_str = video["lengthText"]["simpleText"].as_str();
+                let duration = duration_str.and_then(innertube_parse_duration);
+                let thumbnail = video["thumbnail"]["thumbnails"]
+                    .as_array()
+                    .and_then(|t| t.last())
+                    .and_then(|t| t["url"].as_str());
+                tracks.push(serde_json::json!({
+                    "id": id,
+                    "title": title,
+                    "uploader": channel,
+                    "duration": duration,
+                    "thumbnail": thumbnail,
+                }));
+            } else if let Some(channel) = item.get("channelRenderer").and_then(|c| c.as_object()) {
+                let id = channel["channelId"].as_str().unwrap_or("");
+                if id.is_empty() { continue; }
+                let name = channel["title"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|r| r["text"].as_str())
+                    .unwrap_or("");
+                let thumbnail = channel["thumbnail"]["thumbnails"]
+                    .as_array()
+                    .and_then(|t| t.last())
+                    .and_then(|t| t["url"].as_str());
+                let subscriber_count = channel["subscriberCountText"]["simpleText"].as_str();
+                artists.push(serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "thumbnail": thumbnail,
+                    "subscriberCount": subscriber_count,
+                }));
+            } else if let Some(playlist) = item.get("playlistRenderer").and_then(|p| p.as_object()) {
+                let id = playlist["playlistId"].as_str().unwrap_or("");
+                if id.is_empty() { continue; }
+                let title = playlist["title"]["simpleText"]
+                    .as_str()
+                    .or_else(|| playlist["title"]["runs"].as_array().and_then(|r| r.first()).and_then(|r| r["text"].as_str()))
+                    .unwrap_or("");
+                let thumbnail = playlist["thumbnail"]["thumbnails"]
+                    .as_array()
+                    .and_then(|t| t.last())
+                    .and_then(|t| t["url"].as_str());
+                let track_count = playlist["videoCountShortText"]["simpleText"]
+                    .as_str()
+                    .or_else(|| playlist["videoCountText"]["simpleText"].as_str())
+                    .and_then(|s| s.replace(",", "").replace(" ", "").parse::<u32>().ok());
+                let owner = playlist["ownerText"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|r| r["text"].as_str());
+                albums.push(serde_json::json!({
+                    "id": id,
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "trackCount": track_count,
+                    "artist": owner,
+                }));
+            }
+            if tracks.len() + artists.len() + albums.len() >= limit * 3 {
+                break;
+            }
+        }
+        if tracks.len() + artists.len() + albums.len() >= limit * 3 {
+            break;
+        }
+    }
+
+    Ok(serde_json::json!({
+        "tracks": tracks,
+        "artists": artists,
+        "albums": albums,
+    }))
+}
+
 fn innertube_parse_duration(text: &str) -> Option<i64> {
     let parts: Vec<&str> = text.split(':').collect();
     match parts.len() {
@@ -1268,6 +1409,7 @@ pub fn run() {
             dl_stream_fast,
             yt_resolve_innertube,
             yt_search_innertube,
+            yt_search_innertube_full,
             sc_resolve_stream,
             vk_search,
             http_fetch_json,
@@ -1280,6 +1422,7 @@ pub fn run() {
             restore_database,
             yt_update,
             yt_download,
+            download_cover,
             app_download_dir,
             tools_status,
             tools_detect,
@@ -1645,6 +1788,15 @@ fn is_youtube_page_url(url: &str) -> bool {
     lower.contains("youtube.com/watch")
         || lower.contains("music.youtube.com/watch")
         || lower.contains("youtu.be/")
+}
+
+/// Скачать обложку трека по URL и сохранить в указанный файл.
+#[tauri::command]
+async fn download_cover(url: String, output_path: String) -> Result<(), String> {
+    if url.is_empty() {
+        return Err("empty cover url".to_string());
+    }
+    download_direct(&url, &output_path).await
 }
 
 /// Простое скачивание файла по прямой ссылке (без yt-dlp).

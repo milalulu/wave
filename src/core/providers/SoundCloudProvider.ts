@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SearchResults, Track } from "../types";
+import type { Artist, SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
 
@@ -52,7 +52,23 @@ export class SoundCloudProvider implements MusicProvider {
       duration: e.duration ? Math.round(e.duration) : undefined,
       meta: { scId: e.id, scUrl: trackUrl(e.id) },
     }));
-    const results: SearchResults = { provider: this.id, tracks, albums: [], artists: [] };
+
+    const seen = new Set<string>();
+    const artists: Artist[] = [];
+    for (const t of tracks) {
+      const name = t.artist;
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        artists.push({
+          id: `soundcloud:artist:${encodeURIComponent(name)}`,
+          provider: this.id,
+          name,
+          coverUrl: t.coverUrl,
+        });
+      }
+    }
+
+    const results: SearchResults = { provider: this.id, tracks, albums: [], artists };
     this.searchCache.set(key, { results, at: Date.now() });
     this.prune(this.searchCache, SEARCH_TTL_MS);
     return results;
@@ -153,7 +169,30 @@ export class SoundCloudProvider implements MusicProvider {
     throw new Error("soundcloud provider: no albums");
   }
 
-  async getArtist(_artistId: string): Promise<ArtistDetail> {
-    throw new Error("soundcloud provider: no artists");
+  async getArtist(artistId: string): Promise<ArtistDetail> {
+    const name = decodeURIComponent(artistId.replace("soundcloud:artist:", ""));
+    if (!name) throw new Error("soundcloud: no artist name in id");
+
+    const entries = await this.gateway.search(name, 20);
+    const tracks: Track[] = entries
+      .filter((e) => e.uploader && e.uploader.toLowerCase() === name.toLowerCase())
+      .map((e) => ({
+        id: `soundcloud:track:${e.id}`,
+        provider: this.id,
+        uri: `soundcloud:track:${e.id}`,
+        title: e.title ?? "Unknown",
+        artist: e.uploader,
+        coverUrl: cover(e.thumbnail),
+        duration: e.duration ? Math.round(e.duration) : undefined,
+        meta: { scId: e.id, scUrl: trackUrl(e.id) },
+      }));
+
+    const coverUrl = tracks[0]?.coverUrl;
+
+    return {
+      artist: { id: artistId, provider: this.id, name, coverUrl },
+      topTracks: tracks.slice(0, 15),
+      albums: [],
+    };
   }
 }

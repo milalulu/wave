@@ -1639,6 +1639,13 @@ input[type="range"]::-moz-range-track {
   font-variant-numeric: tabular-nums;
 }
 
+.track-downloaded {
+  color: var(--accent);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
 .track-play-count {
   width: 40px;
   text-align: right;
@@ -3757,6 +3764,59 @@ input[type="range"]::-moz-range-track {
   font-size: 12px;
   color: #ef4444;
   word-break: break-word;
+}
+
+.downloaded-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 620px;
+}
+
+.downloaded-track-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast);
+}
+
+.downloaded-track-row:hover {
+  background: var(--hover);
+}
+
+.downloaded-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.downloaded-track-title {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.downloaded-track-artist {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.downloaded-track-row .danger {
+  color: var(--danger);
+  opacity: 0.6;
+}
+
+.downloaded-track-row .danger:hover {
+  opacity: 1;
 }
 
 .modal-overlay {

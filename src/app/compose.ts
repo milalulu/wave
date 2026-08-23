@@ -168,9 +168,10 @@ export async function composeServices(): Promise<AppServices> {
       if (isBlockedProvider(track.provider)) {
         throw new Error(`provider blocked: ${track.provider}`);
       }
+      const local = localUriFor(track);
+      if (local) return local;
       if (offlineEnabled()) {
-        const local = localUriFor(track);
-        if (local) return local;
+        throw new Error("offline mode: track not downloaded");
       }
       const provider = providers.find((p) => p.id === track.provider);
       const raw = provider ? await provider.resolveUri(track) : track.uri;

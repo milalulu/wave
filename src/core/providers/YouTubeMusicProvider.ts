@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SearchResults, Track } from "../types";
+import type { Album, Artist, SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
 import { loadYtQuality, type YtQuality } from "../../app/ytQuality";
@@ -10,6 +10,27 @@ export interface YtSearchResult {
   uploader?: string;
   duration?: number;
   thumbnail?: string;
+}
+
+export interface YtChannelResult {
+  id: string;
+  name: string;
+  thumbnail?: string;
+  subscriberCount?: string;
+}
+
+export interface YtPlaylistResult {
+  id: string;
+  title: string;
+  thumbnail?: string;
+  trackCount?: number;
+  artist?: string;
+}
+
+export interface YtFullSearchResult {
+  tracks: YtSearchResult[];
+  artists: YtChannelResult[];
+  albums: YtPlaylistResult[];
 }
 
 export interface YtDlpGateway {
@@ -39,13 +60,25 @@ export class YouTubeMusicProvider implements MusicProvider {
     if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
 
     let entries: YtSearchResult[];
+    let rawArtists: YtChannelResult[] = [];
+    let rawAlbums: YtPlaylistResult[] = [];
     try {
-      entries = await invoke<YtSearchResult[]>("yt_search_innertube", {
+      const full = await invoke<YtFullSearchResult>("yt_search_innertube_full", {
         query,
         limit: 20,
       });
+      entries = full.tracks;
+      rawArtists = full.artists;
+      rawAlbums = full.albums;
     } catch {
-      entries = await this.gateway.search(query, 20);
+      try {
+        entries = await invoke<YtSearchResult[]>("yt_search_innertube", {
+          query,
+          limit: 20,
+        });
+      } catch {
+        entries = await this.gateway.search(query, 20);
+      }
     }
 
     const tracks: Track[] = entries.map((e, i) => ({
@@ -58,7 +91,26 @@ export class YouTubeMusicProvider implements MusicProvider {
       duration: e.duration ?? undefined,
       meta: { ytId: e.id, searchIndex: i },
     }));
-    const results: SearchResults = { provider: this.id, tracks, albums: [], artists: [] };
+
+    const artists: Artist[] = rawArtists.map((a) => ({
+      id: `youtube:artist:${a.id}`,
+      provider: this.id,
+      name: a.name,
+      coverUrl: cover(a.thumbnail),
+      meta: { ytChannelId: a.id, subscriberCount: a.subscriberCount },
+    }));
+
+    const albums: Album[] = rawAlbums.map((a) => ({
+      id: `youtube:album:${a.id}`,
+      provider: this.id,
+      title: a.title,
+      artist: a.artist,
+      coverUrl: cover(a.thumbnail),
+      trackCount: a.trackCount,
+      meta: { ytPlaylistId: a.id },
+    }));
+
+    const results: SearchResults = { provider: this.id, tracks, albums, artists };
     this.searchCache.set(key, { results, at: Date.now() });
     this.prune(this.searchCache, SEARCH_TTL_MS);
     return results;
