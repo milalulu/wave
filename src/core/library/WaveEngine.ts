@@ -24,6 +24,7 @@ function detectTrackMoodScore(track: Track, moodDistribution: Record<string, num
   profile?: ListeningProfile;
   historyDecayDays?: number;
   discoveryRate?: number;
+  preferredLanguages?: string[];
 }
 
 export interface WaveSource {
@@ -64,9 +65,21 @@ export class WeightedRandomWaveSource implements WaveSource {
       pool.delete(id);
     }
 
+    const langTerms = ctx.preferredLanguages?.length
+      ? new Set(ctx.preferredLanguages.map((s) => s.toLowerCase()))
+      : null;
     for (const item of pool.values()) {
       if (topGenreSet.has(item.track.genre ?? "")) {
         item.weight *= 2;
+      }
+      if (langTerms && langTerms.size > 0) {
+        const trackText = `${item.track.title ?? ""} ${item.track.artist ?? ""} ${item.track.genre ?? ""}`.toLowerCase();
+        for (const term of langTerms) {
+          if (trackText.includes(term)) {
+            item.weight *= 1.5;
+            break;
+          }
+        }
       }
     }
 
@@ -168,6 +181,9 @@ export class SmartWaveSource implements WaveSource {
     }
 
      const discoveryRate = ctx.discoveryRate ?? 30;
+     const langTerms = ctx.preferredLanguages?.length
+       ? new Set(ctx.preferredLanguages.map((s) => s.toLowerCase()))
+       : null;
      for (const item of pool.values()) {
        let { weight } = item;
        if (topGenreSet.has(item.track.genre ?? "")) weight *= 2.5;
@@ -175,6 +191,15 @@ export class SmartWaveSource implements WaveSource {
        if (artistBoost > 0) {
          const discoveryMultiplier = 1 - discoveryRate / 100;
          weight *= 1 + artistBoost * discoveryMultiplier;
+       }
+       if (langTerms && langTerms.size > 0) {
+         const trackText = `${item.track.title ?? ""} ${item.track.artist ?? ""} ${item.track.genre ?? ""}`.toLowerCase();
+         for (const term of langTerms) {
+           if (trackText.includes(term)) {
+             weight *= 1.8;
+             break;
+           }
+         }
        }
        if (ctx.moodDistribution) {
          const moodScore = detectTrackMoodScore(item.track, ctx.moodDistribution);
@@ -265,6 +290,8 @@ export class WaveEngine {
   private blockFilter: (track: Track) => boolean = () => true;
   private historyDecayDays: number = 7;
   private discoveryRate: number = 30;
+  private preferredLanguages: string[] = [];
+  private onboardingArtists: string[] = [];
 
   constructor(
     private storage: Storage,
@@ -278,6 +305,14 @@ export class WaveEngine {
 
   setDiscoveryRate(rate: number): void {
     this.discoveryRate = Math.max(0, Math.min(100, rate));
+  }
+
+  setPreferredLanguages(languages: string[]): void {
+    this.preferredLanguages = languages;
+  }
+
+  setOnboardingArtists(artists: string[]): void {
+    this.onboardingArtists = artists;
   }
 
   
@@ -338,6 +373,11 @@ export class WaveEngine {
       const artist = track.artist;
       if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1);
     }
+    if (artistCounts.size === 0 && this.onboardingArtists.length > 0) {
+      for (const name of this.onboardingArtists) {
+        artistCounts.set(name, 5);
+      }
+    }
 
     const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit, history, getCurrentTimeContext());
 
@@ -355,6 +395,7 @@ export class WaveEngine {
       profile,
       historyDecayDays: this.historyDecayDays,
       discoveryRate: this.discoveryRate,
+      preferredLanguages: this.preferredLanguages,
     });
     const filtered = tracks.filter(this.blockFilter);
 
@@ -415,8 +456,8 @@ export class WaveEngine {
     };
 
     const moodQueries = expandSearchQueries(profile.topMoods, profile.topGenres.slice(0, 3));
-    const profileTerms = timeAwareSearchTerms(profile, timeCtx);
-    const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 12);
+    const profileTerms = timeAwareSearchTerms(profile, timeCtx, this.preferredLanguages);
+    const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 15);
 
     for (let i = 0; i < allQueries.length; i += 4) {
       const batch = allQueries.slice(i, i + 4);

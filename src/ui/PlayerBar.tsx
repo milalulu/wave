@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useApp } from "../app/stores";
 import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
@@ -86,6 +86,15 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const eqRef = useRef<HTMLDivElement>(null);
   const variantsRef = useRef<HTMLDivElement>(null);
   const spectrumRef = useRef<HTMLDivElement>(null);
+  const volTrackRef = useRef<HTMLDivElement>(null);
+  const volDragging = useRef(false);
+  const [volDrag, setVolDrag] = useState<number | null>(null);
+
+  const commitVolume = useCallback((val: number) => {
+    setVolume(val);
+  }, [setVolume]);
+
+  const volDisplay = volDrag ?? Math.round(snapshot.volume * 100);
 
   usePopoverDismiss(sleepRef, sleepOpen, () => setSleepOpen(false));
   usePopoverDismiss(speedRef, speedOpen, () => setSpeedOpen(false));
@@ -153,6 +162,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             value={Math.min(position, duration || 0)}
             disabled={!track}
             aria-label="Seek"
+            style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
             onChange={(e) => seek(Number(e.target.value))}
           />
           <span className="time">{formatTime(duration)}</span>
@@ -308,6 +318,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             value={Math.min(position, duration || 0)}
             disabled={!track}
             aria-label="Seek"
+            style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
             onChange={(e) => seek(Number(e.target.value))}
           />
           <span className="time">{formatTime(duration)}</span>
@@ -335,15 +346,36 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         >
           {snapshot.volume === 0 ? <VolumeMuteIcon size={18} /> : <VolumeIcon size={18} />}
         </button>
-        <input
-          type="range"
-          className="volume"
-          min={0}
-          max={100}
-          value={Math.round(snapshot.volume * 100)}
-          aria-label="Volume"
-          onChange={(e) => setVolume(Number(e.target.value))}
-        />
+        <div
+          className="volume-track"
+          ref={volTrackRef}
+          onPointerDown={(e) => {
+            volDragging.current = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
+            setVolDrag(pct);
+            commitVolume(pct);
+          }}
+          onPointerMove={(e) => {
+            if (!volDragging.current) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
+            setVolDrag(pct);
+            commitVolume(pct);
+          }}
+          onPointerUp={(e) => {
+            if (!volDragging.current) return;
+            volDragging.current = false;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
+            setVolDrag(null);
+            commitVolume(pct);
+          }}
+        >
+          <div className="volume-fill" style={{ width: `${volDisplay}%` }} />
+          <div className="volume-thumb" style={{ left: `${volDisplay}%` }} />
+        </div>
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
           <QueueIcon size={18} />
         </button>

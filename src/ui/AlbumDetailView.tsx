@@ -10,12 +10,14 @@ export function AlbumDetailView() {
   const albumDetail = useApp((s) => s.albumDetail);
   const play = useApp((s) => s.play);
   const goBack = useApp((s) => s.goBack);
+  const currentId = useApp((s) => s.snapshot.current?.id ?? null);
 
   if (!albumDetail) {
     return <div className="detail-view">{t("common").unknown}</div>;
   }
 
   const { album, tracks } = albumDetail;
+  const firstCurrent = tracks.findIndex((tr) => tr.id === currentId);
 
   const handlePlayAll = async () => {
     await play(tracks);
@@ -58,7 +60,7 @@ export function AlbumDetailView() {
         <h2>{tf("search").tracks} ({tracks.length})</h2>
         <div className="track-list">
           {tracks.map((track: Track, i: number) => (
-            <TrackRow key={track.id} track={track} index={i + 1} />
+            <TrackRow key={`${track.id}:${i}`} track={track} index={i + 1} nowPlaying={firstCurrent === i} />
           ))}
         </div>
       </section>

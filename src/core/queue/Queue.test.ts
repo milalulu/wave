@@ -84,7 +84,7 @@ describe("Queue", () => {
     q.setShuffle(true);
     
     expect(q.current()?.id).toBe("a");
-    q.append(tracks[0]);
+    q.append({ id: "d", provider: "test", uri: "u://d", title: "D" });
     expect(q.current()?.id).toBe("a");
     
     expect(q.positionOf(3)).toBeGreaterThanOrEqual(3);

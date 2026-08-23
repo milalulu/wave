@@ -101,6 +101,8 @@ export interface Translations {
     tracks: string;
     previewsHidden: string;
     showPreviews: string;
+    recentSearches: string;
+    clearRecent: string;
   };
   library: {
     liked: string;
@@ -111,6 +113,7 @@ export interface Translations {
     emptyLiked: string;
     emptyHistory: string;
     emptyLocal: string;
+    sort: { default: string; title: string; artist: string; album: string };
     topArtists: string;
     topTracks: string;
     totalPlays: string;
@@ -313,6 +316,8 @@ export interface Translations {
     title: string;
     clear: string;
     empty: string;
+    saveAsPlaylist: string;
+    playlistNamePlaceholder: string;
   };
   wave: {
     title: string;
@@ -328,6 +333,8 @@ export interface Translations {
     blockedDesc: string;
     blockedEmpty: string;
     unblock: string;
+    blockedTracks: string;
+    unblockAll: string;
     autoContinue: string;
     autoContinueDesc: string;
     genres: string;
@@ -339,6 +346,9 @@ export interface Translations {
     recent: string;
     recentDesc: string;
     recentEmpty: string;
+    languages: string;
+    languagesDesc: string;
+    languagesNone: string;
   };
   toasts: {
     queueRestored: string;
@@ -414,6 +424,18 @@ export interface Translations {
     unblockTrack: string;
     blockArtist: string;
     unblockArtist: string;
+  };
+  onboarding: {
+    title: string;
+    subtitle: string;
+    searchPlaceholder: string;
+    selected: (n: number) => string;
+    continueBtn: string;
+    skip: string;
+    suggestionTitle: string;
+    suggestionDesc: string;
+    minHint: string;
+    alreadyPicked: string;
   };
 }
 
@@ -506,7 +528,15 @@ export const translations: Record<Locale, Translations> = {
       lyricsNotFound: "Lyrics not found",
       lyricsInstrumental: "Instrumental track",
       lyricsLoading: "Loading lyrics...",
-      lyricsSource: (src: string) => `via ${src}`,
+      lyricsSource: (src: string) => {
+        const names: Record<string, string> = {
+          lrclib: "lrclib",
+          netease: "NetEase Cloud Music",
+          qq: "QQ Music",
+          megalobiz: "Megalobiz",
+        };
+        return `via ${names[src] ?? src}`;
+      },
       lyricsRetry: "Retry",
     },
     search: {
@@ -519,6 +549,8 @@ export const translations: Record<Locale, Translations> = {
       tracks: "Tracks",
       previewsHidden: "Tracks that only play as a short preview are hidden.",
       showPreviews: "Show previews",
+      recentSearches: "Recent searches",
+      clearRecent: "Clear",
     },
     library: {
       liked: "Liked",
@@ -529,6 +561,12 @@ export const translations: Record<Locale, Translations> = {
       emptyLiked: "No liked tracks yet",
       emptyHistory: "History is empty",
       emptyLocal: "Open a music folder (sidebar → Local Files)",
+      sort: {
+        default: "Default",
+        title: "Title",
+        artist: "Artist",
+        album: "Album",
+      },
       topArtists: "Top Artists",
       topTracks: "Top Tracks",
       totalPlays: "Total Plays",
@@ -734,6 +772,8 @@ export const translations: Record<Locale, Translations> = {
       title: "Queue",
       clear: "Clear",
       empty: "Queue is empty",
+      saveAsPlaylist: "Save as playlist",
+      playlistNamePlaceholder: "Playlist name",
     },
     wave: {
       title: "Wave",
@@ -749,6 +789,8 @@ export const translations: Record<Locale, Translations> = {
       blockedDesc: "Tracks and artists excluded from Wave",
       blockedEmpty: "No blocked tracks or artists",
       unblock: "Unblock",
+      blockedTracks: "Blocked tracks",
+      unblockAll: "Unblock all",
       autoContinue: "Auto-continue",
       autoContinueDesc: "Fill the queue when it ends",
       genres: "Genres",
@@ -760,6 +802,9 @@ export const translations: Record<Locale, Translations> = {
       recent: "Recent Waves",
       recentDesc: "Tracks from your last wave sessions",
       recentEmpty: "Start your first wave to see history here",
+      languages: "Preferred Languages",
+      languagesDesc: "Boost tracks in selected languages in recommendations",
+      languagesNone: "All languages",
     },
     toasts: {
       queueRestored: "Queue restored — press play",
@@ -835,6 +880,18 @@ export const translations: Record<Locale, Translations> = {
       unblockTrack: "Allow in Wave",
       blockArtist: "Hide artist from Wave",
       unblockArtist: "Show artist in Wave",
+    },
+    onboarding: {
+      title: "Pick your favorite artists",
+      subtitle: "We'll use them to build your personal Wave. Select at least 3 to get started.",
+      searchPlaceholder: "Search artists...",
+      selected: (n: number) => `${n} selected`,
+      continueBtn: "Start listening",
+      skip: "Skip for now",
+      suggestionTitle: "Similar artists you might like",
+      suggestionDesc: "Based on your picks",
+      minHint: "Pick at least 3 artists",
+      alreadyPicked: "Already picked",
     },
   },
   ru: {
@@ -925,7 +982,15 @@ export const translations: Record<Locale, Translations> = {
       lyricsNotFound: "Текст не найден",
       lyricsInstrumental: "Инструментальная композиция",
       lyricsLoading: "Загрузка текста…",
-      lyricsSource: (src: string) => `via ${src}`,
+      lyricsSource: (src: string) => {
+        const names: Record<string, string> = {
+          lrclib: "lrclib",
+          netease: "NetEase Cloud Music",
+          qq: "QQ Music",
+          megalobiz: "Megalobiz",
+        };
+        return `via ${names[src] ?? src}`;
+      },
       lyricsRetry: "Найти заново",
     },
     search: {
@@ -938,6 +1003,8 @@ export const translations: Record<Locale, Translations> = {
       tracks: "Треки",
       previewsHidden: "Треки, которые проигрываются только как короткое превью, скрыты.",
       showPreviews: "Показать превью",
+      recentSearches: "Недавние запросы",
+      clearRecent: "Очистить",
     },
     library: {
       liked: "Понравившееся",
@@ -948,6 +1015,12 @@ export const translations: Record<Locale, Translations> = {
       emptyLiked: "Пока нет понравившихся треков",
       emptyHistory: "История пуста",
       emptyLocal: "Откройте папку с музыкой (кнопка «Локальные файлы» в сайдбаре)",
+      sort: {
+        default: "По умолчанию",
+        title: "Название",
+        artist: "Исполнитель",
+        album: "Альбом",
+      },
       topArtists: "Топ исполнителей",
       topTracks: "Топ треков",
       totalPlays: "Всего прослушиваний",
@@ -1153,6 +1226,8 @@ export const translations: Record<Locale, Translations> = {
       title: "Очередь",
       clear: "Очистить",
       empty: "Очередь пуста",
+      saveAsPlaylist: "Сохранить как плейлист",
+      playlistNamePlaceholder: "Название плейлиста",
     },
     wave: {
       title: "Wave",
@@ -1168,6 +1243,8 @@ export const translations: Record<Locale, Translations> = {
       blockedDesc: "Треки и исполнители, исключённые из Wave",
       blockedEmpty: "Нет заблокированных треков или исполнителей",
       unblock: "Разблокировать",
+      blockedTracks: "Заблокированные треки",
+      unblockAll: "Разблокировать все",
       autoContinue: "Автопродолжение",
       autoContinueDesc: "Заполнять очередь, когда она заканчивается",
       genres: "Жанры",
@@ -1179,6 +1256,9 @@ export const translations: Record<Locale, Translations> = {
       recent: "Недавние волны",
       recentDesc: "Треки из ваших последних сессий Wave",
       recentEmpty: "Запустите первую волну, чтобы увидеть историю здесь",
+      languages: "Предпочтительные языки",
+      languagesDesc: "Усиливать треки на выбранных языках в рекомендациях",
+      languagesNone: "Все языки",
     },
     toasts: {
       queueRestored: "Очередь восстановлена — нажмите play",
@@ -1254,6 +1334,18 @@ export const translations: Record<Locale, Translations> = {
       unblockTrack: "Разрешить в Wave",
       blockArtist: "Скрыть артиста из Wave",
       unblockArtist: "Показывать артиста в Wave",
+    },
+    onboarding: {
+      title: "Выберите любимых артистов",
+      subtitle: "Мы используем их для персональных рекомендаций. Выберите минимум 3.",
+      searchPlaceholder: "Поиск артистов…",
+      selected: (n: number) => `Выбрано: ${n}`,
+      continueBtn: "Начать слушать",
+      skip: "Пропустить",
+      suggestionTitle: "Похожие артисты",
+      suggestionDesc: "На основе ваших выборов",
+      minHint: "Выберите минимум 3 артистов",
+      alreadyPicked: "Уже выбран",
     },
   },
 };

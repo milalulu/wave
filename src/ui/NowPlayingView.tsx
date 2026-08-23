@@ -5,9 +5,10 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
-import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon } from "./icons";
 import { formatTime } from "../core/util/format";
 import { Spectrum } from "./Spectrum";
+import { extractDominantColor, preloadDominantColor } from "./extractColor";
 
 interface NowPlayingViewProps {
   onNavigate: (view: ViewKey) => void;
@@ -36,10 +37,40 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const radioActive = useApp((s) => s.radioActive);
   const seek = useApp((s) => s.seek);
   const services = useApp((s) => s.services);
+  const loadAlbum = useApp((s) => s.loadAlbum);
+  const setView = useApp((s) => s.setView);
+  const setVolume = useApp((s) => s.setVolume);
+  const toggleShuffle = useApp((s) => s.toggleShuffle);
+  const cycleRepeat = useApp((s) => s.cycleRepeat);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
 
   const track = snapshot.current;
   const liked = track ? likedIds.has(track.id) : false;
+
+  const [domColor, setDomColor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!track?.coverUrl) { setDomColor(null); return; }
+    const cached = extractDominantColor(track.coverUrl);
+    if (cached) { setDomColor(cached); return; }
+    preloadDominantColor(track.coverUrl);
+    setDomColor(null);
+    let frame: number;
+    const poll = () => {
+      const c = extractDominantColor(track.coverUrl!);
+      if (c) { setDomColor(c); return; }
+      frame = requestAnimationFrame(poll);
+    };
+    frame = requestAnimationFrame(poll);
+    return () => cancelAnimationFrame(frame);
+  }, [track?.coverUrl]);
+
+  const npStyle = useMemo(() => {
+    if (!domColor) return undefined;
+    return {
+      "--np-dominant": domColor,
+      "--np-bg-dynamic": `radial-gradient(ellipse at 30% 0%, ${domColor}33 0%, transparent 60%)`,
+    } as React.CSSProperties;
+  }, [domColor]);
 
   const activeIndex = useMemo(() => {
     if (!lyrics?.synced) return -1;
@@ -72,7 +103,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   };
 
   return (
-    <div className="home" ref={swipeDownRef}>
+    <div className="home np-dynamic-bg" ref={swipeDownRef} style={npStyle}>
       <div className="np-collapse">
         <button
           className="icon-btn"
@@ -96,7 +127,12 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
             <h1>{track.title}</h1>
             <p className="hero-artist">{track.artist}</p>
             <div className="hero-meta">
-              {track.album && (
+              {track.album && track.meta?.albumId != null && (
+                <span className="hero-meta-item hero-album-link" onClick={() => { loadAlbum(track.provider, String(track.meta!.albumId)); setView("album"); }}>
+                  {t("home").album}: <b>{track.album}</b>
+                </span>
+              )}
+              {track.album && !track.meta?.albumId && (
                 <span className="hero-meta-item">
                   {t("home").album}: <b>{track.album}</b>
                 </span>
@@ -156,6 +192,59 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               >
                 <ChartIcon size={18} />
               </button>
+            </div>
+            <div className="np-seek">
+              <span className="time">{formatTime(position)}</span>
+              <input
+                type="range"
+                className="seek"
+                min={0}
+                max={duration || 100}
+                step={1}
+                value={Math.min(position, duration || 0)}
+                aria-label="Seek"
+                onChange={(e) => seek(Number(e.target.value))}
+                onInput={(e) => seek(Number((e.target as HTMLInputElement).value))}
+              />
+              <span className="time">{formatTime(duration)}</span>
+            </div>
+            <div className="np-extras">
+              <button
+                className={`icon-btn ${snapshot.shuffle ? "active" : ""}`}
+                onClick={toggleShuffle}
+                title={t("player").shuffle}
+              >
+                <ShuffleIcon size={16} />
+              </button>
+              <button
+                className={`icon-btn ${snapshot.repeat !== "off" ? "active" : ""}`}
+                onClick={cycleRepeat}
+                title={snapshot.repeat === "one" ? t("player").repeatOne : t("player").repeat}
+              >
+                <RepeatIcon size={16} />
+              </button>
+              <button className="icon-btn" onClick={() => onNavigate("queue" as ViewKey)} title={t("nav").queue}>
+                <QueueIcon size={16} />
+              </button>
+              <div className="np-volume">
+                <button
+                  className="icon-btn"
+                  onClick={() => setVolume(snapshot.volume === 0 ? 100 : 0)}
+                  title={snapshot.volume === 0 ? t("player").mute : t("player").volume}
+                >
+                  {snapshot.volume === 0 ? <VolumeMuteIcon size={16} /> : <VolumeIcon size={16} />}
+                </button>
+                <input
+                  type="range"
+                  className="volume"
+                  min={0}
+                  max={100}
+                  value={Math.round(snapshot.volume * 100)}
+                  aria-label="Volume"
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  onInput={(e) => setVolume(Number((e.target as HTMLInputElement).value))}
+                />
+              </div>
             </div>
             {spectrumOpen && services?.engine && (
               <div className="np-spectrum">

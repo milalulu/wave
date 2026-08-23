@@ -56,6 +56,7 @@ export interface UserSettings {
   crossfadeMs: number;
   discoveryRate: number;
   historyDecayDays: number;
+  preferredLanguages: string[];
   autoGenerateThreshold: number;
   equalizer: number[];
   theme: string;

@@ -39,6 +39,9 @@ const DownloadsView = lazy(() =>
 const SettingsView = lazy(() =>
   import("./ui/SettingsView").then((m) => ({ default: m.SettingsView })),
 );
+const OnboardingView = lazy(() =>
+  import("./ui/OnboardingView").then((m) => ({ default: m.OnboardingView })),
+);
 
 function App() {
   const ready = useApp((s) => s.ready);
@@ -47,6 +50,7 @@ function App() {
   const setView = useApp((s) => s.setView);
   const navStack = useApp((s) => s.navStack);
   const goBack = useApp((s) => s.goBack);
+  const onboardingCompleted = useApp((s) => s.onboardingCompleted);
   const [query, setQuery] = useState("");
   const [focusToken, setFocusToken] = useState(0);
   const contentRef = useRef<HTMLElement>(null);
@@ -176,6 +180,18 @@ function App() {
 
   if (!ready) {
     return <div className="splash">Wave</div>;
+  }
+
+  if (!onboardingCompleted) {
+    return (
+      <div className="app">
+        <main className="content">
+          <Suspense fallback={<div className="splash">Wave</div>}>
+            <OnboardingView />
+          </Suspense>
+        </main>
+      </div>
+    );
   }
 
   const renderView = () => (

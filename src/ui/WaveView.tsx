@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeGenre, detectMoods } from "../core/recommendations/moodTaxonomy";
+import { AVAILABLE_LANGUAGES } from "../app/preferredLanguages";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
@@ -39,9 +40,13 @@ export function WaveView() {
   const setHistoryDecayDays = useApp((s) => s.setHistoryDecayDays);
   const autoContinue = useApp((s) => s.autoContinue);
   const setAutoContinue = useApp((s) => s.setAutoContinue);
+  const preferredLanguages = useApp((s) => s.preferredLanguages);
+  const setPreferredLanguages = useApp((s) => s.setPreferredLanguages);
   const blockedTrackIds = useApp((s) => s.blockedTrackIds);
   const blockedArtists = useApp((s) => s.blockedArtists);
   const unblockArtist = useApp((s) => s.unblockArtist);
+  const unblockAllTracks = useApp((s) => s.unblockAllTracks);
+  const unblockAllArtists = useApp((s) => s.unblockAllArtists);
   const snapshot = useApp((s) => s.snapshot);
 
   const [genreStats, setGenreStats] = useState<Map<string, number>>(new Map());
@@ -51,8 +56,10 @@ export function WaveView() {
 
   const loadStats = useCallback(async () => {
     if (!services) return;
-    const history = await services.history.getHistory(2000);
-    const liked = await services.library.getLikedTracks();
+    const [history, liked] = await Promise.all([
+      services.history.getHistory(500),
+      services.library.getLikedTracks(),
+    ]);
     const genres = new Map<string, number>();
     const moodCounts: Record<string, number> = {};
     for (const entry of history) {
@@ -85,11 +92,12 @@ export function WaveView() {
     void loadStats();
   }, [loadStats, likedIds]);
 
-  const sortedGenres = [...genreStats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const sortedGenres = useMemo(() => [...genreStats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8), [genreStats]);
   const maxGenreCount = sortedGenres[0]?.[1] ?? 0;
-  const sortedMoods = Object.entries(moodStats)
+  const firstPreviewCurrent = useMemo(() => previewTracks.findIndex((tr) => tr.id === snapshot.current?.id), [previewTracks, snapshot.current?.id]);
+  const sortedMoods = useMemo(() => Object.entries(moodStats)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 8);
+    .slice(0, 8), [moodStats]);
   const maxMoodCount = sortedMoods[0]?.[1] ?? 0;
 
   return (
@@ -227,6 +235,42 @@ export function WaveView() {
           </div>
           <p className="wave-control-desc">{t("wave").autoContinueDesc}</p>
         </div>
+
+        {/* Languages */}
+        <div className="wave-control-card wave-control-languages">
+          <div className="wave-control-header">
+            <span>{t("wave").languages}</span>
+          </div>
+          <p className="wave-control-desc">{t("wave").languagesDesc}</p>
+          <div className="wave-lang-chips">
+            {AVAILABLE_LANGUAGES.map((lang) => {
+              const active = preferredLanguages.includes(lang.code);
+              return (
+                <button
+                  key={lang.code}
+                  className={`wave-lang-chip ${active ? "active" : ""}`}
+                  onClick={() => {
+                    if (active) {
+                      setPreferredLanguages(preferredLanguages.filter((c) => c !== lang.code));
+                    } else {
+                      setPreferredLanguages([...preferredLanguages, lang.code]);
+                    }
+                  }}
+                >
+                  {lang.label}
+                </button>
+              );
+            })}
+          </div>
+          {preferredLanguages.length > 0 && (
+            <button
+              className="btn small wave-lang-clear"
+              onClick={() => setPreferredLanguages([])}
+            >
+              {t("wave").languagesNone}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Preview ── */}
@@ -246,7 +290,7 @@ export function WaveView() {
                 key={`${track.id}:${i}`}
                 track={track}
                 index={i}
-                nowPlaying={snapshot.current?.id === track.id}
+                nowPlaying={firstPreviewCurrent === i}
               />
             ))}
           </div>
@@ -265,6 +309,12 @@ export function WaveView() {
         <div className="wave-section">
           <h2>{t("wave").blocked}</h2>
           <p className="wave-section-desc">{t("wave").blockedDesc}</p>
+          {blockedTrackIds.length > 0 && (
+            <div className="wave-blocked-row">
+              <span className="wave-blocked-label">{t("wave").blockedTracks} ({blockedTrackIds.length})</span>
+              <button className="btn small" onClick={unblockAllTracks}>{t("wave").unblockAll}</button>
+            </div>
+          )}
           <div className="wave-blocked-list">
             {blockedArtists.map((name) => (
               <div key={`a:${name}`} className="wave-blocked-chip">
@@ -278,6 +328,9 @@ export function WaveView() {
                 </button>
               </div>
             ))}
+            {blockedArtists.length > 1 && (
+              <button className="btn small" onClick={unblockAllArtists}>{t("wave").unblockAll}</button>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../types";
-import type { Storage } from "./Storage";
+import type { QueueState, Storage } from "./Storage";
 
 export class MemoryStorage implements Storage {
   private liked = new Map<string, Track>();
@@ -7,6 +7,7 @@ export class MemoryStorage implements Storage {
   private artists = new Map<string, Artist>();
   private history: HistoryEntry[] = [];
   private playlists = new Map<string, Playlist>();
+  private queueState: QueueState | null = null;
 
   async init(): Promise<void> {}
 
@@ -89,5 +90,13 @@ export class MemoryStorage implements Storage {
 
   async removePlaylist(id: string): Promise<void> {
     this.playlists.delete(id);
+  }
+
+  async saveQueueState(state: QueueState): Promise<void> {
+    this.queueState = state;
+  }
+
+  async loadQueueState(): Promise<QueueState | null> {
+    return this.queueState;
   }
 }

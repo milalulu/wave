@@ -14,6 +14,7 @@ export function ArtistDetailView() {
   const goBack = useApp((s) => s.goBack);
   const services = useApp((s) => s.services);
   const [similar, setSimilar] = useState<Track[]>([]);
+  const currentId = useApp((s) => s.snapshot.current?.id ?? null);
 
   useEffect(() => {
     if (!services || !artistDetail || artistDetail.topTracks.length === 0) return;
@@ -37,6 +38,8 @@ export function ArtistDetailView() {
   }
 
   const { artist, topTracks, albums } = artistDetail;
+  const firstTopCurrent = topTracks.findIndex((tr) => tr.id === currentId);
+  const firstSimilarCurrent = similar.findIndex((tr) => tr.id === currentId);
 
   const handlePlayAll = async () => {
     await play(topTracks);
@@ -79,7 +82,7 @@ export function ArtistDetailView() {
           <h2>{tf("library").topTracks} ({topTracks.length})</h2>
           <div className="track-list">
             {topTracks.map((track: Track, i: number) => (
-              <TrackRow key={track.id} track={track} index={i + 1} />
+              <TrackRow key={`${track.id}:${i}`} track={track} index={i + 1} nowPlaying={firstTopCurrent === i} />
             ))}
           </div>
         </section>
@@ -101,7 +104,7 @@ export function ArtistDetailView() {
           <h2>{t("player").similar}</h2>
           <div className="track-list">
             {similar.map((track: Track, i: number) => (
-              <TrackRow key={track.id} track={track} index={i + 1} />
+              <TrackRow key={`${track.id}:${i}`} track={track} index={i + 1} nowPlaying={firstSimilarCurrent === i} />
             ))}
           </div>
         </section>

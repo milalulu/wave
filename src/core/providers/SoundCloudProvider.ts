@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
@@ -15,7 +16,7 @@ export interface SoundCloudDlpGateway {
   stream(url: string): Promise<string>;
 }
 
-const STREAM_TTL_MS = 20 * 60 * 1000;
+const STREAM_TTL_MS = 5 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 
 function cover(thumb?: string): string | undefined {
@@ -63,10 +64,27 @@ export class SoundCloudProvider implements MusicProvider {
     const url = (track.meta?.scUrl as string | undefined) ?? trackUrl(scId);
     const hit = this.streamCache.get(scId);
     if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
+
+    return this.resolveFresh(scId, url);
+  }
+
+  private async resolveFresh(scId: string, url: string): Promise<string> {
+    try {
+      const direct = await invoke<string>("sc_resolve_stream", { trackUrl: url });
+      this.streamCache.set(scId, { url: direct, at: Date.now() });
+      this.prune(this.streamCache, STREAM_TTL_MS);
+      return direct;
+    } catch {}
+
     const direct = await this.gateway.stream(url);
     this.streamCache.set(scId, { url: direct, at: Date.now() });
     this.prune(this.streamCache, STREAM_TTL_MS);
     return direct;
+  }
+
+  invalidateStream(trackId: string): void {
+    const scId = (trackId.split(":").pop()) ?? "";
+    if (scId) this.streamCache.delete(scId);
   }
 
   private prune<K>(cache: Map<K, { at: number }>, ttl: number): void {

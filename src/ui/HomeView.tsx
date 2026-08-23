@@ -222,12 +222,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           <div className="track-list">
             {(() => {
               const currentId = snapshot.current?.id;
+              const firstCurrent = currentId != null ? recent.findIndex((e) => e.track.id === currentId) : -1;
               return recent.map((entry, i) => (
                 <TrackRow
                   key={`${entry.track.id}:${entry.playedAt}`}
                   track={entry.track}
                   index={i + 1}
-                  nowPlaying={currentId != null && entry.track.id === currentId}
+                  nowPlaying={firstCurrent === i}
                 />
               ));
             })()}

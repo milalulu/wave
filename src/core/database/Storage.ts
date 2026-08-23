@@ -1,5 +1,11 @@
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../types";
 
+export interface QueueState {
+  tracks: Track[];
+  index: number;
+  position: number;
+}
+
 export interface Storage {
   init(): Promise<void>;
   isLiked(trackId: string): Promise<boolean>;
@@ -22,4 +28,6 @@ export interface Storage {
   addPlaylist(playlist: Playlist): Promise<void>;
   updatePlaylist(playlist: Playlist): Promise<void>;
   removePlaylist(id: string): Promise<void>;
+  saveQueueState(state: QueueState): Promise<void>;
+  loadQueueState(): Promise<QueueState | null>;
 }

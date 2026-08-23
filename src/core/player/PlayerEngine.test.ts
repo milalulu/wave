@@ -498,8 +498,8 @@ describe("PlayerEngine resolveUri", () => {
       await vi.advanceTimersByTimeAsync(PLAY_START_TIMEOUT_MS + 1);
       await started;
       expect(engine.snapshot.state).toBe("loading");
-      engine.addToQueue(tracks[2], true);
-      expect(engine.snapshot.current?.id).toBe("c");
+      engine.addToQueue({ id: "d", provider: "test", uri: "u://d", title: "D" }, true);
+      expect(engine.snapshot.current?.id).toBe("d");
       expect(engine.snapshot.queue).toHaveLength(4);
       engine.destroy();
     } finally {
