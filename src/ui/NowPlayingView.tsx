@@ -5,7 +5,7 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
-import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon } from "./icons";
 import { formatTime } from "../core/util/format";
 import { Spectrum } from "./Spectrum";
 import { extractDominantColor, preloadDominantColor } from "./extractColor";
@@ -160,9 +160,15 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               </span>
             </div>
             <div className="hero-actions">
-              <button className="btn btn-primary" onClick={() => void togglePlay()}>
-                {snapshot.state === "playing" ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
-                {snapshot.state === "playing" ? t("player").pause : t("player").play}
+              <button className="btn btn-primary" onClick={() => void togglePlay()} disabled={snapshot.state === "loading"}>
+                {snapshot.state === "loading" ? (
+                  <SpinnerIcon size={18} />
+                ) : snapshot.state === "playing" ? (
+                  <PauseIcon size={18} />
+                ) : (
+                  <PlayIcon size={18} />
+                )}
+                {snapshot.state === "loading" ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
               </button>
               <button className="btn" onClick={() => void previous()}>
                 <PreviousIcon size={18} />
@@ -202,7 +208,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 max={duration || 100}
                 step={1}
                 value={Math.min(position, duration || 0)}
-                aria-label="Seek"
+                aria-label={t("player").seek}
                 onChange={(e) => seek(Number(e.target.value))}
                 onInput={(e) => seek(Number((e.target as HTMLInputElement).value))}
               />

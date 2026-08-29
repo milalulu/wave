@@ -1,6 +1,6 @@
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 
 fn menu(app: &AppHandle) -> tauri::menu::Menu<tauri::Wry> {
     let show = MenuItemBuilder::with_id("show", "Show / Hide Wave")
@@ -34,6 +34,7 @@ fn show_main(app: &AppHandle) {
 }
 
 pub fn start(app: &tauri::App) {
+    let handle = app.handle().clone();
     let mut builder = TrayIconBuilder::with_id("wave-tray")
         .tooltip("Wave")
         .menu(&menu(app.handle()))
@@ -66,5 +67,32 @@ pub fn start(app: &tauri::App) {
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
-    let _ = builder.build(app).ok();
+    let _tray = builder.build(app);
+
+    let tray_handle = handle.clone();
+    let _ = handle.listen("tray-state", move |event| {
+        let Ok(payload) = serde_json::from_str::<serde_json::Value>(event.payload()) else {
+            return;
+        };
+        let title = payload.get("title").and_then(|v| v.as_str()).unwrap_or("");
+        let artist = payload.get("artist").and_then(|v| v.as_str()).unwrap_or("");
+        let tooltip = if title.is_empty() {
+            "Wave".to_string()
+        } else {
+            let state = payload
+                .get("playing")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let glyph = if state { "▶" } else { "⏸" };
+            if artist.is_empty() {
+                format!("Wave — {glyph} {title}")
+            } else {
+                format!("Wave — {glyph} {title} — {artist}")
+            }
+        };
+        if let Some(tray) = tray_handle.tray_by_id("wave-tray") {
+            let _ = tray.set_tooltip(Some(&tooltip));
+        }
+    });
 }
+

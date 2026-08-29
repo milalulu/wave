@@ -9,6 +9,7 @@ import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { SearchIcon, RefreshCwIcon } from "./icons";
+import { EmptyState } from "./EmptyState";
 
 interface SearchViewProps {
   query: string;
@@ -174,7 +175,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
           </button>
         )}
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? t("common").loading : t("search").placeholder}
+          {loading ? t("common").loading : t("common").search}
         </button>
       </form>
 
@@ -204,7 +205,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         <p className="error">
           {error}{" "}
           <button className="btn small" onClick={() => { setError(null); onQuery(query); }}>
-            <RefreshCwIcon size={14} /> Retry
+            <RefreshCwIcon size={14} /> {t("common").retry}
           </button>
         </p>
       )}
@@ -319,7 +320,12 @@ function Results({
       )}
 
       {tracks.length === 0 && albums.length === 0 && artists.length === 0 && (
-        <p className="muted">{t("search").noResults}</p>
+        <EmptyState
+          title={t("search").noResults}
+          message={t("search").noResultsHint}
+          icon={<SearchIcon size={28} />}
+          compact
+        />
       )}
     </div>
   );

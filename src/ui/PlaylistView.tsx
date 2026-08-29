@@ -183,6 +183,20 @@ export function PlaylistView() {
     clearDrag();
   };
 
+  const handleExternalDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData("application/x-wave-track");
+    if (raw && selected) {
+      try {
+        const track = JSON.parse(raw) as Track;
+        void useApp.getState().addToPlaylist(selected.id, track);
+      } catch {
+        // ignore malformed payload
+      }
+    }
+    clearDrag();
+  };
+
   return (
     <div className="view playlist-view">
       <header className="view-header">
@@ -289,7 +303,11 @@ export function PlaylistView() {
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
-                        handleDrop(i);
+                        if (dragIndex === null && e.dataTransfer.getData("application/x-wave-track")) {
+                          handleExternalDrop(e);
+                        } else {
+                          handleDrop(i);
+                        }
                       }}
                     >
                       <TrackRow
@@ -312,7 +330,11 @@ export function PlaylistView() {
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    handleDrop(selectedTracks.length);
+                    if (dragIndex === null && e.dataTransfer.getData("application/x-wave-track")) {
+                      handleExternalDrop(e);
+                    } else {
+                      handleDrop(selectedTracks.length);
+                    }
                   }}
                 >
                   <span className="muted">{t("playlist").dropHere}</span>

@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useI18n } from "./I18nContext";
 import { useApp } from "../app/stores";
+import type { Track } from "../core/types";
 import { Cover } from "./Cover";
 import { VirtualList } from "./VirtualList";
+import { EmptyState } from "./EmptyState";
 import { HeartIcon, TrashIcon, RadioIcon, PlaylistIcon, MoreIcon } from "./icons";
 
 const LONG_PRESS_MS = 400;
@@ -16,6 +18,7 @@ export function QueueView() {
   const toggleLike = useApp((s) => s.toggleLike);
   const clearQueue = useApp((s) => s.clearQueue);
   const moveQueueItem = useApp((s) => s.moveQueueItem);
+  const addToQueueAtIndex = useApp((s) => s.addToQueueAtIndex);
   const removeFromQueue = useApp((s) => s.removeFromQueue);
   const startRadio = useApp((s) => s.startRadio);
   const playlists = useApp((s) => s.playlists);
@@ -30,6 +33,7 @@ export function QueueView() {
     return () => window.removeEventListener("click", close);
   }, [menuIndex]);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [externalDrag, setExternalDrag] = useState(false);
   const dropAbove = useRef(false);
   const touchStartY = useRef(0);
   const touchStartX = useRef(0);
@@ -107,17 +111,42 @@ export function QueueView() {
           {t("queue").clear}
         </button>
       </div>
+      <div
+        className="track-list"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (Array.from(e.dataTransfer.types).includes("application/x-wave-track")) setExternalDrag(true);
+        }}
+        onDrop={(e) => {
+          const raw = e.dataTransfer.getData("application/x-wave-track");
+          if (raw) {
+            e.preventDefault();
+            try {
+              addToQueueAtIndex(queue.length, JSON.parse(raw) as Track);
+            } catch {
+              // ignore malformed payload
+            }
+          }
+          setDragIndex(null);
+          setDropTarget(null);
+          setExternalDrag(false);
+        }}
+      >
       {queue.length === 0 ? (
-        <p className="muted">{t("queue").empty}</p>
+        <EmptyState
+          title={t("queue").empty}
+          message={t("queue").emptyHint}
+          icon={<PlaylistIcon size={28} />}
+        />
       ) : (
-        <div className="track-list">
           <VirtualList
             items={queue}
             rowKey={(track, i) => `${track.id}:${i}`}
             renderRow={(track, i) => {
               const isCurrent = queueIndex >= 0 && i === queueIndex;
               const isDragging = dragIndex === i;
-              const isDropTarget = dropTarget === i && dragIndex !== null && dragIndex !== i;
+              const isDropTarget = dropTarget === i && dragIndex !== i && (dragIndex !== null || externalDrag);
               return (
                 <div
                   className={[
@@ -134,11 +163,14 @@ export function QueueView() {
                     e.dataTransfer.setData("text/plain", String(i));
                     setDragIndex(i);
                   }}
-                  onDragEnd={() => { setDragIndex(null); setDropTarget(null); }}
+                  onDragEnd={() => { setDragIndex(null); setDropTarget(null); setExternalDrag(false); }}
                   onDragOver={(e) => {
-                    if (dragIndex === null || dragIndex === i) { e.preventDefault(); return; }
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
+                    const types = e.dataTransfer.types;
+                    const isExternal = !Array.from(types).includes("text/plain");
+                    if (isExternal !== externalDrag) setExternalDrag(isExternal);
+                    if (dragIndex === i) { setDropTarget(null); return; }
                     const above = getDropPosition(e);
                     dropAbove.current = above;
                     setDropTarget(i);
@@ -146,7 +178,25 @@ export function QueueView() {
                   onDragLeave={() => { if (dropTarget === i) setDropTarget(null); }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (dragIndex === null || dragIndex === i) return;
+                    const breakdownType = Array.from(e.dataTransfer.types).includes("text/plain");
+                    if (!breakdownType && dragIndex === null) {
+                      const raw = e.dataTransfer.getData("application/x-wave-track");
+                      if (raw) {
+                        try {
+                          const track = JSON.parse(raw) as Track;
+                          const above = dropAbove.current;
+                          const toIndex = above ? i : i + 1;
+                          addToQueueAtIndex(toIndex, track);
+                        } catch {
+                          setDropTarget(null);
+                        }
+                      }
+                      setDropTarget(null);
+                      setDragIndex(null);
+                      setExternalDrag(false);
+                      return;
+                    }
+                    if (dragIndex === null || dragIndex === i) { setDropTarget(null); return; }
                     const above = dropAbove.current;
                     const toIndex = above ? i : i + 1;
                     const adjustedFrom = dragIndex < toIndex ? dragIndex : dragIndex;
@@ -156,6 +206,7 @@ export function QueueView() {
                     }
                     setDragIndex(null);
                     setDropTarget(null);
+                    setExternalDrag(false);
                   }}
                   onTouchStart={(e) => handleTouchStart(e, i)}
                   onTouchMove={handleTouchMove}
@@ -208,8 +259,8 @@ export function QueueView() {
               );
             }}
           />
-        </div>
       )}
+      </div>
     </div>
   );
 }

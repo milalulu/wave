@@ -80,8 +80,8 @@ interface AppState {
   duration: number;
   likedIds: Set<string>;
   localTracks: Track[];
-  notices: { id: number; message: string }[];
-  notify: (message: string) => void;
+  notices: { id: number; message: string; actionLabel?: string; onAction?: () => void }[];
+  notify: (message: string, action?: { label: string; run: () => void }) => void;
   dismissNotice: (id: number) => void;
   logs: { time: number; message: string }[];
   pushLog: (message: string) => void;
@@ -125,8 +125,9 @@ interface AppState {
   setEqualizer: (gains: number[]) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
-  addToQueue: (track: Track) => void;
-  playNext: (track: Track) => void;
+  addToQueue: (track: Track) => boolean;
+  addToQueueAtIndex: (index: number, track: Track) => boolean;
+  playNext: (track: Track) => Promise<boolean>;
   clearQueue: () => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
@@ -244,11 +245,22 @@ export const useApp = create<AppState>()((set, get) => ({
   likedIds: new Set<string>(),
   localTracks: [],
   notices: [],
-  notify: (message) => {
+  notify: (message, action) => {
     const id = Date.now() + Math.random();
-    set((s) => ({ notices: [...s.notices, { id, message }].slice(-5) }));
-    window.setTimeout(() => get().dismissNotice(id), 5000);
     get().pushLog(message);
+    set((s) => ({
+      notices: [
+        ...s.notices,
+        { id, message, actionLabel: action?.label, onAction: action?.run },
+      ].slice(-5),
+    }));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      get().dismissNotice(id);
+    };
+    window.setTimeout(finish, 5000);
   },
   dismissNotice: (id) => {
     set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }));
@@ -344,9 +356,22 @@ export const useApp = create<AppState>()((set, get) => ({
   deletePlaylist: async (id) => {
     const { services } = get();
     if (!services) return;
+    const existing = get().playlists.find((p) => p.id === id);
     await services.storage.removePlaylist(id);
     await get().loadPlaylists();
     set((s) => ({ selectedPlaylistId: s.selectedPlaylistId === id ? null : s.selectedPlaylistId }));
+    if (existing) {
+      get().notify(t("toasts").playlistDeleted, {
+        label: t("common").undo,
+        run: () => {
+          const srv = useApp.getState().services;
+          if (!srv) return;
+          void srv.storage
+            .addPlaylist(existing)
+            .then(() => get().loadPlaylists());
+        },
+      });
+    }
   },
   addToPlaylist: async (playlistId, track) => {
     const { services } = get();
@@ -367,11 +392,32 @@ export const useApp = create<AppState>()((set, get) => ({
     if (!services) return;
     const pl = await services.storage.getPlaylist(playlistId);
     if (!pl) return;
+    const removedIdx = pl.trackIds.indexOf(trackId);
+    const removedTrack = pl.tracks?.find((t) => t.id === trackId);
     pl.trackIds = pl.trackIds.filter((id) => id !== trackId);
     pl.tracks = pl.tracks?.filter((t) => t.id !== trackId);
     pl.updatedAt = Date.now();
     await services.storage.updatePlaylist(pl);
     await get().loadPlaylists();
+    if (removedTrack && removedIdx >= 0) {
+      get().notify(t("toasts").trackRemovedFromPlaylist, {
+        label: t("common").undo,
+        run: () => {
+          const srv = useApp.getState().services;
+          if (!srv) return;
+          void srv.storage.getPlaylist(playlistId).then((target) => {
+            if (!target) return;
+            const at = Math.min(Math.max(removedIdx, 0), target.trackIds.length);
+            target.trackIds.splice(at, 0, removedTrack.id);
+            const tracks = [...(target.tracks ?? [])];
+            tracks.splice(at, 0, removedTrack);
+            target.tracks = tracks;
+            target.updatedAt = Date.now();
+            return srv.storage.updatePlaylist(target).then(() => get().loadPlaylists());
+          });
+        },
+      });
+    }
   },
   reorderPlaylist: (playlistId, from, to) => {
     const { services } = get();
@@ -523,10 +569,18 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   addToQueue: (track) => {
-    get().services?.engine.addToQueue(track);
+    return get().services?.engine.addToQueue(track) ?? false;
+  },
+  addToQueueAtIndex: (index, track) => {
+    const engine = get().services?.engine;
+    if (!engine) return false;
+    const seq = engine.snapshot.queue;
+    const idx = Math.min(Math.max(index, 0), seq.length);
+    engine.insertAtQueueIndex(idx, track);
+    return true;
   },
   playNext: (track) => {
-    get().services?.engine.playNext(track);
+    return get().services?.engine.playNext(track) ?? Promise.resolve(false);
   },
 
   clearQueue: () => {
@@ -538,7 +592,22 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   removeFromQueue: (index) => {
-    get().services?.engine.removeFromQueue(index);
+    const { services, snapshot } = get();
+    if (!services) return;
+    const track = snapshot.queue[index];
+    services.engine.removeFromQueue(index);
+    if (track) {
+      get().notify(t("toasts").trackRemovedFromQueue, {
+        label: t("common").undo,
+        run: () => {
+          const engine = useApp.getState().services?.engine;
+          if (!engine) return;
+          const seq = engine.snapshot.queue;
+          const idx = Math.min(Math.max(index, 0), seq.length);
+          engine.insertAtQueueIndex(idx, track);
+        },
+      });
+    }
   },
 
   saveQueueAsPlaylist: async (name) => {
@@ -551,8 +620,12 @@ export const useApp = create<AppState>()((set, get) => ({
     const { services, snapshot } = get();
     const target = track ?? snapshot.current;
     if (!services || !target) return;
-    await services.library.toggleLike(target);
+    const nowLiked = await services.library.toggleLike(target);
     await get().refreshLibrary();
+    get().notify(
+      nowLiked ? t("common").like : t("common").unlike,
+      { label: t("common").undo, run: () => void useApp.getState().toggleLike(target) },
+    );
   },
 
   updateLocalTrack: (trackId, meta) => {

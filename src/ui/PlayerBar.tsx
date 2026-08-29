@@ -125,7 +125,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
       className={`play-btn ${hasError ? "error" : ""}`}
       onClick={() => void togglePlay()}
       disabled={false}
-      title={hasError ? "Retry" : buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
+      title={hasError ? t("common").retry : buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
     >
       {hasError ? (
         <RefreshCwIcon size={24} />
@@ -161,7 +161,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             step={1}
             value={Math.min(position, duration || 0)}
             disabled={!track}
-            aria-label="Seek"
+            aria-label={t("player").seek}
             style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
             onChange={(e) => seek(Number(e.target.value))}
           />
@@ -317,7 +317,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             step={1}
             value={Math.min(position, duration || 0)}
             disabled={!track}
-            aria-label="Seek"
+            aria-label={t("player").seek}
             style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
             onChange={(e) => seek(Number(e.target.value))}
           />
@@ -349,6 +349,26 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         <div
           className="volume-track"
           ref={volTrackRef}
+          role="slider"
+          tabIndex={0}
+          aria-label={t("player").volume}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={volDisplay}
+          aria-valuetext={`${volDisplay}%`}
+          onKeyDown={(e) => {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            const current = volDrag ?? Math.round(snapshot.volume * 100);
+            let next: number;
+            if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(100, current + 5);
+            else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, current - 5);
+            else if (e.key === "Home") next = 0;
+            else if (e.key === "End") next = 100;
+            else return;
+            e.preventDefault();
+            setVolDrag(next);
+            commitVolume(next);
+          }}
           onPointerDown={(e) => {
             volDragging.current = true;
             e.currentTarget.setPointerCapture(e.pointerId);

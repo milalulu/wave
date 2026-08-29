@@ -64,8 +64,8 @@ export class Queue {
     this.recordHistory();
   }
 
-  append(track: Track): void {
-    if (this.tracks.some((t) => t.id === track.id)) return;
+  append(track: Track): boolean {
+    if (this.tracks.some((t) => t.id === track.id)) return false;
     this.tracks.push(track);
     const newIdx = this.tracks.length - 1;
     const hasCurrent = this.current() !== null;
@@ -79,10 +79,11 @@ export class Queue {
     } else {
       this.order.push(newIdx);
     }
+    return true;
   }
 
-  insertNext(track: Track): void {
-    if (this.tracks.some((t) => t.id === track.id)) return;
+  insertNext(track: Track): boolean {
+    if (this.tracks.some((t) => t.id === track.id)) return false;
     this.tracks.push(track);
     const newIdx = this.tracks.length - 1;
     if (this.current() !== null) {
@@ -91,6 +92,7 @@ export class Queue {
     } else {
       this.order.push(newIdx);
     }
+    return true;
   }
 
   removeAt(trackIndex: number): Track | null {
@@ -111,6 +113,28 @@ export class Queue {
       if (this.pos < 0) this.pos = 0;
     }
     return removed;
+  }
+
+  insertAt(trackIndex: number, track: Track): void {
+    const idx = Math.min(Math.max(trackIndex, 0), this.tracks.length);
+    if (this.tracks.some((t) => t.id === track.id)) return;
+    const current = this.current();
+    const currentOldIdx = current ? this.tracks.indexOf(current) : -1;
+    this.tracks.splice(idx, 0, track);
+    if (!this.shuffle) {
+      this.order = this.tracks.map((_, i) => i);
+    } else {
+      this.order = this.tracks.map((_, i) => i);
+      this.fisherYates(this.order);
+    }
+    if (current) {
+      const ni = this.tracks.indexOf(current);
+      this.pos = ni >= 0 ? this.order.indexOf(ni) : -1;
+    } else {
+      const ci = this.tracks.indexOf(track);
+      this.pos = ci >= 0 ? this.order.indexOf(ci) : -1;
+    }
+    void currentOldIdx;
   }
 
   

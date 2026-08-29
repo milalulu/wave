@@ -38,6 +38,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [editingTags, setEditingTags] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuFocus, setMenuFocus] = useState(-1);
   const isCurrent = isCurrentTrack;
   const noPlay = track.meta?.noPlay === true;
   const canDownload = !noPlay && Boolean(track.meta?.url ?? track.meta?.audioUrl ?? track.uri);
@@ -94,6 +95,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
 
   const openMenu = (x?: number, y?: number): void => {
     setMenuPos(x !== undefined && y !== undefined ? { x, y } : null);
+    setMenuFocus(-1);
     setMenuOpen(true);
   };
 
@@ -108,6 +110,15 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
     if (!noPlay) void play([track], 0);
   };
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (items.length > 0) {
+      items[0]?.focus();
+      setMenuFocus(0);
+    }
+  }, [menuOpen]);
+
   return (
     <div
       className={`track-row ${isCurrent ? "track-current" : ""} ${noPlay ? "track-noplay" : ""}`}
@@ -116,7 +127,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
       role="button"
       aria-label={`${track.title} — ${track.artist ?? ""}`}
       onClick={onPlay}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlay(); } }}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPlay(); } }}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("application/x-wave-track", JSON.stringify(track));
@@ -198,35 +209,69 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
           ref={menuRef}
           className={`row-menu ${menuPos ? "context" : ""}`}
           style={menuPos ? { left: menuPos.x, top: menuPos.y } : undefined}
+          role="menu"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+            if (items.length === 0) return;
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setMenuOpen(false);
+              return;
+            }
+            if (e.key === "Enter" || e.key === " ") {
+              if (menuFocus >= 0 && menuFocus < items.length) {
+                e.preventDefault();
+                items[menuFocus]?.click();
+              }
+              return;
+            }
+            const dir =
+              e.key === "ArrowDown" || e.key === "ArrowRight" ? 1
+              : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1
+              : e.key === "Home" ? -Infinity
+              : e.key === "End" ? Infinity
+              : 0;
+            if (dir === 0) return;
+            e.preventDefault();
+            const start = menuFocus < 0 ? (dir === -1 ? items.length - 1 : 0) : menuFocus;
+            const next = dir === -Infinity ? 0 : dir === Infinity ? items.length - 1 : start + dir;
+            const clamped = ((next % items.length) + items.length) % items.length;
+            setMenuFocus(clamped);
+            items[clamped]?.focus();
+          }}
+          onBlur={() => { if (!menuRef.current?.contains(document.activeElement)) setMenuOpen(false); }}
         >
-          <button onClick={() => { void play([track], 0); setMenuOpen(false); }}>
+          <button role="menuitem" tabIndex={-1} onClick={() => { void play([track], 0); setMenuOpen(false); }}>
             <PlayIcon size={14} /> {t("common").play}
           </button>
-          <button onClick={() => { addToQueue(track); notify(t("toasts").queueAdded); setMenuOpen(false); }}>
+          <button role="menuitem" tabIndex={-1} onClick={() => { const added = addToQueue(track); notify(added ? t("toasts").queueAdded : t("toasts").alreadyInQueue); setMenuOpen(false); }}>
             {t("common").addToQueue}
           </button>
-          <button onClick={() => { playNext(track); notify(t("toasts").playNextAdded); setMenuOpen(false); }}>
+          <button role="menuitem" tabIndex={-1} onClick={() => { void (async () => { const added = await playNext(track); notify(added ? t("toasts").playNextAdded : t("toasts").alreadyInQueue); })(); setMenuOpen(false); }}>
             {t("common").playNext}
           </button>
-          <button onClick={() => { void startRadio(track); notify(t("toasts").radioStarted); setMenuOpen(false); }}>
+          <button role="menuitem" tabIndex={-1} onClick={() => { void startRadio(track); notify(t("toasts").radioStarted); setMenuOpen(false); }}>
             <RadioIcon size={14} /> {t("player").radio}
           </button>
           {track.artist && (
-            <button onClick={() => { toggleBlockArtist(track.artist ?? ""); notify(artistBlocked ? t("toasts").artistUnblocked : t("toasts").artistBlocked); setMenuOpen(false); }}>
+            <button role="menuitem" tabIndex={-1} onClick={() => { toggleBlockArtist(track.artist ?? ""); notify(artistBlocked ? t("toasts").artistUnblocked : t("toasts").artistBlocked); setMenuOpen(false); }}>
               {artistBlocked ? t("trackMenu").unblockArtist : t("trackMenu").blockArtist}
             </button>
           )}
-          <button onClick={() => { toggleBlockTrack(track); notify(trackBlocked ? t("toasts").trackUnblocked : t("toasts").trackBlocked); setMenuOpen(false); }}>
+          <button role="menuitem" tabIndex={-1} onClick={() => { toggleBlockTrack(track); notify(trackBlocked ? t("toasts").trackUnblocked : t("toasts").trackBlocked); setMenuOpen(false); }}>
             {trackBlocked ? t("trackMenu").unblockTrack : t("trackMenu").blockTrack}
           </button>
           {canDownload && (
-            <button onClick={() => { void downloadTrack(track); setMenuOpen(false); }}>
+            <button role="menuitem" tabIndex={-1} onClick={() => { void downloadTrack(track); setMenuOpen(false); }}>
               {t("player").download}
             </button>
           )}
           {isLocal && (
             <button
+              role="menuitem"
+              tabIndex={-1}
               onClick={() => {
                 setEditingTags(true);
                 setMenuOpen(false);
@@ -242,6 +287,8 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
           {playlists.map((pl) => (
             <button
               key={pl.id}
+              role="menuitem"
+              tabIndex={-1}
               onClick={() => {
                 void addToPlaylist(pl.id, track);
                 setMenuOpen(false);
@@ -252,6 +299,8 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
           ))}
           {inPlaylist && (
             <button
+              role="menuitem"
+              tabIndex={-1}
               className="danger"
               onClick={() => {
                 if (selectedPlaylistId) void removeFromPlaylist(selectedPlaylistId, track.id);

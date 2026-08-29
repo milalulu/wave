@@ -243,13 +243,14 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     await this.playTracks([track], 0);
   }
 
-  async playNext(track: Track): Promise<void> {
+  async playNext(track: Track): Promise<boolean> {
     const hasCurrent = this.queue.current() !== null;
-    this.queue.insertNext(track);
+    const added = this.queue.insertNext(track);
     this.emitQueue();
     if (!hasCurrent) {
       await this.playCurrent();
     }
+    return added;
   }
 
   
@@ -441,8 +442,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.fallbackUsed = false;
   }
 
-  addToQueue(track: Track, play = false): void {
-    this.queue.append(track);
+  addToQueue(track: Track, play = false): boolean {
+    const added = this.queue.append(track);
     if (play) {
       const trackIndex = this.queue.length - 1;
       const pos = this.queue.positionOf(trackIndex);
@@ -451,11 +452,18 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     }
     this.emitQueue();
     void this.prefetchBatch();
+    return added;
   }
 
   removeFromQueue(trackIndex: number): void {
     this.queue.removeAt(trackIndex);
     this.emitQueue();
+  }
+
+  insertAtQueueIndex(trackIndex: number, track: Track): void {
+    this.queue.insertAt(trackIndex, track);
+    this.emitQueue();
+    void this.prefetchBatch();
   }
 
   moveInQueue(fromIndex: number, toIndex: number): void {

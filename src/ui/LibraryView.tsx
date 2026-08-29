@@ -22,10 +22,12 @@ export function LibraryView() {
   const [liked, setLiked] = useState<Track[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [smartPlaylists, setSmartPlaylists] = useState<SmartPlaylist[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     if (!services) return;
+    setLoading(true);
     void services.library.getLikedTracks().then((tracks) => {
       if (!cancelled) setLiked(tracks);
     });
@@ -38,6 +40,12 @@ export function LibraryView() {
           if (!cancelled) setSmartPlaylists(generateSmartPlaylists(entries, liked));
         });
       }
+    });
+    void Promise.allSettled([
+      services.library.getLikedTracks(),
+      services.history.getHistory(100),
+    ]).then(() => {
+      if (!cancelled) setLoading(false);
     });
     return () => {
       cancelled = true;
@@ -69,6 +77,7 @@ export function LibraryView() {
           tracks={liked}
           empty={t("library").emptyLiked}
           exportName="liked"
+          loading={loading}
         />
       )}
       {tab === "history" && (
@@ -76,6 +85,7 @@ export function LibraryView() {
           tracks={history.map((h) => h.track)}
           empty={t("library").emptyHistory}
           exportName="history"
+          loading={loading}
         />
       )}
       {tab === "local" && (
@@ -95,7 +105,7 @@ export function LibraryView() {
 
 type SortKey = "default" | "title" | "artist" | "album";
 
-function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[]; empty: string; exportName?: string; filterable?: boolean }) {
+function TrackList({ tracks, empty, exportName, filterable, loading }: { tracks: Track[]; empty: string; exportName?: string; filterable?: boolean; loading?: boolean }) {
   const { t } = useI18n();
   const notify = useApp((s) => s.notify);
   const currentId = useApp((s) => s.snapshot.current?.id ?? null);
@@ -147,7 +157,7 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
     }
   };
 
-  if (tracks.length === 0) return <p className="muted">{empty}</p>;
+  if (tracks.length === 0 && !loading) return <p className="muted">{empty}</p>;
   return (
     <div className="track-list">
       {filterable && (
@@ -184,7 +194,9 @@ function TrackList({ tracks, empty, exportName, filterable }: { tracks: Track[];
           </button>
         ))}
       </div>
-      {sorted.length === 0 ? (
+      {sorted.length === 0 && loading ? (
+        <VirtualList items={[]} rowKey={() => ""} renderRow={() => null} skeleton />
+      ) : sorted.length === 0 ? (
         <p className="muted">{t("search").noResults}</p>
       ) : (
         <VirtualList

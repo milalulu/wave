@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppServices } from "./compose";
 
@@ -25,6 +25,18 @@ export function bindTray(services: AppServices): () => void {
   }).then((u) => {
     unlisten = u;
   });
+
+  const refresh = (): void => {
+    const snap = services.engine.snapshot;
+    const track = snap.current;
+    void emit("tray-state", {
+      playing: snap.state === "playing",
+      title: track?.title ?? "",
+      artist: track?.artist ?? "",
+    });
+  };
+  services.engine.on("state", refresh);
+  services.engine.on("track", refresh);
 
   return () => unlisten?.();
 }

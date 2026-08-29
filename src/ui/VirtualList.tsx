@@ -7,6 +7,8 @@ interface VirtualListProps<T> {
   estimateSize?: number;
   overscan?: number;
   renderRow: (item: T, index: number) => ReactNode;
+  skeleton?: boolean;
+  skeletonCount?: number;
 }
 
 export function VirtualList<T>({
@@ -15,6 +17,8 @@ export function VirtualList<T>({
   estimateSize = 52,
   overscan = 8,
   renderRow,
+  skeleton = false,
+  skeletonCount = 8,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
@@ -33,6 +37,19 @@ export function VirtualList<T>({
   });
 
   if (!scrollEl || items.length === 0) {
+    if (skeleton) {
+      return (
+        <div ref={containerRef} className="virtual-list virtual-skeleton" aria-hidden="true">
+          {Array.from({ length: skeletonCount }).map((_, i) => (
+            <div key={i} className="skeleton-row">
+              <span className="skeleton-block skeleton-cover" />
+              <span className="skeleton-block skeleton-line skeleton-line-title" />
+              <span className="skeleton-block skeleton-line skeleton-line-artist" />
+            </div>
+          ))}
+        </div>
+      );
+    }
     return <div ref={containerRef} />;
   }
 

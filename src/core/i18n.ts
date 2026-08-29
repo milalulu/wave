@@ -29,6 +29,7 @@ export interface Translations {
     dlAlreadyQueued: string;
     downloadedTracks: string;
     noDownloadedTracks: string;
+    noDownloadedHint: string;
     removeFile: string;
   };
   player: {
@@ -41,6 +42,7 @@ export interface Translations {
     repeatOne: string;
     volume: string;
     mute: string;
+    seek: string;
     queue: string;
     lyrics: string;
     sleepTimer: string;
@@ -97,6 +99,7 @@ export interface Translations {
   search: {
     placeholder: string;
     noResults: string;
+    noResultsHint: string;
     allProviders: string;
     filterPlaceholder: string;
     artists: string;
@@ -319,6 +322,7 @@ export interface Translations {
     title: string;
     clear: string;
     empty: string;
+    emptyHint: string;
     saveAsPlaylist: string;
     playlistNamePlaceholder: string;
   };
@@ -364,6 +368,7 @@ export interface Translations {
     playlistDeleted: string;
     trackAddedToPlaylist: string;
     trackRemovedFromPlaylist: string;
+    trackRemovedFromQueue: string;
     importSuccess: (n: number) => string;
     importEmpty: string;
     exportSuccess: string;
@@ -382,6 +387,7 @@ export interface Translations {
     queueAdded: string;
     playNextAdded: string;
     radioStarted: string;
+    alreadyInQueue: string;
   };
   tagEditor: {
     title: string;
@@ -408,6 +414,8 @@ export interface Translations {
     close: string;
     loading: string;
     error: string;
+    retry: string;
+    search: string;
     minutes: string;
     seconds: string;
     hours: string;
@@ -418,6 +426,7 @@ export interface Translations {
     errorTitle: string;
     reload: string;
     downloaded: string;
+    undo: string;
   };
   trackMenu: {
     editTags: string;
@@ -473,6 +482,7 @@ export const translations: Record<Locale, Translations> = {
       dlAlreadyQueued: "Already in the download queue",
       downloadedTracks: "Downloaded tracks",
       noDownloadedTracks: "No downloaded tracks yet",
+      noDownloadedHint: "Tap the download icon on any track to keep it offline",
       removeFile: "Remove file",
     },
     player: {
@@ -485,6 +495,7 @@ export const translations: Record<Locale, Translations> = {
       repeatOne: "Repeat One",
       volume: "Volume",
       mute: "Mute",
+      seek: "Seek",
       queue: "Queue",
       lyrics: "Lyrics",
       sleepTimer: "Sleep Timer",
@@ -549,6 +560,7 @@ export const translations: Record<Locale, Translations> = {
     search: {
       placeholder: "Search...",
       noResults: "Nothing found",
+      noResultsHint: "Try a different spelling or check the provider filters",
       allProviders: "All sources",
       filterPlaceholder: "Filter tracks…",
       artists: "Artists",
@@ -779,6 +791,7 @@ export const translations: Record<Locale, Translations> = {
       title: "Queue",
       clear: "Clear",
       empty: "Queue is empty",
+      emptyHint: "Play a track to start building your queue",
       saveAsPlaylist: "Save as playlist",
       playlistNamePlaceholder: "Playlist name",
     },
@@ -824,6 +837,7 @@ export const translations: Record<Locale, Translations> = {
       playlistDeleted: "Playlist deleted",
       trackAddedToPlaylist: "Added to playlist",
       trackRemovedFromPlaylist: "Removed from playlist",
+      trackRemovedFromQueue: "Removed from queue",
       importSuccess: (n: number) => `Imported ${n} tracks`,
       importEmpty: "File has no tracks",
       exportSuccess: "Playlist saved",
@@ -842,6 +856,7 @@ export const translations: Record<Locale, Translations> = {
       queueAdded: "Added to queue",
       playNextAdded: "Will play next",
       radioStarted: "Radio started",
+      alreadyInQueue: "Already in queue",
     },
     tagEditor: {
       title: "Title",
@@ -868,6 +883,8 @@ export const translations: Record<Locale, Translations> = {
       close: "Close",
       loading: "Loading...",
       error: "Error",
+      retry: "Retry",
+      search: "Search",
       minutes: "min",
       seconds: "sec",
       hours: "h",
@@ -878,6 +895,7 @@ export const translations: Record<Locale, Translations> = {
       errorTitle: "Something went wrong",
       reload: "Reload",
       downloaded: "Downloaded",
+      undo: "Undo",
     },
     trackMenu: {
       editTags: "Edit tags",
@@ -931,6 +949,7 @@ export const translations: Record<Locale, Translations> = {
       dlAlreadyQueued: "Уже в очереди загрузок",
       downloadedTracks: "Скачанные треки",
       noDownloadedTracks: "Нет скачанных треков",
+      noDownloadedHint: "Нажмите на иконку загрузки у трека, чтобы сохранить его офлайн",
       removeFile: "Удалить файл",
     },
     player: {
@@ -943,6 +962,7 @@ export const translations: Record<Locale, Translations> = {
       repeatOne: "Повтор одной",
       volume: "Громкость",
       mute: "Без звука",
+      seek: "Перемотка",
       queue: "Очередь",
       lyrics: "Текст",
       sleepTimer: "Таймер сна",
@@ -1007,6 +1027,7 @@ export const translations: Record<Locale, Translations> = {
     search: {
       placeholder: "Поиск...",
       noResults: "Ничего не найдено",
+      noResultsHint: "Попробуйте другое написание или проверьте фильтры источников",
       allProviders: "Все источники",
       filterPlaceholder: "Фильтр треков…",
       artists: "Исполнители",
@@ -1237,6 +1258,7 @@ export const translations: Record<Locale, Translations> = {
       title: "Очередь",
       clear: "Очистить",
       empty: "Очередь пуста",
+      emptyHint: "Включите трек, чтобы собрать очередь",
       saveAsPlaylist: "Сохранить как плейлист",
       playlistNamePlaceholder: "Название плейлиста",
     },
@@ -1282,6 +1304,7 @@ export const translations: Record<Locale, Translations> = {
       playlistDeleted: "Плейлист удалён",
       trackAddedToPlaylist: "Добавлено в плейлист",
       trackRemovedFromPlaylist: "Удалено из плейлиста",
+      trackRemovedFromQueue: "Удалено из очереди",
       importSuccess: (n: number) => `Импортировано треков: ${n}`,
       importEmpty: "В файле нет треков",
       exportSuccess: "Плейлист сохранён",
@@ -1298,8 +1321,9 @@ export const translations: Record<Locale, Translations> = {
       cachesCleared: "Кеши очищены",
       updateAvailable: (v: string) => `Обновить Wave до ${v}?`,
       queueAdded: "Добавлено в очередь",
-      playNextAdded: "Воспроизведётся следующим",
+      playNextAdded: "Будет следующим",
       radioStarted: "Радио запущено",
+      alreadyInQueue: "Уже в очереди",
     },
     tagEditor: {
       title: "Название",
@@ -1326,6 +1350,8 @@ export const translations: Record<Locale, Translations> = {
       close: "Закрыть",
       loading: "Загрузка…",
       error: "Ошибка",
+      retry: "Повторить",
+      search: "Поиск",
       minutes: "мин",
       seconds: "сек",
       hours: "ч",
@@ -1336,6 +1362,7 @@ export const translations: Record<Locale, Translations> = {
       errorTitle: "Что-то пошло не так",
       reload: "Перезагрузить",
       downloaded: "Скачано",
+      undo: "Отменить",
     },
     trackMenu: {
       editTags: "Редактировать теги",

@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrashIcon, DownloadIcon, PlayIcon } from "./icons";
 import { downloadedFiles, unregisterDownload, downloadedTrackToTrack, type DownloadedFile } from "../app/offline";
 import { Cover } from "./Cover";
+import { EmptyState } from "./EmptyState";
 
 const STATUS_LABEL: Record<string, "dlQueued" | "dlRunning" | "dlDone" | "dlFailed"> = {
   queued: "dlQueued",
@@ -74,6 +75,10 @@ export function DownloadsView() {
 
   const refresh = useCallback(() => { setSavedFiles(downloadedFiles()); setTick((n) => n + 1); }, []);
 
+  useEffect(() => {
+    refresh();
+  }, [finished, refresh]);
+
   const handleRemoveFile = (file: string) => {
     unregisterDownload(file);
     refresh();
@@ -130,7 +135,12 @@ export function DownloadsView() {
           <DownloadIcon size={16} /> {t("downloads").downloadedTracks}
         </h3>
         {savedFiles.length === 0 ? (
-          <p className="muted">{t("downloads").noDownloadedTracks}</p>
+          <EmptyState
+            title={t("downloads").noDownloadedTracks}
+            message={t("downloads").noDownloadedHint}
+            icon={<DownloadIcon size={28} />}
+            compact
+          />
         ) : (
           <div className="track-list">
             {savedFiles.map((f) => (
