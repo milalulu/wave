@@ -4,7 +4,13 @@ import { useI18n } from "./I18nContext";
 import { formatTime } from "../core/util/format";
 import type { Track } from "../core/types";
 
-export const SeekBar = memo(function SeekBar({ track }: { track: Track | null }) {
+export const SeekBar = memo(function SeekBar({
+  track,
+  className = "player-progress",
+}: {
+  track: Track | null;
+  className?: string;
+}) {
   const { t } = useI18n();
   const position = useApp((s) => s.position);
   const storeDuration = useApp((s) => s.duration);
@@ -12,7 +18,7 @@ export const SeekBar = memo(function SeekBar({ track }: { track: Track | null })
   const duration = track?.duration ?? storeDuration;
   const pct = duration ? (Math.min(position, duration) / duration) * 100 : 0;
   return (
-    <div className="player-progress">
+    <div className={className}>
       <span className="time">{formatTime(position)}</span>
       <input
         type="range"

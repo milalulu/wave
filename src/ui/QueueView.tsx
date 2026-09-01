@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useI18n } from "./I18nContext";
 import { useApp } from "../app/stores";
+import { useShallow } from "zustand/react/shallow";
 import type { Track } from "../core/types";
 import { Cover } from "./Cover";
 import { VirtualList } from "./VirtualList";
@@ -12,16 +13,16 @@ const DRAG_THRESHOLD_PX = 10;
 
 export function QueueView() {
   const { t } = useI18n();
-  const queue = useApp((s) => s.snapshot.queue);
+  const queue = useApp(useShallow((s) => s.snapshot.queue));
   const queueIndex = useApp((s) => s.snapshot.queueIndex);
-  const likedIds = useApp((s) => s.likedIds);
+  const likedIds = useApp(useShallow((s) => s.likedIds));
   const toggleLike = useApp((s) => s.toggleLike);
   const clearQueue = useApp((s) => s.clearQueue);
   const moveQueueItem = useApp((s) => s.moveQueueItem);
   const addToQueueAtIndex = useApp((s) => s.addToQueueAtIndex);
   const removeFromQueue = useApp((s) => s.removeFromQueue);
   const startRadio = useApp((s) => s.startRadio);
-  const playlists = useApp((s) => s.playlists);
+  const playlists = useApp(useShallow((s) => s.playlists));
   const addToPlaylist = useApp((s) => s.addToPlaylist);
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);

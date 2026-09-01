@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ViewKey } from "./Sidebar";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
@@ -6,9 +6,12 @@ import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
 import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon } from "./icons";
-import { formatTime } from "../core/util/format";
+
 import { Spectrum } from "./Spectrum";
 import { extractDominantColor, preloadDominantColor } from "./extractColor";
+import { SeekBar } from "./SeekBar";
+import { LyricsBody } from "./LyricsBody";
+import { ElapsedTime } from "./ElapsedTime";
 
 interface NowPlayingViewProps {
   onNavigate: (view: ViewKey) => void;
@@ -18,8 +21,6 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const { t, tf } = useI18n();
   const swipeDownRef = useSwipeDown<HTMLDivElement>(() => onNavigate("home"));
   const snapshot = useApp((s) => s.snapshot);
-  const position = useApp((s) => s.position);
-  const duration = useApp((s) => s.duration);
   const likedIds = useApp((s) => s.likedIds);
   const lyrics = useApp((s) => s.lyrics);
   const lyricsLoading = useApp((s) => s.lyricsLoading);
@@ -35,7 +36,6 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const startWave = useApp((s) => s.startWave);
   const startRadio = useApp((s) => s.startRadio);
   const radioActive = useApp((s) => s.radioActive);
-  const seek = useApp((s) => s.seek);
   const services = useApp((s) => s.services);
   const loadAlbum = useApp((s) => s.loadAlbum);
   const setView = useApp((s) => s.setView);
@@ -71,36 +71,6 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
       "--np-bg-dynamic": `radial-gradient(ellipse at 30% 0%, ${domColor}33 0%, transparent 60%)`,
     } as React.CSSProperties;
   }, [domColor]);
-
-  const activeIndex = useMemo(() => {
-    if (!lyrics?.synced) return -1;
-    let idx = -1;
-    for (let i = 0; i < lyrics.lines.length; i++) {
-      const t2 = lyrics.lines[i].time;
-      if (t2 !== undefined && t2 <= position) idx = i;
-    }
-    return idx;
-  }, [lyrics, position]);
-
-  const lineProgress = useMemo(() => {
-    if (!lyrics?.synced || activeIndex < 0 || !lyrics.lines[activeIndex]?.time) return 0;
-    const curr = lyrics.lines[activeIndex].time!;
-    const next = lyrics.lines[activeIndex + 1]?.time ?? duration;
-    if (next <= curr) return 1;
-    return Math.min(1, (position - curr) / (next - curr));
-  }, [lyrics, activeIndex, position, duration]);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!lyricsAutoscroll || !container || activeIndex < 0) return;
-    const el = container.querySelector(`[data-line="${activeIndex}"]`);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [activeIndex, lyricsOpen, lyricsAutoscroll]);
-
-  const handleLineClick = (line: { time?: number }) => {
-    if (line.time !== undefined) seek(line.time);
-  };
 
   return (
     <div className="home np-dynamic-bg" ref={swipeDownRef} style={npStyle}>
@@ -154,10 +124,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               </span>
             </div>
             <div className="hero-meta">
-              <span className="hero-meta-item">
-                {formatTime(position)} / {formatTime(duration)}
-                {snapshot.speed !== 1 && <> · {snapshot.speed}×</>}
-              </span>
+              <ElapsedTime speed={snapshot.speed} />
             </div>
             <div className="hero-actions">
               <button className="btn btn-primary" onClick={() => void togglePlay()} disabled={snapshot.state === "loading"}>
@@ -199,21 +166,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 <ChartIcon size={18} />
               </button>
             </div>
-            <div className="np-seek">
-              <span className="time">{formatTime(position)}</span>
-              <input
-                type="range"
-                className="seek"
-                min={0}
-                max={duration || 100}
-                step={1}
-                value={Math.min(position, duration || 0)}
-                aria-label={t("player").seek}
-                onChange={(e) => seek(Number(e.target.value))}
-                onInput={(e) => seek(Number((e.target as HTMLInputElement).value))}
-              />
-              <span className="time">{formatTime(duration)}</span>
-            </div>
+            <SeekBar track={track} className="np-seek" />
             <div className="np-extras">
               <button
                 className={`icon-btn ${snapshot.shuffle ? "active" : ""}`}
@@ -294,26 +247,8 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               </button>
             )}
           </div>
-          <div className="lyrics-body" ref={containerRef}>
-            {lyricsLoading ? (
-              <p className="lyrics-hint">{t("home").lyricsLoading}</p>
-            ) : lyrics?.instrumental ? (
-              <p className="lyrics-hint">{t("home").lyricsInstrumental}</p>
-            ) : lyrics && lyrics.lines.length > 0 ? (
-              lyrics.lines.map((line, i) => (
-                <p
-                  key={i}
-                  data-line={i}
-                  className={`lyrics-line ${i === activeIndex ? "active" : ""} ${line.time !== undefined ? "clickable" : ""}`}
-                  onClick={() => handleLineClick(line)}
-                  style={i === activeIndex && lyrics.synced ? { "--progress": lineProgress } as React.CSSProperties : undefined}
-                >
-                  {line.text || "\u00A0"}
-                </p>
-              ))
-            ) : (
-              <p className="lyrics-hint">{t("home").lyricsNotFound}</p>
-            )}
+          <div>
+            <LyricsBody lyrics={lyrics} lyricsLoading={lyricsLoading} lyricsAutoscroll={lyricsAutoscroll} />
           </div>
         </div>
       )}
