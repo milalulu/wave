@@ -4,6 +4,7 @@ import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
 import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
+import { SeekBar } from "./SeekBar";
 import { providerLabel } from "./providers";
 import { Spectrum } from "./Spectrum";
 import { formatTime } from "../core/util/format";
@@ -49,8 +50,6 @@ interface PlayerBarProps {
 export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const { t, tf } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
-  const position = useApp((s) => s.position);
-  const storeDuration = useApp((s) => s.duration);
   const likedIds = useApp((s) => s.likedIds);
   const sleepUntil = useApp((s) => s.sleepUntil);
   const sleepRemaining = useApp((s) => s.sleepRemaining);
@@ -60,7 +59,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const togglePlay = useApp((s) => s.togglePlay);
   const next = useApp((s) => s.next);
   const previous = useApp((s) => s.previous);
-  const seek = useApp((s) => s.seek);
   const setVolume = useApp((s) => s.setVolume);
   const setSpeed = useApp((s) => s.setSpeed);
   const setEqualizer = useApp((s) => s.setEqualizer);
@@ -105,7 +103,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const eqActive = snapshot.equalizer.some((g) => g !== 0);
 
   const track = snapshot.current;
-  const duration = track?.duration ?? storeDuration;
   const liked = track ? likedIds.has(track.id) : false;
   const buffering = snapshot.state === "loading";
   const hasError = snapshot.state === "error";
@@ -151,22 +148,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           <span className="player-mini-title">{track?.title ?? t("common").unknown}</span>
           <span className="player-mini-artist">{track?.artist ?? ""}</span>
         </div>
-        <div className="player-progress">
-          <span className="time">{formatTime(position)}</span>
-          <input
-            type="range"
-            className="seek"
-            min={0}
-            max={duration || 100}
-            step={1}
-            value={Math.min(position, duration || 0)}
-            disabled={!track}
-            aria-label={t("player").seek}
-            style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
-            onChange={(e) => seek(Number(e.target.value))}
-          />
-          <span className="time">{formatTime(duration)}</span>
-        </div>
+        <SeekBar track={track} />
         <div className="player-buttons">
           {playButton}
           <button className="icon-btn" onClick={() => void next()} title={t("player").next}>
@@ -307,22 +289,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             <RadioIcon size={17} />
           </button>
         </div>
-        <div className="player-progress">
-          <span className="time">{formatTime(position)}</span>
-          <input
-            type="range"
-            className="seek"
-            min={0}
-            max={duration || 100}
-            step={1}
-            value={Math.min(position, duration || 0)}
-            disabled={!track}
-            aria-label={t("player").seek}
-            style={{ "--seek-pct": `${duration ? (Math.min(position, duration) / duration) * 100 : 0}%` } as React.CSSProperties}
-            onChange={(e) => seek(Number(e.target.value))}
-          />
-          <span className="time">{formatTime(duration)}</span>
-        </div>
+        <SeekBar track={track} />
       </div>
 
       <div className="player-side">

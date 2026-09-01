@@ -28,10 +28,12 @@ export function LibraryView() {
     let cancelled = false;
     if (!services) return;
     setLoading(true);
-    void services.library.getLikedTracks().then((tracks) => {
+    const likedP = services.library.getLikedTracks();
+    const historyP = services.history.getHistory(100);
+    void likedP.then((tracks) => {
       if (!cancelled) setLiked(tracks);
     });
-    void services.history.getHistory(100).then((entries) => {
+    void historyP.then((entries) => {
       if (!cancelled) setHistory(entries);
     });
     void services.history.getHistory(2000).then((entries) => {
@@ -41,10 +43,7 @@ export function LibraryView() {
         });
       }
     });
-    void Promise.allSettled([
-      services.library.getLikedTracks(),
-      services.history.getHistory(100),
-    ]).then(() => {
+    void Promise.allSettled([likedP, historyP]).then(() => {
       if (!cancelled) setLoading(false);
     });
     return () => {

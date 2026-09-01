@@ -1,6 +1,7 @@
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
+import { ProgressBar } from "./ProgressBar";
 import {
   BackIcon,
   HeartIcon,
@@ -129,18 +130,14 @@ interface MobilePlayerBarProps {
 export function MobilePlayerBar({ onOpenPlayer, onOpenQueue }: MobilePlayerBarProps) {
   const { t } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
-  const position = useApp((s) => s.position);
-  const storeDuration = useApp((s) => s.duration);
   const likedIds = useApp((s) => s.likedIds);
   const togglePlay = useApp((s) => s.togglePlay);
   const next = useApp((s) => s.next);
   const toggleLike = useApp((s) => s.toggleLike);
 
   const track = snapshot.current;
-  const duration = track?.duration ?? storeDuration;
   const liked = track ? likedIds.has(track.id) : false;
   const buffering = snapshot.state === "loading";
-  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
 
   return (
     <div className="mini-player">
@@ -159,9 +156,7 @@ export function MobilePlayerBar({ onOpenPlayer, onOpenQueue }: MobilePlayerBarPr
           <span className="mini-title">{track?.title ?? t("common").unknown}</span>
           <span className="mini-artist">{track?.artist ?? ""}</span>
         </span>
-        <span className="mini-progress" aria-hidden="true">
-          <span style={{ width: `${progress}%` }} />
-        </span>
+        <ProgressBar duration={track?.duration} />
       </button>
       <button
         className={`mini-btn ${liked ? "liked" : ""}`}

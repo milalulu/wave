@@ -45,6 +45,26 @@ function persist(files: DownloadedFile[]): void {
   try {
     localStorage.setItem(DL_KEY, JSON.stringify(files));
   } catch {}
+  invalidateCache();
+}
+
+type DownloadIndex = { byId: Map<string, string>; byFile: Map<string, DownloadedFile> };
+let indexCache: DownloadIndex | null = null;
+
+function getIndex(): DownloadIndex {
+  if (indexCache) return indexCache;
+  const byId = new Map<string, string>();
+  const byFile = new Map<string, DownloadedFile>();
+  for (const f of downloadedFiles()) {
+    if (f.trackId) byId.set(f.trackId, f.file);
+    byFile.set(f.file, f);
+  }
+  indexCache = { byId, byFile };
+  return indexCache;
+}
+
+function invalidateCache(): void {
+  indexCache = null;
 }
 
 export function registerDownload(
@@ -68,12 +88,11 @@ export function unregisterDownload(file: string): void {
 }
 
 export function isTrackDownloaded(trackId: string): boolean {
-  return downloadedFiles().some((f) => f.trackId === trackId);
+  return getIndex().byId.has(trackId);
 }
 
 export function downloadedFilePath(trackId: string): string | null {
-  const f = downloadedFiles().find((d) => d.trackId === trackId);
-  return f?.file ?? null;
+  return getIndex().byId.get(trackId) ?? null;
 }
 
 export function downloadedTrackToTrack(df: DownloadedFile): Track {
