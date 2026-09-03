@@ -5183,7 +5183,3 @@ input[type="range"]::-moz-range-track {
   0% { transform: scaleY(0.3); }
   100% { transform: scaleY(1); }
 }
-  .spinner {
-    animation: none;
-  }
-}
