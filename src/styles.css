@@ -5186,7 +5186,4 @@ input[type="range"]::-moz-range-track {
   .spinner {
     animation: none;
   }
-  .eq i {
-    animation: none;
-  }
 }
