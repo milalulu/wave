@@ -5,6 +5,7 @@ import { useI18n } from "./I18nContext";
 import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
 import { SeekBar } from "./SeekBar";
+import { MiniSpectrum } from "./MiniSpectrum";
 import { providerLabel } from "./providers";
 import { Spectrum } from "./Spectrum";
 import { formatTime } from "../core/util/format";
@@ -241,7 +242,10 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
               )}
             </div>
           )}
-          <span className="player-title">{track?.title ?? t("common").unknown}</span>
+          <div className="player-title-row" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span className="player-title">{track?.title ?? t("common").unknown}</span>
+            <MiniSpectrum playing={snapshot.state === "playing"} />
+          </div>
           <span className="player-artist">{track?.artist ?? t("player").queue}</span>
         </div>
         <button
