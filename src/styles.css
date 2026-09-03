@@ -5102,8 +5102,28 @@ input[type="range"]::-moz-range-track {
   }
 }
 
-/* Mini Spectrum Animation */
-.mini-spectrum {
+/* Glassmorphism & Smooth Track Transitions */
+.variants-menu,
+.sleep-menu,
+.speed-menu,
+.eq-menu,
+.row-menu,
+.playlist-modal-content {
+  background: var(--bg-elev-2, rgba(20, 20, 25, 0.85)) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.player-title {
+  animation: track-fade-in 0.3s ease;
+}
+
+@keyframes track-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
   display: flex;
   align-items: flex-end;
   gap: 2px;
