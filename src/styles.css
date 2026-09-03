@@ -5102,7 +5102,41 @@ input[type="range"]::-moz-range-track {
   }
 }
 
-/* Glassmorphism & Smooth Track Transitions */
+/* Quick Filter Component */
+.quick-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--bg-elev-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  margin-bottom: var(--sp-3);
+  max-width: 320px;
+  transition: border-color 0.2s;
+}
+.quick-filter-wrap:focus-within {
+  border-color: var(--accent);
+}
+.quick-filter-input {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+.quick-filter-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+}
+.quick-filter-clear:hover {
+  color: var(--text);
+}
 .variants-menu,
 .sleep-menu,
 .speed-menu,
