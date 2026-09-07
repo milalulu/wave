@@ -783,6 +783,8 @@ fn parse_yt_len(s: &str) -> Option<u64> {
 async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
     let http = crate::http::client();
     let limit = limit.clamp(1, 30) as usize;
+    // Планируем на 1 больше: первый элемент очереди всегда сам сид, его выкинем.
+    let target = limit + 1;
 
     let ctx = serde_json::json!({
         "client": {
@@ -906,7 +908,7 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
             .or_else(|| rl["navigationEndpoint"]["watchEndpoint"]["videoId"].as_str())
             .unwrap_or("")
             .to_string();
-        if id.is_empty() {
+        if id.is_empty() || id == video_id {
             continue;
         }
         let title = rl["title"]["runs"]
@@ -941,7 +943,7 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
             "duration": parse_yt_len(duration_text).filter(|d| *d > 0),
             "thumbnail": thumbnail,
         }));
-        if out.len() >= limit {
+        if out.len() >= target {
             break;
         }
     }
@@ -1593,6 +1595,8 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
     let client_id = sc_extract_client_id().await?;
     let http = crate::http::client();
     let limit = limit.clamp(1, 50) as usize;
+    // Тянем с запасом: длинные "миксы" (>20 мин) отфильтруем внизу.
+    let fetch = (limit * 2 + 3).min(100).max(limit);
 
     let raw = track_id
         .split('/')
@@ -1618,7 +1622,7 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
                 .get(&api_url)
                 .query(&[
                     ("client_id", client_id.as_str()),
-                    ("limit", &limit.to_string()),
+                    ("limit", &fetch.to_string()),
                 ])
                 .header(
                     "User-Agent",
@@ -1643,7 +1647,14 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
         .as_array()
         .ok_or("soundcloud related: no collection")?;
 
-    Ok(sc_collection_to_items(collection, limit, false))
+    let mut items = sc_collection_to_items(collection, fetch, false);
+    // Отбрасываем длинные миксы/потоки (>20 мин): для радио-плейлиста бесполезны.
+    items.retain(|t| {
+        let dur = t["duration"].as_i64().unwrap_or(0);
+        dur > 0 && dur <= 20 * 60
+    });
+    items.truncate(limit);
+    Ok(items)
 }
 
 #[tauri::command]

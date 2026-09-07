@@ -199,22 +199,32 @@ export async function composeServices(): Promise<AppServices> {
       }
     },
     onQueueEnd: async () => {
-      if (!wave) return [];
-      try {
-        const waveTracks = await wave.generateWave(20);
-        if (waveTracks.length > 0) return waveTracks;
-      } catch {
-        
-      }
-      
-      
       const last = engine.snapshot.current;
       if (!last) return [];
+      const services = { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
+
+      // Если у последнего трека есть настоящий seed (scId/ytId), сначала пробуем
+      // реальную похожесть (related/automix). Wave используем как дозаполнение или фолбэк.
+      if (last.meta?.scId || last.meta?.ytId) {
+        try {
+          const related = await radioTracks(services, last);
+          if (related.length >= 4) return related;
+        } catch {
+          // fall through to wave
+        }
+      }
+
+      if (wave) {
+        try {
+          const waveTracks = await wave.generateWave(20);
+          if (waveTracks.length > 0) return waveTracks;
+        } catch {
+          // fall through to radio
+        }
+      }
+
       try {
-        return await radioTracks(
-          { engine, providers, local, storage, library, history, wave, lyrics, scrobbler },
-          last,
-        );
+        return await radioTracks(services, last);
       } catch {
         return [];
       }

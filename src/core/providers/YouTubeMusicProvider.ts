@@ -44,6 +44,7 @@ function cover(thumb?: string): string | undefined {
 
 const STREAM_TTL_MS = 2 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
+const RELATED_TTL_MS = 30 * 60 * 1000;
 
 export class YouTubeMusicProvider implements MusicProvider {
   readonly id = "youtube";
@@ -51,6 +52,7 @@ export class YouTubeMusicProvider implements MusicProvider {
 
   private streamCache = new Map<string, { url: string; at: number }>();
   private searchCache = new Map<string, { results: SearchResults; at: number }>();
+  private relatedCache = new Map<string, { tracks: Track[]; at: number }>();
 
   constructor(private gateway: YtDlpGateway) {}
 
@@ -186,10 +188,14 @@ export class YouTubeMusicProvider implements MusicProvider {
   async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions, seed?: Track): Promise<Track[]> {
     const ytId = seed?.meta?.ytId as string | undefined;
     if (ytId) {
+      const hit = this.relatedCache.get(ytId);
+      if (hit && Date.now() - hit.at < RELATED_TTL_MS) return hit.tracks;
       try {
         const related = await invoke<YtSearchResult[]>("yt_related_videos", { videoId: ytId, limit: 15 });
         if (related.length > 0) {
-          return this.entriesToSimilar(related);
+          const tracks = this.entriesToSimilar(related);
+          this.relatedCache.set(ytId, { tracks, at: Date.now() });
+          return tracks;
         }
       } catch {}
     }

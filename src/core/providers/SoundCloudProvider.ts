@@ -24,6 +24,7 @@ export interface SoundCloudDlpGateway {
 
 const STREAM_TTL_MS = 5 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
+const RELATED_TTL_MS = 30 * 60 * 1000;
 
 function cover(thumb?: string): string | undefined {
   if (!thumb) return undefined;
@@ -42,6 +43,7 @@ export class SoundCloudProvider implements MusicProvider {
 
   private streamCache = new Map<string, { url: string; at: number }>();
   private searchCache = new Map<string, { results: SearchResults; at: number }>();
+  private relatedCache = new Map<string, { tracks: Track[]; at: number }>();
 
   // Нативный поиск SoundCloud (api-v2, без yt-dlp) с фолбэком на yt-dlp gateway.
   private async searchEntries(query: string, limit: number): Promise<ScSearchResult[]> {
@@ -133,10 +135,14 @@ export class SoundCloudProvider implements MusicProvider {
   async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions, seed?: Track): Promise<Track[]> {
     const scId = seed?.meta?.scId as string | undefined;
     if (scId) {
+      const hit = this.relatedCache.get(String(scId));
+      if (hit && Date.now() - hit.at < RELATED_TTL_MS) return hit.tracks;
       try {
-        const related = await invoke<ScSearchResult[]>("sc_related_tracks", { trackId: scId, limit: 15 });
+        const related = await invoke<ScSearchResult[]>("sc_related_tracks", { trackId: String(scId), limit: 15 });
         if (related.length > 0) {
-          return this.entriesToTracks(related);
+          const tracks = this.entriesToTracks(related);
+          this.relatedCache.set(String(scId), { tracks, at: Date.now() });
+          return tracks;
         }
       } catch {}
     }
