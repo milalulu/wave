@@ -16,27 +16,10 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600
-      },
-      {
-        "label": "mini-player",
-        "url": "mini.html",
-        "title": "Wave",
-        "width": 440,
-        "height": 92,
-        "minWidth": 440,
-        "maxWidth": 440,
-        "minHeight": 92,
-        "maxHeight": 92,
-        "resizable": false,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "shadow": true,
-        "visible": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost blob: https:; font-src 'self' data:; connect-src 'self' asset: http://asset.localhost blob: https:; object-src 'none'",
+      "csp": "default-src 'self' http://asset.localhost asset: blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost blob: https:; font-src 'self' data:; connect-src 'self' asset: http://asset.localhost blob: https:; object-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

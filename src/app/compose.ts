@@ -111,23 +111,22 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
   
   
   const hasYtDlp = !IS_ANDROID || Boolean(cfg.ytdlpPath);
-  if (hasYtDlp) {
-    const youtube = new YouTubeMusicProvider(ytGateway);
-    providers.push(youtube);
-    
-    providers.push(
-      new SoundCloudProvider({
-        search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
-        stream: async (url) => {
-          try {
-            return await invoke<string>("dl_stream_fast", { url });
-          } catch {
-            return invoke<string>("dl_stream", { url });
-          }
-        },
-      }),
-    );
-  }
+  // YouTube и SoundCloud работают и без yt-dlp (innertube / SoundCloud API),
+  // yt-dlp используется только как фолбэк на десктопе.
+  providers.push(new YouTubeMusicProvider(ytGateway));
+
+  providers.push(
+    new SoundCloudProvider({
+      search: (query, limit) => invoke("yt_search", { query, limit, provider: "sc" }),
+      stream: async (url) => {
+        try {
+          return await invoke<string>("dl_stream_fast", { url });
+        } catch {
+          return invoke<string>("dl_stream", { url });
+        }
+      },
+    }),
+  );
   if (cfg.lastfmApiKey) {
     providers.push(new LastFmProvider(httpGateway, cfg.lastfmApiKey));
   }
@@ -269,11 +268,31 @@ export async function reconfigureServices(services: AppServices): Promise<AppSer
   return { ...services };
 }
 
+const SEARCH_PROVIDER_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: timeout`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 export async function searchAll(
   providers: MusicProvider[],
   query: string,
 ): Promise<SearchResults[]> {
-  const results = await Promise.allSettled(providers.map((p) => p.search(query)));
+  const results = await Promise.allSettled(
+    providers.map((p) => withTimeout(p.search(query), SEARCH_PROVIDER_TIMEOUT_MS, p.id)),
+  );
   const filtered = filterPreviewResults(
     results
       .filter((r): r is PromiseFulfilledResult<SearchResults> => r.status === "fulfilled")
@@ -300,7 +319,7 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
   const similar = await Promise.allSettled(
     services.providers
       .filter((p) => typeof p.getSimilarTracks === "function")
-      .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "", moodOptions) ?? Promise.resolve([])),
+      .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "", moodOptions, seed) ?? Promise.resolve([])),
   );
   let candidates = similar.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   

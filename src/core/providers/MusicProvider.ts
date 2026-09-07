@@ -19,7 +19,7 @@ export interface MusicProvider {
   
   getSimilarArtists?(artist: string): Promise<string[]>;
   
-  getSimilarTracks?(artist: string, track: string, options?: MoodRecommendOptions): Promise<Track[]>;
+  getSimilarTracks?(artist: string, track: string, options?: MoodRecommendOptions, seed?: Track): Promise<Track[]>;
   
   getArtistTopTracks?(artist: string): Promise<Track[]>;
 }

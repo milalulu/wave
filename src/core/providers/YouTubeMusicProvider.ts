@@ -54,6 +54,22 @@ export class YouTubeMusicProvider implements MusicProvider {
 
   constructor(private gateway: YtDlpGateway) {}
 
+  // Innertube (нативный HTTP) в приоритете, yt-dlp — как фолбэк.
+  private async searchEntries(query: string, limit: number): Promise<YtSearchResult[]> {
+    try {
+      const full = await invoke<YtFullSearchResult>("yt_search_innertube_full", {
+        query,
+        limit,
+      });
+      if (full.tracks.length > 0) return full.tracks;
+    } catch {}
+    try {
+      return await invoke<YtSearchResult[]>("yt_search_innertube", { query, limit });
+    } catch {
+      return this.gateway.search(query, limit);
+    }
+  }
+
   async search(query: string): Promise<SearchResults> {
     const key = query.trim().replace(/\s+/g, " ").toLowerCase();
     const hit = this.searchCache.get(key);
@@ -167,7 +183,16 @@ export class YouTubeMusicProvider implements MusicProvider {
     throw new Error("youtube provider: no artists");
   }
 
-  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions, seed?: Track): Promise<Track[]> {
+    const ytId = seed?.meta?.ytId as string | undefined;
+    if (ytId) {
+      try {
+        const related = await invoke<YtSearchResult[]>("yt_related_videos", { videoId: ytId, limit: 15 });
+        if (related.length > 0) {
+          return this.entriesToSimilar(related);
+        }
+      } catch {}
+    }
     if (!artist) return [];
     try {
       let query: string;
@@ -180,34 +205,38 @@ export class YouTubeMusicProvider implements MusicProvider {
       } else {
         query = `${artist} music`;
       }
-      const entries = await this.gateway.search(query, 15);
-      return entries
-        .filter((e) => {
-          const title = (e.title ?? "").toLowerCase();
-          if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
-          if (e.duration && e.duration < 30) return false;
-          return true;
-        })
-        .slice(0, 10)
-        .map((e) => ({
-          id: `youtube:track:${e.id}`,
-          provider: this.id,
-          uri: `https://www.youtube.com/watch?v=${e.id}`,
-          title: e.title,
-          artist: e.uploader,
-          coverUrl: cover(e.thumbnail),
-          duration: e.duration ?? undefined,
-          meta: { ytId: e.id },
-        }));
+      const entries = await this.searchEntries(query, 15);
+      return this.entriesToSimilar(entries);
     } catch {
       return [];
     }
   }
 
+  private entriesToSimilar(entries: YtSearchResult[]): Track[] {
+    return entries
+      .filter((e) => {
+        const title = (e.title ?? "").toLowerCase();
+        if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
+        if (e.duration && e.duration < 30) return false;
+        return true;
+      })
+      .slice(0, 10)
+      .map((e) => ({
+        id: `youtube:track:${e.id}`,
+        provider: this.id,
+        uri: `https://www.youtube.com/watch?v=${e.id}`,
+        title: e.title,
+        artist: e.uploader,
+        coverUrl: cover(e.thumbnail),
+        duration: e.duration ?? undefined,
+        meta: { ytId: e.id },
+      }));
+  }
+
   async getSimilarArtists(artist: string): Promise<string[]> {
     if (!artist) return [];
     try {
-      const entries = await this.gateway.search(`${artist} similar artist`, 8);
+      const entries = await this.searchEntries(`${artist} similar artist`, 8);
       return entries.map((e) => e.uploader ?? "").filter((n) => n && n !== artist).slice(0, 8);
     } catch {
       return [];

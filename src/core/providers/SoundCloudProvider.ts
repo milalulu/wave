@@ -11,6 +11,12 @@ export interface ScSearchResult {
   thumbnail?: string;
 }
 
+export interface ScUserResult {
+  username: string;
+  followersCount?: number;
+  avatar?: string;
+}
+
 export interface SoundCloudDlpGateway {
   search(query: string, limit: number): Promise<ScSearchResult[]>;
   stream(url: string): Promise<string>;
@@ -37,11 +43,20 @@ export class SoundCloudProvider implements MusicProvider {
   private streamCache = new Map<string, { url: string; at: number }>();
   private searchCache = new Map<string, { results: SearchResults; at: number }>();
 
+  // Нативный поиск SoundCloud (api-v2, без yt-dlp) с фолбэком на yt-dlp gateway.
+  private async searchEntries(query: string, limit: number): Promise<ScSearchResult[]> {
+    try {
+      return await invoke<ScSearchResult[]>("sc_search", { query, limit });
+    } catch {
+      return this.gateway.search(query, limit);
+    }
+  }
+
   async search(query: string): Promise<SearchResults> {
     const key = query.trim().replace(/\s+/g, " ").toLowerCase();
     const hit = this.searchCache.get(key);
     if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.results;
-    const entries = await this.gateway.search(query, 20);
+    const entries = await this.searchEntries(query, 20);
     const tracks: Track[] = entries.map((e) => ({
       id: `soundcloud:track:${e.id}`,
       provider: this.id,
@@ -115,7 +130,16 @@ export class SoundCloudProvider implements MusicProvider {
     }
   }
 
-  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions): Promise<Track[]> {
+  async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions, seed?: Track): Promise<Track[]> {
+    const scId = seed?.meta?.scId as string | undefined;
+    if (scId) {
+      try {
+        const related = await invoke<ScSearchResult[]>("sc_related_tracks", { trackId: scId, limit: 15 });
+        if (related.length > 0) {
+          return this.entriesToTracks(related);
+        }
+      } catch {}
+    }
     if (!artist) return [];
     try {
       let query: string;
@@ -128,32 +152,44 @@ export class SoundCloudProvider implements MusicProvider {
       } else {
         query = `${artist} music`;
       }
-      const entries = await this.gateway.search(query, 15);
-      return entries
-        .filter((e) => {
-          const title = (e.title ?? "").toLowerCase();
-          if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
-          if (e.duration && e.duration < 30) return false;
-          return true;
-        })
-        .slice(0, 10)
-        .map((e) => ({
-          id: `soundcloud:track:${e.id}`,
-          provider: this.id,
-          uri: `soundcloud:track:${e.id}`,
-          title: e.title ?? "Unknown",
-          artist: e.uploader,
-          coverUrl: cover(e.thumbnail),
-          duration: e.duration ? Math.round(e.duration) : undefined,
-          meta: { scId: e.id, scUrl: trackUrl(e.id) },
-        }));
+      const entries = await this.searchEntries(query, 15);
+      return this.entriesToTracks(entries);
     } catch {
       return [];
     }
   }
 
+  private entriesToTracks(entries: ScSearchResult[]): Track[] {
+    return entries
+      .filter((e) => {
+        const title = (e.title ?? "").toLowerCase();
+        if (/type beat|typeBeat|\bfree beat\b|\bfree type\b/.test(title)) return false;
+        if (e.duration && e.duration < 30) return false;
+        return true;
+      })
+      .slice(0, 10)
+      .map((e) => ({
+        id: `soundcloud:track:${e.id}`,
+        provider: this.id,
+        uri: `soundcloud:track:${e.id}`,
+        title: e.title ?? "Unknown",
+        artist: e.uploader,
+        coverUrl: cover(e.thumbnail),
+        duration: e.duration ? Math.round(e.duration) : undefined,
+        meta: { scId: e.id, scUrl: trackUrl(e.id) },
+      }));
+  }
+
   async getSimilarArtists(artist: string): Promise<string[]> {
-    const results = await this.gateway.search(artist, 10);
+    try {
+      const users = await invoke<ScUserResult[]>("sc_search_users", { query: artist, limit: 10 });
+      const names = new Set<string>();
+      for (const u of users) {
+        if (u.username && u.username !== artist) names.add(u.username);
+      }
+      if (names.size > 0) return [...names].slice(0, 8);
+    } catch {}
+    const results = await this.searchEntries(artist, 10);
     const names = new Set<string>();
     for (const r of results) {
       if (r.uploader && r.uploader !== artist) names.add(r.uploader);
@@ -173,7 +209,7 @@ export class SoundCloudProvider implements MusicProvider {
     const name = decodeURIComponent(artistId.replace("soundcloud:artist:", ""));
     if (!name) throw new Error("soundcloud: no artist name in id");
 
-    const entries = await this.gateway.search(name, 20);
+    const entries = await this.searchEntries(name, 20);
     const tracks: Track[] = entries
       .filter((e) => e.uploader && e.uploader.toLowerCase() === name.toLowerCase())
       .map((e) => ({
