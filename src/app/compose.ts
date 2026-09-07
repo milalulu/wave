@@ -36,6 +36,7 @@ import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
 import { PROXY_BASE } from "../core/player/WebAudioAdapter";
 import { normalizeSearchResults } from "../core/search/normalizeSearch";
+import { rankCandidates } from "../core/recommendations/rankCandidates";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
 
@@ -352,7 +353,7 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
     });
 
   const resolved = await Promise.allSettled(
-    candidates.map(async (c) => {
+    candidates.slice(0, 30).map(async (c) => {
       if (c.meta?.noPlay !== true && c.uri) return c;
       const providerResults = await Promise.allSettled(
         audioProviders.map((p) =>
@@ -368,15 +369,14 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
     }),
   );
   const seen = new Set<string>([seed.id]);
-  const out: Track[] = [];
+  const resolvedOut: Track[] = [];
   for (const r of resolved) {
     if (r.status !== "fulfilled" || !r.value) continue;
     const track = r.value;
     if (seen.has(track.id)) continue;
     if (isTrackBlocked(track.id) || isArtistBlocked(track.artist)) continue;
     seen.add(track.id);
-    out.push(track);
-    if (out.length >= 12) break;
+    resolvedOut.push(track);
   }
-  return out;
+  return rankCandidates(seed, resolvedOut, 12);
 }
