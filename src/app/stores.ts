@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 
 import type { AlbumDetail, ArtistDetail, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
@@ -18,6 +17,7 @@ import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { type SyncedPlaylist, type PlaylistShare, sharePlaylist as apiShare, removeShareByEmail, getPlaylistShares, fetchSharedPlaylists } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
+import { loadLeveling, saveLeveling } from "./levelingStore";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
 import { loadDiscoveryRate, saveDiscoveryRate, DISCOVERY_MIN, DISCOVERY_MAX } from "./discoveryRate";
 import { loadHistoryDecayDays, saveHistoryDecayDays, HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "./historyDecay";
@@ -31,7 +31,8 @@ import { clearCoverCache } from "../core/cover/CoverCache";
 import { clearSearchCache } from "./searchCache";
 import { clearVariantsCache } from "./trackVariants";
 import { findTrackVariants, type TrackVariant } from "./trackVariants";
-import { registerDownload, unregisterDownload, offlineEnabled, setOfflineEnabled } from "./offline";
+import { offlineEnabled, setOfflineEnabled } from "./offline";
+import { createDownloadsSlice, type DownloadsSlice } from "./downloadsSlice";
 import {
   getBlockedTrackIds,
   getBlockedArtists,
@@ -57,19 +58,13 @@ import {
 
 let initPromise: Promise<void> | null = null;
 
+const savedLeveling = loadLeveling();
+
 const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
-export interface DownloadItem {
-  id: string;
-  track: Track;
-  status: "queued" | "running" | "done" | "error";
-  error?: string;
-  percent?: number;
-  dir: string;
-  filePath?: string;
-}
+export type { DownloadItem } from "./downloadsSlice";
 
-interface AppState {
+export interface AppState extends DownloadsSlice {
   services: AppServices | null;
   ready: boolean;
   onboardingCompleted: boolean;
@@ -123,6 +118,9 @@ interface AppState {
   setVolume: (percent: number) => void;
   setSpeed: (rate: number) => void;
   setEqualizer: (gains: number[]) => void;
+  levelingEnabled: boolean;
+  levelingTargetDb: number;
+  setLeveling: (enabled: boolean, targetDb?: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   addToQueue: (track: Track) => boolean;
@@ -166,12 +164,6 @@ interface AppState {
   setSleepMinutes: (min: number) => void;
   setSleepAfterTrack: () => void;
   clearSleep: () => void;
-  downloadTrack: (track: Track) => Promise<void>;
-  downloads: DownloadItem[];
-  downloading: boolean;
-  clearDownloads: () => void;
-  retryDownload: (id: string) => void;
-  pumpDownloads: () => Promise<void>;
   radioActive: boolean;
   startRadio: (track?: Track) => Promise<void>;
   autoContinue: boolean;
@@ -235,7 +227,7 @@ const TAB_VIEWS: ReadonlySet<AppState["view"]> = new Set([
 ]);
 const isTabView = (v: AppState["view"]): boolean => TAB_VIEWS.has(v);
 
-export const useApp = create<AppState>()((set, get) => ({
+export const useApp = create<AppState>()((set, get, api) => ({
   services: null,
   ready: false,
   onboardingCompleted: isOnboardingCompleted(),
@@ -554,6 +546,16 @@ export const useApp = create<AppState>()((set, get) => ({
     get().services?.engine.setEqualizer(gains);
   },
 
+  setLeveling: (enabled, targetDb) => {
+    const next = {
+      enabled,
+      targetDb: targetDb ?? get().levelingTargetDb,
+    };
+    saveLeveling(next);
+    set({ levelingEnabled: next.enabled, levelingTargetDb: next.targetDb });
+    get().services?.engine.setLeveling(next.enabled, next.targetDb);
+  },
+
   toggleShuffle: () => {
     const { services, snapshot } = get();
     const next = !snapshot.shuffle;
@@ -692,138 +694,7 @@ export const useApp = create<AppState>()((set, get) => ({
     }
   },
 
-  downloadTrack: async (track) => {
-    let dir = "";
-    try {
-      dir = localStorage.getItem("wave-download-dir") ?? "";
-    } catch {
-      dir = "";
-    }
-    if (!dir) {
-      try {
-        dir = await invoke<string>("app_download_dir");
-      } catch {
-        dir = "";
-      }
-    }
-    if (!dir) {
-      try {
-        const picked = await open({ directory: true, multiple: false });
-        if (typeof picked === "string") {
-          dir = picked;
-          try {
-            localStorage.setItem("wave-download-dir", dir);
-          } catch {
-            
-          }
-        }
-      } catch {
-        
-      }
-    }
-    if (!dir) {
-      get().notify(t("player").downloadDirRequired);
-      return;
-    }
-    const exists = get().downloads.some(
-      (d) =>
-        d.track.id === track.id &&
-        d.dir === dir &&
-        (d.status === "queued" || d.status === "running" || d.status === "done"),
-    );
-    if (exists) {
-      get().notify(t("downloads").dlAlreadyQueued);
-      return;
-    }
-    const id = `dl:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-    set((s) => ({ downloads: [...s.downloads, { id, track, status: "queued", dir }] }));
-    void get().pumpDownloads();
-  },
-
-  downloads: [],
-  downloading: false,
-  clearDownloads: () =>
-    set((s) => {
-      for (const d of s.downloads) {
-        if (d.status === "done" && d.filePath) unregisterDownload(d.filePath);
-      }
-      return {
-        downloads: s.downloads.filter((d) => d.status === "queued" || d.status === "running"),
-      };
-    }),
-
-  retryDownload: (id) => {
-    set((s) => ({
-      downloads: s.downloads.map((d) =>
-        d.id === id ? { ...d, status: "queued", error: undefined, percent: 0 } : d,
-      ),
-    }));
-    void get().pumpDownloads();
-  },
-
-  pumpDownloads: async () => {
-    const s = get();
-    if (!s.services || s.downloading) return;
-    const next = s.downloads.find((d) => d.status === "queued");
-    if (!next) return;
-    set((prev) => ({
-      downloading: true,
-      downloads: prev.downloads.map((d) =>
-        d.id === next.id ? { ...d, status: "running", percent: 0 } : d,
-      ),
-    }));
-    const finish = (patch: Partial<DownloadItem>): void => {
-      set((prev) => ({
-        downloading: false,
-        downloads: prev.downloads.map((d) =>
-          d.id === next.id ? { ...d, ...patch } : d,
-        ),
-      }));
-    };
-    try {
-      const url =
-        String(next.track.meta?.url ?? "") ||
-        String(next.track.meta?.audioUrl ?? "") ||
-        (next.track.uri ?? "");
-      if (!url) throw new Error("no source url");
-      const ext = url.includes(".m4a") ? "m4a" : "mp3";
-      const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
-      const filename = `${safe(next.track.artist ?? "")} - ${safe(next.track.title ?? "")}.${ext}`;
-      const outputPath = `${next.dir}/${filename}`;
-      await invoke("yt_download", {
-        url,
-        outputPath,
-        jobId: next.id,
-      });
-
-      let coverFile: string | undefined;
-      const coverUrl = next.track.coverUrl;
-      if (coverUrl && (coverUrl.startsWith("http://") || coverUrl.startsWith("https://"))) {
-        const coverExt = coverUrl.includes(".png") ? ".png" : ".jpg";
-        const coverPath = `${next.dir}/${safe(next.track.artist ?? "")} - ${safe(next.track.title ?? "")}${coverExt}`;
-        try {
-          await invoke("download_cover", { url: coverUrl, outputPath: coverPath });
-          coverFile = coverPath;
-        } catch {}
-      }
-
-      registerDownload(
-        outputPath,
-        next.track.artist,
-        next.track.title,
-        next.track.id,
-        next.track.provider,
-        coverUrl,
-        coverFile,
-        next.track.duration,
-        next.track.album,
-      );
-      finish({ status: "done", percent: 100, filePath: outputPath });
-    } catch (e) {
-      finish({ status: "error", error: e instanceof Error ? e.message : String(e) });
-    }
-    void get().pumpDownloads();
-  },
+  ...createDownloadsSlice(set, get, api),
 
   radioActive: false,
   autoContinue: (() => {    try {
@@ -850,6 +721,8 @@ export const useApp = create<AppState>()((set, get) => ({
       return false;
     }
   })(),
+  levelingEnabled: savedLeveling.enabled,
+  levelingTargetDb: savedLeveling.targetDb,
   setOfflineMode: (enabled) => {
     setOfflineEnabled(enabled);
     set({ offlineMode: enabled });
@@ -1307,6 +1180,10 @@ async function doInit(
   services.engine.on("speed", () => {
     saveSpeed(services.engine.snapshot.speed);
   });
+
+  if (savedLeveling.enabled) {
+    services.engine.setLeveling(true, savedLeveling.targetDb);
+  }
 
   bindMediaSession(services, {
     togglePlay: () => void services.engine.togglePlay(),

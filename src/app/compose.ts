@@ -345,29 +345,33 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
   }
 
   const audioProviders = services.providers
-    .filter((p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local")
-    .sort((a, b) => {
-      const aFull = FULL_PLAYBACK_PROVIDERS.has(a.id) ? 0 : 1;
-      const bFull = FULL_PLAYBACK_PROVIDERS.has(b.id) ? 0 : 1;
-      return aFull - bFull;
-    });
+    .filter((p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local");
+  // Полноценное воспроизведение — первым батчем, остальное — только при промахе.
+  // Раньше искали сразу по всем провайдерам ради первого совпадения.
+  const fullProviders = audioProviders.filter((p) => FULL_PLAYBACK_PROVIDERS.has(p.id));
+  const restProviders = audioProviders.filter((p) => !FULL_PLAYBACK_PROVIDERS.has(p.id));
 
-  const resolved = await Promise.allSettled(
-    candidates.slice(0, 30).map(async (c) => {
-      if (c.meta?.noPlay !== true && c.uri) return c;
+  async function resolveCandidate(c: Track): Promise<Track | null> {
+    if (c.meta?.noPlay !== true && c.uri) return c;
+    const query = `${c.artist ?? ""} ${c.title}`.trim();
+    if (!query) return null;
+    for (const group of [fullProviders, restProviders]) {
+      if (group.length === 0) continue;
       const providerResults = await Promise.allSettled(
-        audioProviders.map((p) =>
-          p.search(`${c.artist ?? ""} ${c.title}`.trim()),
-        ),
+        group.map((p) => p.search(query)),
       );
       for (const r of providerResults) {
         if (r.status !== "fulfilled") continue;
         const match = r.value.tracks[0];
         if (match && match.uri) return match;
       }
-      return null;
-    }),
-  );
+    }
+    return null;
+  }
+
+  // Ранжируем до резолва: дорогие сетевые поиски — только для топ-кандидатов.
+  const shortlist = rankCandidates(seed, candidates, 18);
+  const resolved = await Promise.allSettled(shortlist.map(resolveCandidate));
   const seen = new Set<string>([seed.id]);
   const resolvedOut: Track[] = [];
   for (const r of resolved) {

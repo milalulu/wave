@@ -15,6 +15,7 @@ export interface AudioAdapter {
   setEqualizer(gains: number[]): void;
   
   setCrossfadeMs(ms: number): void;
+  setLeveling(enabled: boolean, targetDb: number): void;
   setBassBoost(db: number): void;
   setReverb(mix: number): void;
   setStereoWidth(pan: number): void;
@@ -80,6 +81,10 @@ export class MockAudioAdapter implements AudioAdapter {
   }
 
   setCrossfadeMs(_ms: number): void {
+    
+  }
+
+  setLeveling(_enabled: boolean, _targetDb: number): void {
     
   }
 

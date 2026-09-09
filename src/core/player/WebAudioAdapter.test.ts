@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CROSSFADE_MS,
   EQ_FREQUENCIES,
+  LEVEL_TICK_MS,
   MEDIA_ELEMENT_PROBE_MS,
   MEDIA_ELEMENT_READY_PROBE_MS,
   PROXY_BASE,
@@ -54,6 +55,9 @@ class FakeAnalyser {
   }
   getByteFrequencyData(data: Uint8Array): void {
     data.fill(42);
+  }
+  getFloatTimeDomainData(data: Float32Array): void {
+    data.fill(0.5);
   }
 }
 
@@ -277,8 +281,36 @@ describe("WebAudioAdapter", () => {
     expect(ctx.elementSources.length).toBe(2);
     expect(ctx.sourcesPaused).toEqual([true, true]);
     expect(ctx.biquads.length).toBe(EQ_FREQUENCIES.length + 1);
-    expect(ctx.gains.length).toBe(4);
+    expect(ctx.gains.length).toBe(5); // g0/g1 кроссфейда + reverb + dry + leveling
     expect(ctx.analyser).toBeDefined();
+    adapter.destroy();
+  });
+
+  it("leveling подстраивает gain по измеренному уровню", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.load("a.mp3");
+    adapter.setLeveling(true, -14);
+    await adapter.play();
+    vi.advanceTimersByTime(LEVEL_TICK_MS * 5);
+    const ctx = lastCtx();
+    // Последний созданный gain — узел левелинга (после g0/g1, reverb, dry).
+    const level = ctx.gains[ctx.gains.length - 1];
+    // Фейк отдаёт RMS 0.5 (−6 дБ) при цели −14: gain должен уйти вниз от 1.
+    expect(level.gain.ramps.length).toBeGreaterThan(0);
+    expect(level.gain.value).toBeLessThan(1);
+    adapter.destroy();
+  });
+
+  it("выключение leveling возвращает единичный gain", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.load("a.mp3");
+    adapter.setLeveling(true, -14);
+    await adapter.play();
+    vi.advanceTimersByTime(LEVEL_TICK_MS * 5);
+    adapter.setLeveling(false, -14);
+    const ctx = lastCtx();
+    const level = ctx.gains[ctx.gains.length - 1];
+    expect(level.gain.ramps).toContain(1);
     adapter.destroy();
   });
 

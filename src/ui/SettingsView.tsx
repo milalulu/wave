@@ -107,6 +107,9 @@ export function SettingsView() {
   const setLyricsAutoscroll = useApp((s) => s.setLyricsAutoscroll);
   const crossfadeMs = useApp((s) => s.crossfadeMs);
   const setCrossfadeMs = useApp((s) => s.setCrossfadeMs);
+  const levelingEnabled = useApp((s) => s.levelingEnabled);
+  const levelingTargetDb = useApp((s) => s.levelingTargetDb);
+  const setLeveling = useApp((s) => s.setLeveling);
   const discoveryRate = useApp((s) => s.discoveryRate);
   const setDiscoveryRate = useApp((s) => s.setDiscoveryRate);
   const historyDecayDays = useApp((s) => s.historyDecayDays);
@@ -650,6 +653,32 @@ export function SettingsView() {
               onChange={(e) => setCrossfadeMs(Number(e.target.value))}
             />
             <span className="effect-value">{crossfadeMs === 0 ? t("settings").crossfadeOff : `${crossfadeMs} ms`}</span>
+          </div>
+</SettingsCard>
+
+        <SettingsCard title={t("settings").leveling} desc={t("settings").levelingDesc}>
+          <div className="settings-toggles">
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={levelingEnabled}
+                onChange={(e) => setLeveling(e.target.checked)}
+              />
+              <span>{t("settings").leveling}</span>
+            </label>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").levelingTarget}</label>
+            <input
+              type="range"
+              min={-24}
+              max={-6}
+              step={1}
+              value={levelingTargetDb}
+              disabled={!levelingEnabled}
+              onChange={(e) => setLeveling(true, Number(e.target.value))}
+            />
+            <span className="effect-value">{levelingTargetDb} dB</span>
           </div>
 </SettingsCard>
 

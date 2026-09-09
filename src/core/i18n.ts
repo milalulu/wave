@@ -262,6 +262,9 @@ export interface Translations {
     crossfadeDesc: string;
     crossfadeOff: string;
     crossfadeDuration: string;
+    leveling: string;
+    levelingDesc: string;
+    levelingTarget: string;
     recommendations: string;
     recommendationsDesc: string;
     discoveryRate: string;
@@ -728,6 +731,9 @@ export const translations: Record<Locale, Translations> = {
       crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
       crossfadeOff: "Off",
       crossfadeDuration: "Crossfade Duration",
+      leveling: "Volume leveling",
+      levelingDesc: "Automatically evens out loudness between tracks (adaptive gain, −14 dB target).",
+      levelingTarget: "Target level",
       recommendations: "Recommendations",
       recommendationsDesc: "Fine-tune how the Wave recommendations are generated.",
       discoveryRate: "Discovery Rate",
@@ -1195,6 +1201,9 @@ export const translations: Record<Locale, Translations> = {
       crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
       crossfadeOff: "Выкл",
       crossfadeDuration: "Длительность кроссфейда",
+      leveling: "Выравнивание громкости",
+      levelingDesc: "Автоматически выравнивает громкость между треками (адаптивный гейн, цель −14 дБ).",
+      levelingTarget: "Целевой уровень",
       recommendations: "Рекомендации",
       recommendationsDesc: "Настройте, как генерируются рекомендации Wave.",
       discoveryRate: "Уровень открытий",

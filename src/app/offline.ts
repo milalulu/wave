@@ -118,6 +118,25 @@ const norm = (s: string): string =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+// URL страницы (watch/track page), а не прямой медиафайл: качать напрямую нельзя,
+// сначала нужен resolveUri провайдера (важно для Android без yt-dlp).
+const INDIRECT_PATTERNS = [
+  /youtube\.com\/watch/i,
+  /music\.youtube\.com\/watch/i,
+  /youtu\.be\//i,
+  /soundcloud\.com\//i,
+  /open\.spotify\.com\//i,
+];
+
+export function needsStreamResolve(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.includes("api.soundcloud.com")) return false;
+  if (lower.includes("googlevideo.com")) return false;
+  if (/\.(mp3|m4a|ogg|opus|flac|wav|mp4|webm)(\?|#|$)/i.test(url)) return false;
+  return INDIRECT_PATTERNS.some((re) => re.test(url));
+}
+
 export function localUriFor(track: Track): string | null {
   const files = downloadedFiles();
 

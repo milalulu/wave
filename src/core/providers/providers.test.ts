@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { HttpJsonGateway } from "./HttpGateway";
 import type { YtDlpGateway } from "./YouTubeMusicProvider";
+import { YT_RESOLVE_TIMEOUT_MS } from "./YouTubeMusicProvider";
 import type { VkGateway } from "./VkProvider";
 import { DeezerProvider } from "./DeezerProvider";
 import { iTunesProvider } from "./iTunesProvider";
@@ -188,6 +189,28 @@ describe("YouTubeMusicProvider", () => {
     await p.search("q1");
     await p.search("q1");
     expect(hits).toBe(1);
+  });
+
+  it("не висит вечно, если гейтвей не отвечает", async () => {
+    vi.useFakeTimers();
+    try {
+      const gateway: YtDlpGateway = {
+        search: async () => [],
+        stream: () => new Promise<string>(() => {}),
+      };
+      const p = new YouTubeMusicProvider(gateway);
+      const pending = p.resolveUri({
+        id: "youtube:track:vidHang",
+        provider: "youtube",
+        title: "T",
+        meta: { ytId: "vidHang" },
+      } as never);
+      const assertion = expect(pending).rejects.toThrow("timed out");
+      await vi.advanceTimersByTimeAsync(YT_RESOLVE_TIMEOUT_MS);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

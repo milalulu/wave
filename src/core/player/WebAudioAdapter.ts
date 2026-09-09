@@ -1,5 +1,6 @@
 import type { PlayerState } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
+import { DEFAULT_LEVELING_OPTIONS, Leveler, rmsOfSamples, rmsToDb } from "./leveling";
 
 export const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
 
@@ -20,6 +21,8 @@ export const MEDIA_ELEMENT_READY_PROBE_MS = 8000;
 export const BUFFER_TIME_UPDATE_MS = 250;
 
 export const BUFFER_CACHE_MAX = 4;
+
+export const LEVEL_TICK_MS = 120;
 
 type StateCb = (state: PlayerState) => void;
 type TimeCb = (position: number, duration: number) => void;
@@ -43,6 +46,15 @@ export class WebAudioAdapter implements AudioAdapter {
   private bassBoostGain = 0;
   private reverbMix = 0;
   private stereoWidth = 0;
+
+  // Выравнивание громкости: узел после анализатора (анализатор видит сырой
+  // сигнал), адаптация — по таймеру отдельно от визуализатора.
+  private levelGain: GainNode | null = null;
+  private bufLevelGain: GainNode | null = null;
+  private leveler = new Leveler();
+  private levelingEnabled = false;
+  private levelTimer: number | undefined;
+  private levelSmoothDb = -Infinity;
 
   private gains: number[] = [];
 
@@ -289,10 +301,12 @@ export class WebAudioAdapter implements AudioAdapter {
     if (this.ctx) {
       void this.ctx.close().catch(() => undefined);
     }
+    this.stopLevelTimer();
     this.ctx = null;
     this.fadeGains = [];
     this.filters = [];
     this.analyser = null;
+    this.levelGain = null;
     this.bassBoost = null;
     this.reverbGain = null;
     this.dryGain = null;
@@ -341,7 +355,11 @@ export class WebAudioAdapter implements AudioAdapter {
     dryGain.connect(pan);
     revGain.connect(pan);
     pan.connect(analyser);
-    analyser.connect(ctx.destination);
+    const level = ctx.createGain();
+    level.gain.value = 1;
+    analyser.connect(level);
+    level.connect(ctx.destination);
+    this.levelGain = level;
 
     return { bassBoost: bb, reverb: conv, reverbGain: revGain, dryGain, stereoPan: pan };
   }
@@ -426,6 +444,8 @@ export class WebAudioAdapter implements AudioAdapter {
   
 
   async load(src: string): Promise<void> {
+    this.leveler.reset();
+    this.levelSmoothDb = -Infinity;
     if (isProxiedAudioUrl(src)) {
       this.switchToElementMode();
     }
@@ -515,8 +535,58 @@ export class WebAudioAdapter implements AudioAdapter {
     if (this.bufStereoPan) this.bufStereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
   }
 
+  setLeveling(enabled: boolean, targetDb: number): void {
+    this.levelingEnabled = enabled;
+    this.leveler = new Leveler({ ...DEFAULT_LEVELING_OPTIONS, targetDb });
+    this.levelSmoothDb = -Infinity;
+    if (!enabled) {
+      this.stopLevelTimer();
+      const t = this.ctx?.currentTime ?? 0;
+      if (this.levelGain && this.ctx) this.levelGain.gain.setTargetAtTime(1, t, GAIN_TAU);
+      const bt = this.bufCtx?.currentTime ?? 0;
+      if (this.bufLevelGain && this.bufCtx) this.bufLevelGain.gain.setTargetAtTime(1, bt, GAIN_TAU);
+    } else if (this.playRequested || this.bufPlaying) {
+      this.startLevelTimer();
+    }
+  }
+
+  private startLevelTimer(): void {
+    if (this.levelTimer !== undefined) return;
+    this.levelTimer = globalThis.setInterval(() => this.tickLeveling(), LEVEL_TICK_MS);
+  }
+
+  private stopLevelTimer(): void {
+    if (this.levelTimer !== undefined) {
+      globalThis.clearInterval(this.levelTimer);
+      this.levelTimer = undefined;
+    }
+  }
+
+  private tickLeveling(): void {
+    if (!this.levelingEnabled) return;
+    const inBuffer = this.mode === "buffer";
+    const analyser = inBuffer ? this.bufAnalyser : this.analyser;
+    const ctx = inBuffer ? this.bufCtx : this.ctx;
+    const node = inBuffer ? this.bufLevelGain : this.levelGain;
+    if (!analyser || !ctx || !node) return;
+    if (inBuffer ? !this.bufPlaying : !this.playRequested) return;
+    try {
+      const data = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(data);
+      const db = rmsToDb(rmsOfSamples(data));
+      // Сглаживаем окном ~0.4с, чтобы не качаться внутри бита.
+      const dt = LEVEL_TICK_MS / 1000;
+      this.levelSmoothDb = Number.isFinite(this.levelSmoothDb)
+        ? this.levelSmoothDb + (db - this.levelSmoothDb) * Math.min(1, dt / 0.4)
+        : db;
+      const gain = this.leveler.step(this.levelSmoothDb, dt);
+      node.gain.setTargetAtTime(gain, ctx.currentTime, 0.1);
+    } catch {}
+  }
+
   async play(): Promise<void> {
     this.playRequested = true;
+    if (this.levelingEnabled) this.startLevelTimer();
     if (this.mode === "buffer") {
       await this.bufPlay();
       return;
@@ -533,6 +603,7 @@ export class WebAudioAdapter implements AudioAdapter {
 
   pause(): void {
     this.playRequested = false;
+    this.stopLevelTimer();
     if (this.mode === "buffer") {
       this.bufPause();
       return;
@@ -666,8 +737,12 @@ export class WebAudioAdapter implements AudioAdapter {
 
       const master = ctx.createGain();
       master.gain.value = this.bufVolume;
-      this.bufAnalyser.connect(master);
+      const bufLevel = ctx.createGain();
+      bufLevel.gain.value = 1;
+      this.bufAnalyser.connect(bufLevel);
+      bufLevel.connect(master);
       master.connect(ctx.destination);
+      this.bufLevelGain = bufLevel;
       this.bufCtx = ctx;
       this.bufSrcGains = [g0, g1];
       this.bufGain = master;
@@ -691,8 +766,10 @@ export class WebAudioAdapter implements AudioAdapter {
     if (this.bufCtx) {
       void this.bufCtx.close().catch(() => undefined);
     }
+    this.stopLevelTimer();
     this.bufCtx = null;
     this.bufGain = null;
+    this.bufLevelGain = null;
     this.bufSrcGains = [null, null];
     this.bufFilters = [];
     this.bufAnalyser = null;
@@ -852,7 +929,8 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private async bufLoad(src: string): Promise<void> {
-    
+    this.leveler.reset();
+    this.levelSmoothDb = -Infinity;
     if (this.bufUri === src && this.bufDecoding) {
       await this.bufDecoding;
       return;

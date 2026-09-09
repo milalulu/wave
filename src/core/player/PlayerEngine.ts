@@ -364,6 +364,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emit("equalizer", this.equalizer);
   }
 
+  setLeveling(enabled: boolean, targetDb: number): void {
+    this.adapter.setLeveling(enabled, targetDb);
+  }
+
   setCrossfadeMs(ms: number): void {
     this.adapter.setCrossfadeMs(ms);
   }

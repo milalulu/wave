@@ -45,6 +45,28 @@ function cover(thumb?: string): string | undefined {
 const STREAM_TTL_MS = 2 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 const RELATED_TTL_MS = 30 * 60 * 1000;
+// Защита от вечного зависания: yt-dlp-гейтвей на медленной сети (типично для
+// Android) может не ответить никогда — движок должен получить ошибку и пойти дальше.
+export const YT_RESOLVE_TIMEOUT_MS = 60 * 1000;
+
+function withResolveTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`youtube: stream resolve timed out (${label})`)),
+      YT_RESOLVE_TIMEOUT_MS,
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
 
 export class YouTubeMusicProvider implements MusicProvider {
   readonly id = "youtube";
@@ -145,13 +167,16 @@ export class YouTubeMusicProvider implements MusicProvider {
     if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
 
     try {
-      const url = await invoke<string>("yt_resolve_innertube", { videoId: id });
+      const url = await withResolveTimeout(
+        invoke<string>("yt_resolve_innertube", { videoId: id }),
+        "innertube",
+      );
       this.streamCache.set(key, { url, at: Date.now() });
       this.prune(this.streamCache, STREAM_TTL_MS);
       return url;
     } catch {}
 
-    const url = await this.gateway.stream(id, quality);
+    const url = await withResolveTimeout(this.gateway.stream(id, quality), "gateway");
     this.streamCache.set(key, { url, at: Date.now() });
     this.prune(this.streamCache, STREAM_TTL_MS);
     return url;
