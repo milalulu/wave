@@ -1,7 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { start, cancel, onUrl, onInvalidUrl } from "@fabianlars/tauri-plugin-oauth";
-import { supabase } from "./supabase";
 
 export type OAuthProvider = "google" | "github";
 
@@ -14,6 +13,7 @@ export function oauthSupported(): "desktop" | "browser" | "android" {
 }
 
 export async function signInOAuthDesktop(provider: OAuthProvider): Promise<void> {
+  const { supabase } = await import("./supabase");
   const port = await start({ ports: OAUTH_PORTS });
   const redirectTo = `http://127.0.0.1:${port}`;
 

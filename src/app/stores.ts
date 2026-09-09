@@ -14,7 +14,7 @@ import { bindTray } from "./tray";
 import { bindMiniBroadcast, bindMiniRemote } from "./mini";
 import { bindGlobalHotkeys } from "./hotkeys";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
-import { type SyncedPlaylist, type PlaylistShare, sharePlaylist as apiShare, removeShareByEmail, getPlaylistShares, fetchSharedPlaylists } from "./supabase";
+import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadLeveling, saveLeveling } from "./levelingStore";
@@ -437,7 +437,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   sharePlaylist: async (playlistId, email, permission = "editor") => {
-    const { getCurrentUser } = await import("./supabase");
+    const { getCurrentUser, sharePlaylist: apiShare } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return false;
     const result = await apiShare(user.id, playlistId, email, permission);
@@ -449,7 +449,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   unsharePlaylist: async (playlistId, email) => {
-    const { getCurrentUser } = await import("./supabase");
+    const { getCurrentUser, removeShareByEmail } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return;
     await removeShareByEmail(user.id, playlistId, email);
@@ -457,7 +457,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   loadShares: async (playlistId) => {
-    const { getCurrentUser } = await import("./supabase");
+    const { getCurrentUser, getPlaylistShares } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return;
     const shares = await getPlaylistShares(user.id, playlistId);
@@ -465,7 +465,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   loadSharedPlaylists: async () => {
-    const { getCurrentUser } = await import("./supabase");
+    const { getCurrentUser, fetchSharedPlaylists } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return;
     const shared = await fetchSharedPlaylists(user.id);

@@ -1,5 +1,5 @@
 import { useApp } from "./stores";
-import { type SyncedTrack, type SyncedPlaylist, syncLikes, fetchRemoteLikes, syncPlaylists, fetchRemotePlaylists, syncSettings, fetchRemoteSettings, fetchSharedPlaylists } from "./supabase";
+import { type SyncedTrack, type SyncedPlaylist } from "./supabase";
 import { loadYtQuality } from "./ytQuality";
 
 function getYtQuality(): string {
@@ -83,7 +83,7 @@ export function startSyncEngine() {
 
   const doSync = async () => {
     if (isSyncing) return;
-    const { getCurrentUser } = await import("./supabase");
+    const { getCurrentUser, syncLikes, syncPlaylists, syncSettings } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return;
     isSyncing = true;
@@ -153,6 +153,8 @@ export function stopSyncEngine() {
 }
 
 export async function pullRemoteData(userId: string) {
+  const { fetchRemoteLikes, fetchRemotePlaylists, fetchRemoteSettings, fetchSharedPlaylists } =
+    await import("./supabase");
   try {
     const [likes, playlists, settings, sharedPlaylists] = await Promise.all([
       fetchRemoteLikes(userId),

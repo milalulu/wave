@@ -4700,6 +4700,21 @@ input[type="range"]::-moz-range-track {
     flex-shrink: 0;
   }
 
+  /* Планшет 600–720: места хватает — возвращаем ряд кнопок и 4 колонки. */
+  @media (min-width: 600px) {
+    .wave-hero-actions {
+      flex-direction: row;
+    }
+    .wave-start-btn,
+    .wave-preview-btn {
+      width: auto;
+      flex: 1;
+    }
+    .wave-stats-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
   /* ── Детали артиста/альбома/плейлиста на 390px ── */
   .detail-header {
     flex-wrap: wrap;

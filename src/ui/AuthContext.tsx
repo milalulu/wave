@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { User, Session } from "@supabase/supabase-js";
-import { supabase, isSupabaseConfigured, onAuthStateChange } from "../app/supabase";
 import { signInOAuthDesktop, oauthSupported } from "../app/oauth";
 import { startSyncEngine, stopSyncEngine, pullRemoteData } from "../app/syncEngine";
 
@@ -23,37 +22,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
     let mounted = true;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user ?? null);
+    let unsub: (() => void) | undefined;
+    void (async () => {
+      // Supabase грузим лениво: 200+ КБ не должны тормозить холодный старт
+      // для пользователей без аккаунта.
+      const { supabase, isSupabaseConfigured, onAuthStateChange } = await import("../app/supabase");
+      if (!mounted) return;
+      setConfigured(isSupabaseConfigured);
+      if (!isSupabaseConfigured) {
         setLoading(false);
-        if (session?.user) startSyncEngine();
+        return;
       }
-    });
-    const { data: { subscription } } = onAuthStateChange(async (_event, sess: Session | null) => {
-      if (mounted) {
-        setSession(sess);
-        setUser(sess?.user ?? null);
-        setLoading(false);
-        if (sess?.user) {
-          await pullRemoteData(sess.user.id);
-          startSyncEngine();
-        } else {
-          stopSyncEngine();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+          if (session?.user) startSyncEngine();
         }
-      }
-    });
+      });
+      const { data: { subscription } } = onAuthStateChange(async (_event, sess: Session | null) => {
+        if (mounted) {
+          setSession(sess);
+          setUser(sess?.user ?? null);
+          setLoading(false);
+          if (sess?.user) {
+            await pullRemoteData(sess.user.id);
+            startSyncEngine();
+          } else {
+            stopSyncEngine();
+          }
+        }
+      });
+      unsub = () => subscription.unsubscribe();
+    })();
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      unsub?.();
     };
   }, []);
 
@@ -67,12 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       loading,
-      configured: isSupabaseConfigured,
+      configured,
       signUp: async (email, password) => {
+        const { supabase } = await import("../app/supabase");
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) handleError(error, "Sign up");
       },
       signIn: async (email, password) => {
+        const { supabase } = await import("../app/supabase");
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) handleError(error, "Sign in");
       },
@@ -86,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           default:
             
             {
+              const { supabase } = await import("../app/supabase");
               const { error } = await supabase.auth.signInWithOAuth({
                 provider,
                 options: { redirectTo: window.location.origin },
@@ -95,10 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       signOut: async () => {
+        const { supabase } = await import("../app/supabase");
         const { error } = await supabase.auth.signOut();
         if (error) handleError(error, "Sign out");
       },
       resetPassword: async (email) => {
+        const { supabase } = await import("../app/supabase");
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
         if (error) handleError(error, "Reset password");
       },
