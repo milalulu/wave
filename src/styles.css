@@ -4663,6 +4663,38 @@ input[type="range"]::-moz-range-track {
     justify-content: center;
   }
 
+  /* ── Мобильный проход: переполнение на 390px ── */
+  .wave-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
+  }
+  .wave-start-btn,
+  .wave-preview-btn {
+    min-width: 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .wave-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tabs,
+  .period-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tabs::-webkit-scrollbar,
+  .period-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tabs .tab,
+  .period-tabs button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   
   @media (orientation: landscape) {
     .mobile-topbar {
