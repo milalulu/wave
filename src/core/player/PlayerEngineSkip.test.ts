@@ -12,6 +12,11 @@ class FakeParam {
   setTargetAtTime(v: number): void {
     this.value = v;
   }
+  setValueAtTime(v: number): void {
+    this.value = v;
+  }
+  cancelScheduledValues(): void {
+  }
 }
 class FakeGain {
   gain = new FakeParam(1);

@@ -46,6 +46,10 @@ function cover(images?: SpotifyImage[]): string | undefined {
   return images?.find((i) => i.url)?.url;
 }
 
+function normKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, " ").replace(/\s+/g, " ").trim();
+}
+
 export class SpotifyProvider implements MusicProvider {
   readonly id = "spotify";
   readonly name = "Spotify";
@@ -81,7 +85,8 @@ export class SpotifyProvider implements MusicProvider {
 
   async search(query: string): Promise<SearchResults> {
     const token = await this.accessToken();
-    const url = `${API}/search?q=${encodeURIComponent(query)}&type=track,album,artist&limit=50`;
+    // С февраля 2026 лимит поиска урезан до 10 (dev-режим).
+    const url = `${API}/search?q=${encodeURIComponent(query)}&type=track,album,artist&limit=10`;
     const { status, body } = await this.http.json("GET", url, undefined, {
       Authorization: `Bearer ${token}`,
     });
@@ -170,27 +175,26 @@ export class SpotifyProvider implements MusicProvider {
   async getArtist(artistId: string): Promise<ArtistDetail> {
     const realId = artistId.replace(/^spotify:artist:/, "");
     const token = await this.accessToken();
+    // GET /artists/{id}/top-tracks удалён в феврале 2026: берём сингл артиста
+    // (имя/обложка) + топ через обычный поиск по исполнителю.
     const { status, body } = await this.http.json(
       "GET",
-      `${API}/artists/${realId}/top-tracks?market=US`,
+      `${API}/artists/${realId}`,
       undefined,
       { Authorization: `Bearer ${token}` },
     );
     if (status !== 200) throw new Error(`spotify artist failed: ${status}`);
-    const data = body as { tracks?: SpotifyTrack[] };
-    const firstTrack = data.tracks?.[0];
-    const artistName = firstTrack?.artists?.[0]?.name ?? "";
-    const artistImage = firstTrack?.album?.images;
+    const a = body as SpotifyArtist;
+    const artistName = a.name ?? "";
+    const topTracks = artistName ? await this.getArtistTopTracks(artistName) : [];
     return {
       artist: {
         id: artistId,
         provider: this.id,
         name: artistName,
-        coverUrl: cover(artistImage),
+        coverUrl: cover(a.images),
       },
-      topTracks: (data.tracks ?? [])
-        .filter((t) => t?.id && t.name)
-        .map((t) => this.toTrack(t)),
+      topTracks,
       albums: [],
     };
   }
@@ -199,54 +203,40 @@ export class SpotifyProvider implements MusicProvider {
     const cacheKey = `${artist}|${track}|${JSON.stringify(options ?? {})}`;
     const hit = this.similarCache.get(cacheKey);
     if (hit && Date.now() - hit.at < SpotifyProvider.SIMILAR_TTL_MS) return hit.tracks;
+    // /recommendations заблокирован для dev-приложений с ноября 2024:
+    // похожесть собираем текстовым поиском (артист + жанры/настроения).
     try {
       const token = await this.accessToken();
-      const params = new URLSearchParams({ market: "US", limit: "20" });
-
-      if (track) {
-        const trackId = await this.findTrackId(track, artist, token);
-        if (trackId) params.set("seed_tracks", trackId);
-      } else if (artist) {
-        const artistId = await this.findArtistId(artist, token);
-        if (artistId) params.set("seed_artists", artistId);
-      }
-
-      if (options?.genres?.length) {
-        const availableGenres = await this.getAvailableGenres(token);
-        const matched = options.genres
-          .filter((g) => availableGenres.has(g.toLowerCase()))
-          .slice(0, 2);
-        if (matched.length > 0) {
-          const existing = params.get("seed_artists") ?? params.get("seed_tracks");
-          if (!existing) {
-            params.delete("seed_artists");
-            params.delete("seed_tracks");
-            params.set("seed_genres", matched.join(","));
-          }
-        }
-      }
-
-      if (options?.targetEnergy != null) {
-        params.set("target_energy", String(Math.max(0, Math.min(1, options.targetEnergy))));
-      }
-      if (options?.targetValence != null) {
-        params.set("target_valence", String(Math.max(0, Math.min(1, options.targetValence))));
-      }
-      if (options?.targetAcousticness != null) {
-        params.set("target_acousticness", String(Math.max(0, Math.min(1, options.targetAcousticness))));
-      }
-
-      const { status, body } = await this.http.json(
-        "GET",
-        `${API}/recommendations?${params.toString()}`,
-        undefined,
-        { Authorization: `Bearer ${token}` },
+      const queries: string[] = [];
+      if (artist) queries.push(`artist:${artist}`);
+      const moodTerms = [...(options?.genres ?? []), ...(options?.moods ?? [])].slice(0, 2);
+      if (moodTerms.length > 0) queries.push(moodTerms.join(" "));
+      if (queries.length === 0) return [];
+      const settled = await Promise.allSettled(
+        queries.map((q) =>
+          this.http.json(
+            "GET",
+            `${API}/search?q=${encodeURIComponent(q)}&type=track&limit=10`,
+            undefined,
+            { Authorization: `Bearer ${token}` },
+          ),
+        ),
       );
-      if (status !== 200) return [];
-      const data = body as { tracks?: SpotifyTrack[] };
-      const tracks = (data.tracks ?? [])
-        .filter((t) => t?.id && t.name)
-        .map((t) => this.toTrack(t));
+      const seen = new Set<string>();
+      const tracks: Track[] = [];
+      const seedKey = `${normKey(artist)}|${normKey(track)}`;
+      for (const r of settled) {
+        if (r.status !== "fulfilled" || r.value.status !== 200) continue;
+        const data = r.value.body as { tracks?: { items?: SpotifyTrack[] } };
+        for (const t of data.tracks?.items ?? []) {
+          if (!t?.id || !t.name || seen.has(t.id)) continue;
+          seen.add(t.id);
+          if (`${normKey(t.artists?.[0]?.name ?? "")}|${normKey(t.name)}` === seedKey) continue;
+          tracks.push(this.toTrack(t));
+          if (tracks.length >= 15) break;
+        }
+        if (tracks.length >= 15) break;
+      }
       this.similarCache.set(cacheKey, { tracks, at: Date.now() });
       return tracks;
     } catch {
@@ -257,81 +247,41 @@ export class SpotifyProvider implements MusicProvider {
   async getSimilarArtists(artist: string): Promise<string[]> {
     const hit = this.similarArtistsCache.get(artist);
     if (hit && Date.now() - hit.at < SpotifyProvider.SIMILAR_TTL_MS) return hit.names;
+    // /related-artists заблокирован для dev-приложений: выводим похожих
+    // исполнителей из похожих треков.
     try {
-      const token = await this.accessToken();
-      const artistId = await this.findArtistId(artist, token);
-      if (!artistId) return [];
-      const { status, body } = await this.http.json(
-        "GET",
-        `${API}/artists/${artistId}/related-artists?limit=10`,
-        undefined,
-        { Authorization: `Bearer ${token}` },
-      );
-      if (status !== 200) return [];
-      const data = body as { artists?: SpotifyArtist[] };
-      const names = (data.artists ?? [])
-        .map((a) => a.name ?? "")
-        .filter((n) => n && n !== artist)
-        .slice(0, 8);
-      this.similarArtistsCache.set(artist, { names, at: Date.now() });
-      return names;
+      const tracks = await this.getSimilarTracks(artist, "");
+      const names = new Set<string>();
+      for (const t of tracks) {
+        if (t.artist && t.artist !== artist) names.add(t.artist);
+        if (names.size >= 8) break;
+      }
+      const out = [...names];
+      this.similarArtistsCache.set(artist, { names: out, at: Date.now() });
+      return out;
     } catch {
       return [];
     }
   }
 
   async getArtistTopTracks(artist: string): Promise<Track[]> {
+    // /artists/{id}/top-tracks удалён: топ — это первые результаты поиска по артисту.
     try {
       const token = await this.accessToken();
-      const artistId = await this.findArtistId(artist, token);
-      if (!artistId) return [];
       const { status, body } = await this.http.json(
         "GET",
-        `${API}/artists/${artistId}/top-tracks?market=US`,
+        `${API}/search?q=${encodeURIComponent(`artist:${artist}`)}&type=track&limit=10`,
         undefined,
         { Authorization: `Bearer ${token}` },
       );
       if (status !== 200) return [];
-      const data = body as { tracks?: SpotifyTrack[] };
-      return (data.tracks ?? [])
+      const data = body as { tracks?: { items?: SpotifyTrack[] } };
+      return (data.tracks?.items ?? [])
         .filter((t) => t?.id && t.name)
         .slice(0, 10)
         .map((t) => this.toTrack(t));
     } catch {
       return [];
-    }
-  }
-
-  private async findTrackId(title: string, artist: string, token: string): Promise<string | null> {
-    try {
-      const q = `track:${title} artist:${artist}`;
-      const { status, body } = await this.http.json(
-        "GET",
-        `${API}/search?q=${encodeURIComponent(q)}&type=track&limit=1`,
-        undefined,
-        { Authorization: `Bearer ${token}` },
-      );
-      if (status !== 200) return null;
-      const data = body as { tracks?: { items?: SpotifyTrack[] } };
-      return data.tracks?.items?.[0]?.id ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async findArtistId(name: string, token: string): Promise<string | null> {
-    try {
-      const { status, body } = await this.http.json(
-        "GET",
-        `${API}/search?q=${encodeURIComponent(name)}&type=artist&limit=1`,
-        undefined,
-        { Authorization: `Bearer ${token}` },
-      );
-      if (status !== 200) return null;
-      const data = body as { artists?: { items?: SpotifyArtist[] } };
-      return data.artists?.items?.[0]?.id ?? null;
-    } catch {
-      return null;
     }
   }
 
@@ -354,24 +304,5 @@ export class SpotifyProvider implements MusicProvider {
     const expiresIn = data.expires_in ?? 3600;
     this.tokenExpiresAt = Date.now() + (expiresIn - 60) * 1000;
     return this.token;
-  }
-
-  private availableGenresCache: Set<string> | null = null;
-  private async getAvailableGenres(token: string): Promise<Set<string>> {
-    if (this.availableGenresCache) return this.availableGenresCache;
-    try {
-      const { status, body } = await this.http.json(
-        "GET",
-        `${API}/recommendations/available-genre-seeds`,
-        undefined,
-        { Authorization: `Bearer ${token}` },
-      );
-      if (status !== 200) return new Set();
-      const data = body as { genres?: string[] };
-      this.availableGenresCache = new Set((data.genres ?? []).map((g) => g.toLowerCase()));
-      return this.availableGenresCache;
-    } catch {
-      return new Set();
-    }
   }
 }

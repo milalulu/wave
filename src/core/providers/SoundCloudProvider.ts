@@ -187,6 +187,26 @@ export class SoundCloudProvider implements MusicProvider {
   }
 
   async getSimilarArtists(artist: string): Promise<string[]> {
+    // Настоящая похожесть: берём трек артиста, смотрим related-треки,
+    // похожие артисты — их distinct uploaders. Поиск юзеров — только фолбэк.
+    try {
+      const entries = await this.searchEntries(artist, 5);
+      const lower = artist.toLowerCase();
+      const seed =
+        entries.find((e) => (e.uploader ?? "").toLowerCase() === lower) ?? entries[0];
+      if (seed) {
+        const related = await invoke<ScSearchResult[]>("sc_related_tracks", {
+          trackId: String(seed.id),
+          limit: 15,
+        });
+        const names = new Set<string>();
+        for (const r of related) {
+          if (r.uploader && r.uploader.toLowerCase() !== lower) names.add(r.uploader);
+          if (names.size >= 8) break;
+        }
+        if (names.size > 0) return [...names];
+      }
+    } catch {}
     try {
       const users = await invoke<ScUserResult[]>("sc_search_users", { query: artist, limit: 10 });
       const names = new Set<string>();
@@ -204,6 +224,12 @@ export class SoundCloudProvider implements MusicProvider {
   }
 
   async getArtistTopTracks(artist: string): Promise<Track[]> {
+    // Топ — это треки самого артиста (точное совпадение uploader),
+    // а не похожие треки: переиспользуем getArtist.
+    try {
+      const detail = await this.getArtist(`soundcloud:artist:${encodeURIComponent(artist)}`);
+      if (detail.topTracks.length > 0) return detail.topTracks;
+    } catch {}
     return this.getSimilarTracks(artist, "");
   }
 

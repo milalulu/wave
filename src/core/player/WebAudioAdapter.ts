@@ -24,6 +24,10 @@ export const BUFFER_CACHE_MAX = 4;
 
 export const LEVEL_TICK_MS = 120;
 
+// За сколько секунд до конца трека подхватывать предзагруженный буфер,
+// чтобы склейка прошла точно по часам контекста (настоящий gapless).
+export const CHAIN_LOOKAHEAD_SEC = 0.3;
+
 type StateCb = (state: PlayerState) => void;
 type TimeCb = (position: number, duration: number) => void;
 type ElementMode = "element" | "buffer";
@@ -103,6 +107,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufRate = 1;
   private bufPendingSeek: number | null = null;
   private timeTimer: number | undefined;
+  private bufChainTimer: number | undefined;
   private proxiedHosts = new Set<string>();
   
   private bufferCache = new Map<string, AudioBuffer>();
@@ -429,15 +434,30 @@ export class WebAudioAdapter implements AudioAdapter {
     const prevGain = this.fadeGains[this.activeIdx];
     const nextGain = this.fadeGains[1 - this.activeIdx];
     const t = this.ctx.currentTime;
-    prevGain.gain.setTargetAtTime(0, t, GAIN_TAU);
-    nextGain.gain.setTargetAtTime(1, t, GAIN_TAU);
+    if (this.crossfadeMs === 0) {
+      // Gapless hard swap: мгновенная перекидка гейнов без лишних таймеров.
+      prevGain.gain.cancelScheduledValues(t);
+      prevGain.gain.setValueAtTime(0, t);
+      nextGain.gain.cancelScheduledValues(t);
+      nextGain.gain.setValueAtTime(1, t);
+    } else {
+      prevGain.gain.setTargetAtTime(0, t, GAIN_TAU);
+      nextGain.gain.setTargetAtTime(1, t, GAIN_TAU);
+    }
     this.fading = true;
-    this.fadeTimer = globalThis.setTimeout(() => this.finishFade(), this.crossfadeMs + 60);
+    const playP = next.play();
+    if (this.crossfadeMs === 0) {
+      // Зависший play() нового трека не должен держать старый играющим.
+      this.finishFade();
+    }
     try {
-      await next.play();
+      await playP;
     } catch (err) {
       this.finishFade();
       throw err;
+    }
+    if (this.crossfadeMs !== 0) {
+      this.fadeTimer = globalThis.setTimeout(() => this.finishFade(), this.crossfadeMs + 60);
     }
   }
 
@@ -446,6 +466,7 @@ export class WebAudioAdapter implements AudioAdapter {
   async load(src: string): Promise<void> {
     this.leveler.reset();
     this.levelSmoothDb = -Infinity;
+    this.clearBufChain();
     if (isProxiedAudioUrl(src)) {
       this.switchToElementMode();
     }
@@ -481,10 +502,9 @@ export class WebAudioAdapter implements AudioAdapter {
 
   
   preload(src: string): void {
-    if (isProxiedAudioUrl(src) && this.mode === "buffer") {
-      return;
-    }
     if (this.mode === "buffer") {
+      // Преддекодируем следующий трек заранее: без этого gapless-чейн
+      // не получит готовый буфер к концу текущего.
       this.bufPreload(src);
       return;
     }
@@ -766,6 +786,7 @@ export class WebAudioAdapter implements AudioAdapter {
     if (this.bufCtx) {
       void this.bufCtx.close().catch(() => undefined);
     }
+    this.clearBufChain();
     this.stopLevelTimer();
     this.bufCtx = null;
     this.bufGain = null;
@@ -931,8 +952,14 @@ export class WebAudioAdapter implements AudioAdapter {
   private async bufLoad(src: string): Promise<void> {
     this.leveler.reset();
     this.levelSmoothDb = -Infinity;
+    this.clearBufChain();
     if (this.bufUri === src && this.bufDecoding) {
       await this.bufDecoding;
+      return;
+    }
+    if (this.bufUri === src && this.bufPlaying && this.bufSource && this.buf) {
+      // Gapless-чейн уже играет этот трек — подхватываем без рестарта.
+      this.bufPendingSeek = null;
       return;
     }
     
@@ -990,7 +1017,14 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private bufPreload(src: string): void {
-    if (this.bufNextUri === src || this.cachedBuf(src)) return;
+    if (this.bufNextUri === src) return;
+    const cached = this.cachedBuf(src);
+    if (cached) {
+      this.bufNextUri = src;
+      this.bufNext = cached;
+      this.armBufChain();
+      return;
+    }
     this.bufNextUri = src;
     this.bufFetchBytes(src)
       .then((bytes) => this.bufDecode(bytes))
@@ -998,6 +1032,8 @@ export class WebAudioAdapter implements AudioAdapter {
         if (this.bufNextUri === src) {
           this.bufNext = audio;
           this.cacheBuf(src, audio);
+          // Догрузился уже во время игры — взводим gapless-чейн сразу.
+          this.armBufChain();
         }
       })
       .catch(() => {
@@ -1017,6 +1053,7 @@ export class WebAudioAdapter implements AudioAdapter {
       await this.bufStartPlayback();
       return;
     }
+    if (this.bufPlaying && this.bufSource) return;
     if (!this.buf || !this.bufCtx) throw new Error("no buffer loaded");
     await this.bufStartPlayback();
   }
@@ -1025,6 +1062,7 @@ export class WebAudioAdapter implements AudioAdapter {
     const ctx = this.bufCtx;
     const buf = this.buf;
     if (!ctx || !buf) throw new Error("no buffer");
+    this.clearBufChain();
     this.resumeBufCtx();
     const hadSource = this.bufSource !== null;
     const oldSource = this.bufSource;
@@ -1082,8 +1120,89 @@ export class WebAudioAdapter implements AudioAdapter {
     } else {
       this.stopSourceNode(oldSource);
     }
+    this.armBufChain();
     this.emitState("playing");
     this.startTimeTimer();
+  }
+
+  private clearBufChain(): void {
+    if (this.bufChainTimer !== undefined) {
+      globalThis.clearTimeout(this.bufChainTimer);
+      this.bufChainTimer = undefined;
+    }
+  }
+
+  private armBufChain(): void {
+    this.clearBufChain();
+    if (this.crossfadeMs !== 0) return;
+    const ctx = this.bufCtx;
+    if (!ctx || !this.buf || !this.bufNext || !this.bufPlaying) return;
+    const remaining = (this.buf.duration - this.bufPosition) / this.bufRate;
+    const delaySec = remaining - CHAIN_LOOKAHEAD_SEC;
+    if (!(delaySec > 0)) return;
+    this.bufChainTimer = globalThis.setTimeout(() => this.chainBufNext(), delaySec * 1000);
+  }
+
+  /**
+   * Gapless-склейка: стартуем предзагруженный следующий буфер ровно в момент
+   * конца текущего по часам контекста — без участия движка и его задержек.
+   * Движок потом подхватит уже играющий трек через adopt в bufLoad/bufPlay.
+   */
+  private chainBufNext(): void {
+    this.bufChainTimer = undefined;
+    if (this.mode !== "buffer") return;
+    const ctx = this.bufCtx;
+    const nextBuf = this.bufNext;
+    const nextUri = this.bufNextUri;
+    if (!ctx || !nextBuf || !nextUri || !this.buf || !this.bufPlaying || !this.bufSource) return;
+    if (this.crossfadeMs !== 0) return;
+    const endTime = this.bufSourceCtxStart + (this.buf.duration - this.bufBaseOffset) / this.bufRate;
+    const when = Math.max(endTime, ctx.currentTime);
+    const t = ctx.currentTime;
+    const oldSource = this.bufSource;
+    const oldGainIdx = this.bufSourceGainIdx;
+    this.bufSourceGainIdx = 1 - this.bufSourceGainIdx;
+    const gain = this.bufSrcGains[this.bufSourceGainIdx];
+    const src = ctx.createBufferSource();
+    src.buffer = nextBuf;
+    src.playbackRate.value = this.bufRate;
+    src.connect(gain ?? ctx.destination);
+    if (gain) {
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(1, t);
+    }
+    const oldGain = this.bufSrcGains[oldGainIdx];
+    if (oldGain) {
+      oldGain.gain.cancelScheduledValues(t);
+      oldGain.gain.setValueAtTime(0, t);
+    }
+    src.onended = (): void => {
+      if (this.bufSource !== src) return;
+      this.bufSource = null;
+      this.bufPlaying = false;
+      this.bufPosition = nextBuf.duration;
+      this.stopTimeTimer();
+      this.emitState("ended");
+      this.emitTime();
+      this.endedCb?.();
+    };
+    src.start(when, 0);
+    if (oldSource) {
+      oldSource.onended = null;
+      try {
+        oldSource.stop(when);
+      } catch {}
+    }
+    this.bufSource = src;
+    this.buf = nextBuf;
+    this.bufUri = nextUri;
+    this.bufNext = null;
+    this.bufNextUri = null;
+    this.bufBaseOffset = 0;
+    this.bufSourceCtxStart = when;
+    this.bufPosition = 0;
+    this.leveler.reset();
+    this.levelSmoothDb = -Infinity;
   }
 
   private stopSourceNode(src: AudioBufferSourceNode | null): void {
@@ -1102,6 +1221,7 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private bufPause(): void {
+    this.clearBufChain();
     if (this.bufPlaying) {
       this.bufPosition = this.bufGetPosition();
       const old = this.bufSource;

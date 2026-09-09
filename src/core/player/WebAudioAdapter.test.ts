@@ -165,12 +165,14 @@ class FakeBufferSource {
   buffer: FakeDecodedBuffer | null = null;
   playbackRate = new FakeParam(1);
   offset: number | null = null;
+  startWhen: number | null = null;
   stopCalls: number[] = [];
   onended: (() => void) | null = null;
   connect(): void {
     
   }
-  start(_when: number, offset: number): void {
+  start(when: number, offset: number): void {
+    this.startWhen = when;
     this.offset = offset;
   }
   stop(when?: number): void {
@@ -360,6 +362,23 @@ describe("WebAudioAdapter", () => {
 
     vi.advanceTimersByTime(CROSSFADE_MS + 100);
     expect(instances()[0].paused).toBe(true);
+    adapter.destroy();
+  });
+
+  it("кроссфейд 0 делает мгновенный hard swap без таймера", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.setCrossfadeMs(0);
+    adapter.load("a.mp3");
+    await adapter.play();
+
+    adapter.load("b.mp3");
+    await adapter.play();
+    // Без advanceTimersByTime: предыдущий уже на паузе, гейны щёлкнуты.
+    expect(instances()[0].paused).toBe(true);
+    expect(instances()[1].paused).toBe(false);
+    const ctx = lastCtx();
+    expect(ctx.gains[0].gain.value).toBe(0);
+    expect(ctx.gains[1].gain.value).toBe(1);
     adapter.destroy();
   });
 
@@ -654,6 +673,54 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     src.onended?.();
     expect(ended).toHaveBeenCalled();
     expect(adapter.getDuration()).toBe(120);
+    adapter.destroy();
+  });
+
+  it("gapless: предзагруженный буфер стартует точно в конце текущего", async () => {
+    stubFetch();
+    FakeAudioElement.broken = true;
+    const adapter = new WebAudioAdapter();
+    adapter.setCrossfadeMs(0);
+    await adapter.load("a.mp3");
+    await adapter.play();
+    await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
+
+    const ctx = lastCtx();
+    expect(ctx.bufferSources.length).toBe(1);
+    adapter.preload("b.mp3");
+    await vi.advanceTimersByTimeAsync(500);
+    // Трек 120с: чейн срабатывает за 0.3с до конца.
+    await vi.advanceTimersByTimeAsync(119_700);
+    expect(ctx.bufferSources.length).toBe(2);
+    expect(ctx.bufferSources[1].startWhen).toBeCloseTo(120, 0);
+    expect(ctx.bufferSources[1].offset).toBe(0);
+    adapter.destroy();
+  });
+
+  it("gapless: движок подхватывает уже играющий трек без рестарта", async () => {
+    stubFetch();
+    FakeAudioElement.broken = true;
+    const adapter = new WebAudioAdapter();
+    const ended = vi.fn();
+    adapter.onEnded(ended);
+    adapter.setCrossfadeMs(0);
+    await adapter.load("a.mp3");
+    await adapter.play();
+    await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
+
+    adapter.preload("b.mp3");
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(119_700);
+
+    const ctx = lastCtx();
+    expect(ctx.bufferSources.length).toBe(2);
+    // Движок доходит до ended позже и грузит тот же URI: рестарта нет.
+    await adapter.load("b.mp3");
+    await adapter.play();
+    expect(ctx.bufferSources.length).toBe(2);
+    // Склейка продолжает жить: конец склеенного трека эмитит ended.
+    ctx.bufferSources[1].onended?.();
+    expect(ended).toHaveBeenCalled();
     adapter.destroy();
   });
 

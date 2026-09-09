@@ -132,6 +132,34 @@ describe("SoundCloudProvider", () => {
     });
     expect(await p.resolveUri(r.tracks[0])).toBe("https://cf-media.sndcdn.com/x.mp3");
   });
+
+  it("getArtistTopTracks возвращает треки самого артиста", async () => {
+    const gateway: SoundCloudDlpGateway = {
+      search: async () => [
+        { id: "1", title: "Hit One", uploader: "Exact Artist", duration: 200 },
+        { id: "2", title: "Someone Else", uploader: "Other", duration: 200 },
+        { id: "3", title: "Hit Two", uploader: "Exact Artist", duration: 210 },
+      ],
+      stream: async () => "https://cf-media.sndcdn.com/x.mp3",
+    };
+    const p = new SoundCloudProvider(gateway);
+    const top = await p.getArtistTopTracks("Exact Artist");
+    expect(top.map((t) => t.title)).toEqual(["Hit One", "Hit Two"]);
+    expect(top.every((t) => t.artist === "Exact Artist")).toBe(true);
+  });
+
+  it("getSimilarArtists выводит uploaders похожих треков", async () => {
+    const gateway: SoundCloudDlpGateway = {
+      search: async () => [
+        { id: "1", title: "Own", uploader: "SC Artist", duration: 200 },
+        { id: "2", title: "Collab", uploader: "Friend A", duration: 200 },
+        { id: "3", title: "Remix", uploader: "Friend B", duration: 200 },
+      ],
+      stream: async () => "https://cf-media.sndcdn.com/x.mp3",
+    };
+    const p = new SoundCloudProvider(gateway);
+    expect(await p.getSimilarArtists("SC Artist")).toEqual(["Friend A", "Friend B"]);
+  });
 });
 
 describe("YouTubeMusicProvider", () => {
@@ -378,5 +406,77 @@ describe("SpotifyProvider", () => {
     const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
     const track = { id: "spotify:track:1", provider: "spotify", title: "T", artist: "A" } as const;
     await expect(p.resolveUri(track as never)).rejects.toThrow("no playable source");
+  });
+
+  const liveTrackItems = [
+    { id: "s1", name: "Seed Song", artists: [{ name: "Seed Artist" }], album: { name: "A" }, duration_ms: 200000 },
+    { id: "s2", name: "Other Song", artists: [{ name: "Other Artist" }], album: { name: "B" }, duration_ms: 210000 },
+    { id: "s3", name: "Third Song", artists: [{ name: "Seed Artist" }], album: { name: "A" }, duration_ms: 220000 },
+  ];
+
+  it("search шлёт limit=10 под новые ограничения API", async () => {
+    const urls: string[] = [];
+    const http: HttpJsonGateway = {
+      json: async (_m, url) => {
+        urls.push(url);
+        if (url.includes("/api/token")) return { status: 200, body: { access_token: "tok" } };
+        return { status: 200, body: { tracks: { items: [] }, albums: { items: [] }, artists: { items: [] } } };
+      },
+      text: async () => {
+        throw new Error("no text");
+      },
+    };
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    await p.search("q");
+    expect(urls.some((u) => u.includes("limit=10"))).toBe(true);
+    expect(urls.some((u) => u.includes("limit=50"))).toBe(false);
+  });
+
+  it("getSimilarTracks собирает похожее поиском и выкидывает сид", async () => {
+    const http = spotifyHttp({
+      "/v1/search": () => ({ tracks: { items: liveTrackItems } }),
+    });
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    const out = await p.getSimilarTracks("Seed Artist", "Seed Song", { genres: ["pop"] });
+    expect(out.map((t) => t.id)).toEqual(["spotify:track:s2", "spotify:track:s3"]);
+  });
+
+  it("getArtistTopTracks идёт через поиск по артисту", async () => {
+    const http = spotifyHttp({
+      "/v1/search": () => ({ tracks: { items: liveTrackItems } }),
+    });
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    const out = await p.getArtistTopTracks("Seed Artist");
+    expect(out).toHaveLength(3);
+    expect(out[0].provider).toBe("spotify");
+  });
+
+  it("getSimilarArtists выводит имена из похожих треков", async () => {
+    const http = spotifyHttp({
+      "/v1/search": () => ({ tracks: { items: liveTrackItems } }),
+    });
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    expect(await p.getSimilarArtists("Seed Artist")).toEqual(["Other Artist"]);
+  });
+
+  it("getArtist не дёргает удалённый top-tracks", async () => {
+    const urls: string[] = [];
+    const http: HttpJsonGateway = {
+      json: async (_m, url) => {
+        urls.push(url);
+        if (url.includes("/api/token")) return { status: 200, body: { access_token: "tok" } };
+        if (url.includes("/v1/artists/")) return { status: 200, body: { id: "a1", name: "Seed Artist", images: [] } };
+        return { status: 200, body: { tracks: { items: liveTrackItems } } };
+      },
+      text: async () => {
+        throw new Error("no text");
+      },
+    };
+    const p = new SpotifyProvider(http, { clientId: "c", clientSecret: "s" });
+    const detail = await p.getArtist("spotify:artist:a1");
+    expect(detail.artist.name).toBe("Seed Artist");
+    expect(detail.topTracks).toHaveLength(3);
+    expect(urls.some((u) => u.includes("top-tracks"))).toBe(false);
+    expect(urls.some((u) => u.includes("/v1/artists/a1"))).toBe(true);
   });
 });
