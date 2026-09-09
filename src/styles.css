@@ -4290,8 +4290,13 @@ input[type="range"]::-moz-range-track {
     flex-wrap: wrap;
     gap: 10px;
   }
+  /* В строке на 390px тесно: длительность видна в плеере, отступы жмём. */
   .track-row {
-    padding: 10px 10px;
+    gap: 8px;
+    padding: 8px;
+  }
+  .track-row .track-duration {
+    display: none;
   }
   .icon-btn,
   .more-btn {
@@ -4693,6 +4698,36 @@ input[type="range"]::-moz-range-track {
   .period-tabs button {
     white-space: nowrap;
     flex-shrink: 0;
+  }
+
+  /* ── Детали артиста/альбома/плейлиста на 390px ── */
+  .detail-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 12px;
+  }
+  .detail-cover {
+    width: 112px;
+    height: 112px;
+  }
+  .detail-info {
+    flex: 1 1 150px;
+  }
+  .detail-info h1 {
+    font-size: 22px;
+    overflow-wrap: anywhere;
+  }
+  .detail-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .detail-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  /* Бейдж провайдера съедает ~100px строки названия — на мобиле прячем. */
+  .track-title .provider-badge {
+    display: none;
   }
 
   
