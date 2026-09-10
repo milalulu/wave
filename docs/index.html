@@ -1,18 +1,18 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wave — Music Player</title>
-<meta name="description" content="Wave is a free, open-source music player with YouTube, Spotify, SoundCloud, Deezer, iTunes, and more — all in one search bar. Cross-platform: Windows, Linux, Android.">
+<title>Wave � Music Player</title>
+<meta name="description" content="Wave is a free, open-source music player with YouTube, Spotify, SoundCloud, Deezer, iTunes, and more � all in one search bar. Cross-platform: Windows, Linux, Android.">
 <meta name="theme-color" content="#05040f">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Wave — Music Player">
+<meta property="og:title" content="Wave � Music Player">
 <meta property="og:description" content="Free, open-source music player. 6+ sources, equalizer, synced lyrics, smart recommendations. Windows, Linux, Android.">
 <meta property="og:url" content="https://milalulu.github.io/wave">
 <meta property="og:image" content="https://milalulu.github.io/wave/logo.svg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Wave — Music Player">
+<meta name="twitter:title" content="Wave � Music Player">
 <meta name="twitter:description" content="Free, open-source music player. 6+ sources, equalizer, synced lyrics, smart recommendations.">
 <script type="application/ld+json">
 {
@@ -25,7 +25,7 @@
   "description": "Free, open-source music player with YouTube, Spotify, SoundCloud, Deezer, iTunes, and more.",
   "url": "https://milalulu.github.io/wave",
   "downloadUrl": "https://github.com/milalulu/wave/releases/latest",
-  "softwareVersion": "0.4.0",
+  "softwareVersion": "0.5.0",
   "license": "https://opensource.org/licenses/Apache-2.0"
 }
 </script>
@@ -41,7 +41,7 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  /* ── Mute button ── */
+  /* -- Mute button -- */
   .mute-btn {
     position: fixed; top: 16px; right: 16px; z-index: 100;
     width: 40px; height: 40px; border-radius: 50%;
@@ -68,7 +68,7 @@
     overflow-x: hidden;
   }
 
-  /* ── Ambient background ── */
+  /* -- Ambient background -- */
   .glow-1, .glow-2 {
     position: fixed;
     border-radius: 50%;
@@ -92,7 +92,7 @@
     to   { transform: translate(40px, 30px) scale(1.15); opacity: 1; }
   }
 
-  /* ── Particles ── */
+  /* -- Particles -- */
   .particles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
   .p {
     position: absolute;
@@ -107,7 +107,7 @@
     100% { transform: translateY(-10vh) scale(1); opacity: 0; }
   }
 
-  /* ── Hero section ── */
+  /* -- Hero section -- */
   .hero {
     position: relative;
     z-index: 1;
@@ -117,7 +117,7 @@
     padding-top: 10vh;
   }
 
-  /* ── Rings behind logo ── */
+  /* -- Rings behind logo -- */
   .rings {
     position: absolute;
     top: 50%; left: 50%;
@@ -140,7 +140,7 @@
     50%      { opacity: 0.8; transform: translate(-50%,-50%) scale(1.04); }
   }
 
-  /* ── Logo ── */
+  /* -- Logo -- */
   .logo-container {
     position: relative;
     width: 260px;
@@ -164,7 +164,7 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* ── Title ── */
+  /* -- Title -- */
   .title-section {
     margin-top: 32px;
     text-align: center;
@@ -205,14 +205,14 @@
     background-clip: text;
   }
 
-  /* ── Wave SVG ── */
+  /* -- Wave SVG -- */
   .wave-svg {
     margin-top: 32px;
     opacity: 0;
     animation: hero-in 0.8s ease 1.0s forwards;
   }
 
-  /* ── Equalizer ── */
+  /* -- Equalizer -- */
   .eq {
     display: flex;
     align-items: flex-end;
@@ -234,7 +234,7 @@
     to   { transform: scaleY(1); }
   }
 
-  /* ── Download buttons ── */
+  /* -- Download buttons -- */
   .downloads {
     margin-top: 48px;
     display: flex;
@@ -268,7 +268,7 @@
   }
   .dl-btn svg { width: 18px; height: 18px; fill: currentColor; }
 
-  /* ── Features grid ── */
+  /* -- Features grid -- */
   .features {
     position: relative;
     z-index: 1;
@@ -316,7 +316,7 @@
     color: #888;
   }
 
-  /* ── Showcase section ── */
+  /* -- Showcase section -- */
   .showcase {
     position: relative;
     z-index: 1;
@@ -342,7 +342,7 @@
     color: #fff;
   }
 
-  /* ── Real UI mockup ── */
+  /* -- Real UI mockup -- */
   .mockup {
     position: relative;
     border-radius: 16px;
@@ -621,7 +621,7 @@
   .mock-volume { width: 80px; height: 4px; border-radius: 4px; background: #1E2950; position: relative; }
   .mock-volume-fill { position: absolute; left: 0; top: 0; height: 100%; width: 65%; border-radius: 4px; background: #00F0FF; }
 
-  /* ── Stack section ── */
+  /* -- Stack section -- */
   .stack-section {
     position: relative;
     z-index: 1;
@@ -692,7 +692,7 @@
     .compare-table th, .compare-table td { padding: 8px 10px; }
   }
 
-  /* ── Theme switcher ── */
+  /* -- Theme switcher -- */
   .theme-section {
     position: relative; z-index: 1;
     width: 100%; max-width: 960px;
@@ -762,7 +762,7 @@
   .tp-amoled .tm-nav-dot { background: #0a0a0a; }
   .tp-amoled .tm-nav-dot.on { background: #141414; }
 
-  /* ── Changelog ── */
+  /* -- Changelog -- */
   .changelog {
     position: relative; z-index: 1;
     width: 100%; max-width: 720px;
@@ -803,9 +803,9 @@
   .tl-body { margin-top: 6px; font-size: 13px; line-height: 1.6; color: #94A3B8; }
   .tl-body ul { list-style: none; padding: 0; }
   .tl-body li { padding: 2px 0; padding-left: 14px; position: relative; }
-  .tl-body li::before { content: '→'; position: absolute; left: 0; color: var(--cyan); font-size: 11px; }
+  .tl-body li::before { content: '>'; position: absolute; left: 0; color: var(--cyan); font-size: 11px; }
 
-  /* ── FAQ ── */
+  /* -- FAQ -- */
   .faq-section {
     position: relative; z-index: 1;
     width: 100%; max-width: 720px;
@@ -846,7 +846,7 @@
     font-size: 13px; line-height: 1.6; color: #94A3B8;
   }
 
-  /* ── API demo ── */
+  /* -- API demo -- */
   .api-section {
     position: relative; z-index: 1;
     width: 100%; max-width: 800px;
@@ -909,7 +909,7 @@
     font-size: 11px; color: #00F0FF;
   }
 
-  /* ── How it works ── */
+  /* -- How it works -- */
   .steps-section { position:relative; z-index:1; width:100%; max-width:860px; margin-top:100px; padding:0 20px; }
   .steps-row { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:12px; }
   @media(max-width:768px){ .steps-row{grid-template-columns:1fr;} }
@@ -945,7 +945,7 @@
   .sv-eq-bar { width:6px; border-radius:3px; background:linear-gradient(to top,var(--cyan),var(--purple)); animation:sv-eq-bounce ease-in-out infinite alternate; }
   @keyframes sv-eq-bounce { from{height:8px;} to{height:100%;} }
 
-  /* ── Interactive EQ ── */
+  /* -- Interactive EQ -- */
   .eq-section { position:relative; z-index:1; width:100%; max-width:720px; margin-top:100px; padding:0 20px; }
   .eq-demo { border:1px solid rgba(255,255,255,0.06); border-radius:16px; background:rgba(255,255,255,0.02); padding:28px 24px; margin-top:12px; }
   .eq-controls { display:flex; align-items:flex-end; justify-content:center; gap:14px; margin-bottom:16px; min-height:180px; }
@@ -965,7 +965,7 @@
   .eq-preset-btn:hover { border-color:var(--cyan); color:#F1F5F9; }
   .eq-preset-btn.active { background:rgba(0,240,255,0.1); border-color:var(--cyan); color:var(--cyan); }
 
-  /* ── Roadmap ── */
+  /* -- Roadmap -- */
   .roadmap-section { position:relative; z-index:1; width:100%; max-width:720px; margin-top:100px; padding:0 20px; padding-bottom:60px; }
   .roadmap-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
   @media(max-width:600px){ .roadmap-grid{grid-template-columns:1fr;} }
@@ -985,7 +985,7 @@
   .rm-desc { font-size:12px; line-height:1.5; color:#94A3B8; }
   .rm-card.full { grid-column:1/-1; }
 
-  /* ── Comparison table ── */
+  /* -- Comparison table -- */
   .compare-section { position:relative; z-index:1; width:100%; max-width:820px; margin-top:100px; padding:0 20px; padding-bottom:60px; }
   .compare-wrap { margin-top:20px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .compare-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -1004,13 +1004,13 @@
   .cmp-partial { display:inline-block; width:18px; height:18px; border-radius:50%; background:rgba(245,158,11,0.12); color:#f59e0b; line-height:18px; font-size:10px; }
   .cmp-partial::after { content:'~'; }
 
-  /* ── Back to top ── */
+  /* -- Back to top -- */
   .btt { position:fixed; bottom:28px; right:28px; z-index:100; width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,0.08); background:rgba(10,8,24,0.7); backdrop-filter:blur(12px); color:#00F0FF; display:grid; place-items:center; cursor:pointer; opacity:0; pointer-events:none; transform:translateY(12px); transition:all 0.3s; }
   .btt.show { opacity:1; pointer-events:auto; transform:translateY(0); }
   .btt:hover { background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.3); transform:translateY(-2px); }
   .btt svg { width:20px; height:20px; }
 
-  /* ── Footer ── */
+  /* -- Footer -- */
   .footer {
     position: relative;
     z-index: 1;
@@ -1027,7 +1027,7 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ── Custom cursor ── */
+  /* -- Custom cursor -- */
   @media (hover: hover) and (pointer: fine) {
     *, *::before, *::after { cursor: none !important; }
   }
@@ -1066,7 +1066,7 @@
     border-color: rgba(255,255,255,0.6);
   }
 
-  /* ── Spotlight overlay ── */
+  /* -- Spotlight overlay -- */
   .spotlight {
     position: fixed; inset: 0; z-index: 1; pointer-events: none;
     background: radial-gradient(circle 600px at var(--mx, 50%) var(--my, 50%),
@@ -1074,13 +1074,13 @@
     transition: background 0.1s;
   }
 
-  /* ── 3D tilt cards ── */
+  /* -- 3D tilt cards -- */
   .feat { perspective: 800px; transform-style: preserve-3d; }
 
-  /* ── Magnetic button ── */
+  /* -- Magnetic button -- */
   .dl-btn, .cta-btn { transition: all 0.3s cubic-bezier(.22,1,.36,1); }
 
-  /* ── Hero gradient follows cursor ── */
+  /* -- Hero gradient follows cursor -- */
   .hero-glow {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 0;
@@ -1160,11 +1160,11 @@
 
   <!-- Download -->
   <div class="downloads">
-    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.4.0_x64_en-US.msi">
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.5.0_x64_en-US.msi">
       <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
       Windows
     </a>
-    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.4.0_amd64.deb">
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.5.0_amd64.deb">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor" font-weight="bold">.deb</text></svg>
       Linux
     </a>
@@ -1179,34 +1179,34 @@
 <!-- Features -->
 <section class="features" id="features">
   <div class="feat">
-    <div class="feat-icon">🔍</div>
+    <div class="feat-icon">??</div>
     <div class="feat-title">Smart search</div>
-    <div class="feat-desc">iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK, local files — with deduplication and cross-provider ranking</div>
+    <div class="feat-desc">iTunes, YouTube Music, SoundCloud, Deezer, Spotify, VK, local files � with deduplication and cross-provider ranking</div>
   </div>
   <div class="feat">
-    <div class="feat-icon">🎵</div>
+    <div class="feat-icon">??</div>
     <div class="feat-title">Smart recommendations</div>
-    <div class="feat-desc">My Wave — personalized mix from your likes, listening history, and top genres across all providers</div>
+    <div class="feat-desc">My Wave � personalized mix from your likes, listening history, and top genres across all providers</div>
   </div>
   <div class="feat">
-    <div class="feat-icon">⚡</div>
+    <div class="feat-icon">?</div>
     <div class="feat-title">Fast streaming</div>
-    <div class="feat-desc">Innertube API, SoundCloud native resolver, parallel yt-dlp, stream cache — tracks load in seconds</div>
+    <div class="feat-desc">Innertube API, SoundCloud native resolver, parallel yt-dlp, stream cache � tracks load in seconds</div>
   </div>
   <div class="feat">
-    <div class="feat-icon">🎨</div>
+    <div class="feat-icon">??</div>
     <div class="feat-title">Beautiful player</div>
-    <div class="feat-desc">Crossfade, 10-band equalizer, bass boost, reverb, stereo width, synced lyrics — full audio experience</div>
+    <div class="feat-desc">Crossfade, 10-band equalizer, bass boost, reverb, stereo width, synced lyrics � full audio experience</div>
   </div>
   <div class="feat">
-    <div class="feat-icon">🔗</div>
+    <div class="feat-icon">??</div>
     <div class="feat-title">HTTP API</div>
-    <div class="feat-desc">REST endpoints for Jarvis, voice assistants, and external scripts — full player control</div>
+    <div class="feat-desc">REST endpoints for Jarvis, voice assistants, and external scripts � full player control</div>
   </div>
   <div class="feat">
-    <div class="feat-icon">📱</div>
+    <div class="feat-icon">??</div>
     <div class="feat-title">Cross-platform</div>
-    <div class="feat-desc">Windows, Linux, Android — with MediaSession, notifications, and auto-updates</div>
+    <div class="feat-desc">Windows, Linux, Android � with MediaSession, notifications, and auto-updates</div>
   </div>
 </section>
 
@@ -1270,7 +1270,7 @@
           <div class="mock-chip">Deezer</div>
         </div>
         <div class="mock-tracks">
-          <!-- Track 1 — playing -->
+          <!-- Track 1 � playing -->
           <div class="mock-track playing">
             <div class="mock-eq"><i></i><i></i><i></i></div>
             <div class="mock-cover"><div class="mock-cover-inner" style="background:linear-gradient(135deg,#1a1a2e,#e94560)"></div></div>
@@ -1465,7 +1465,7 @@
         </div>
       </div>
       <div class="step-title">Search anything</div>
-      <div class="step-desc">One search bar, all platforms — YouTube, Spotify, SoundCloud, Deezer, iTunes</div>
+      <div class="step-desc">One search bar, all platforms � YouTube, Spotify, SoundCloud, Deezer, iTunes</div>
     </div>
     <div class="step-card">
       <div class="step-num">2</div>
@@ -1485,7 +1485,7 @@
       <div class="step-num">3</div>
       <div class="step-visual sv-enjoy" id="sv-enjoy"></div>
       <div class="step-title">Enjoy the experience</div>
-      <div class="step-desc">Synced lyrics, recommendations, MediaSession — it just works</div>
+      <div class="step-desc">Synced lyrics, recommendations, MediaSession � it just works</div>
     </div>
   </div>
 </section>
@@ -1515,7 +1515,7 @@
     <div class="rm-card">
       <div class="rm-status done"><div class="rm-dot"></div>Done</div>
       <div class="rm-title">Multi-source streaming</div>
-      <div class="rm-desc">YouTube, Spotify, SoundCloud, Deezer, iTunes, VK — all in one player</div>
+      <div class="rm-desc">YouTube, Spotify, SoundCloud, Deezer, iTunes, VK � all in one player</div>
     </div>
     <div class="rm-card">
       <div class="rm-status done"><div class="rm-dot"></div>Done</div>
@@ -1555,12 +1555,12 @@
     <div class="rm-card">
       <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
       <div class="rm-title">AI DJ mode</div>
-      <div class="rm-desc">Auto-mix transitions, key detection, BPM matching — seamless sets</div>
+      <div class="rm-desc">Auto-mix transitions, key detection, BPM matching � seamless sets</div>
     </div>
     <div class="rm-card">
       <div class="rm-status progress"><div class="rm-dot"></div>In Progress</div>
       <div class="rm-title">Collaborative playlists</div>
-      <div class="rm-desc">Shared playlists via Supabase — invite, sync, and listen together</div>
+      <div class="rm-desc">Shared playlists via Supabase � invite, sync, and listen together</div>
     </div>
     <div class="rm-card">
       <div class="rm-status planned"><div class="rm-dot"></div>Planned</div>
@@ -1693,12 +1693,24 @@
   <div class="timeline">
     <div class="tl-item">
       <div class="tl-dot"></div>
+      <div class="tl-version">0.5.0</div><span class="tl-date">Sep 2026</span>
+      <span class="tl-tag feat">feat</span>
+      <div class="tl-body"><ul>
+        <li>Volume leveling — adaptive auto-gain with target level setting</li>
+        <li>True gapless chaining in buffer mode, hard swap in element mode</li>
+        <li>Spotify provider revived for the current API, SoundCloud similarity</li>
+        <li>Offline downloads for network tracks, faster cold start (−30% JS)</li>
+        <li>Mobile layout fixes at 390px + tablet 600–720px breakpoint</li>
+      </ul></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
       <div class="tl-version">0.4.0</div><span class="tl-date">Sep 2026</span>
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
         <li>Native SoundCloud search &amp; streaming (api-v2, no yt-dlp)</li>
         <li>Native YouTube/YouTube Music innertube search (no yt-dlp)</li>
-        <li>Radio continuation — real SoundCloud related tracks &amp; YouTube automix up-next at queue end</li>
+        <li>Radio continuation � real SoundCloud related tracks &amp; YouTube automix up-next at queue end</li>
         <li>Cross-provider ranking &amp; duplicate collapse for radio candidates</li>
       </ul></div>
     </div>
@@ -1707,11 +1719,11 @@
       <div class="tl-version">0.3.0</div><span class="tl-date">Aug 2026</span>
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
-        <li>Offline mode — download tracks with cover art, play without internet</li>
+        <li>Offline mode � download tracks with cover art, play without internet</li>
         <li>YouTube Music & SoundCloud album/artist search via innertube API</li>
         <li>SoundCloud artist pages with top tracks</li>
         <li>Downloaded tracks library with play, like, and remove controls</li>
-        <li>Context menu fix — portal-based rendering for virtual lists</li>
+        <li>Context menu fix � portal-based rendering for virtual lists</li>
         <li>Player prefers local files when available (Spotify/YM-like behavior)</li>
       </ul></div>
     </div>
@@ -1720,10 +1732,10 @@
       <div class="tl-version">0.2.2</div><span class="tl-date">Aug 2026</span>
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
-        <li>Search normalization — deduplication, title cleanup, cross-provider ranking</li>
-        <li>Innertube API resolver — YouTube streaming 3-5x faster</li>
-        <li>SoundCloud native resolver — direct HTTP, no yt-dlp dependency</li>
-        <li>10 UI improvements — dynamic backgrounds, glassmorphism, view transitions</li>
+        <li>Search normalization � deduplication, title cleanup, cross-provider ranking</li>
+        <li>Innertube API resolver � YouTube streaming 3-5x faster</li>
+        <li>SoundCloud native resolver � direct HTTP, no yt-dlp dependency</li>
+        <li>10 UI improvements � dynamic backgrounds, glassmorphism, view transitions</li>
         <li>Wayland/X11 compatibility fix for Linux</li>
         <li>Stream cache (6h TTL, localStorage persistence)</li>
         <li>PlayerEngine concurrency 8, prefetch, failed retry</li>
@@ -1734,7 +1746,7 @@
       <div class="tl-version">0.2.1</div><span class="tl-date">Aug 2026</span>
       <span class="tl-tag perf">perf</span>
       <div class="tl-body"><ul>
-        <li>YouTube streaming via proxy — load time halved, CORS eliminated</li>
+        <li>YouTube streaming via proxy � load time halved, CORS eliminated</li>
         <li>Parallel yt-dlp resolution (android + web_safari clients)</li>
         <li>Global stream cache (45min TTL, 500 entries)</li>
       </ul></div>
@@ -1745,7 +1757,7 @@
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
         <li>SoundCloud streaming fix (3 root causes)</li>
-        <li>Full P0–P2 audit — 18 UX improvements</li>
+        <li>Full P0�P2 audit � 18 UX improvements</li>
         <li>Hero polish, sidebar logo, window icons</li>
         <li>Fast yt-dlp resolve + prefetch batch</li>
       </ul></div>
@@ -1755,7 +1767,7 @@
       <div class="tl-version">0.1.0</div><span class="tl-date">Jul 2026</span>
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
-        <li>Smart recommendations — MusicBrainz enrichment</li>
+        <li>Smart recommendations � MusicBrainz enrichment</li>
         <li>Skip detection, RollingContext, TransitionScoring</li>
         <li>70/20/10 queue balance algorithm</li>
         <li>HTTP REST API (32 endpoints)</li>
@@ -1767,7 +1779,7 @@
       <div class="tl-version">0.0.1</div><span class="tl-date">Jun 2026</span>
       <span class="tl-tag feat">feat</span>
       <div class="tl-body"><ul>
-        <li>Initial release — multi-source music player</li>
+        <li>Initial release � multi-source music player</li>
         <li>YouTube, Spotify, SoundCloud, Deezer, iTunes, VK</li>
         <li>Equalizer, bass boost, reverb, crossfade</li>
         <li>Lyrics sync, MediaSession, notifications</li>
@@ -1793,7 +1805,7 @@
         What music sources are supported?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-a"><div class="faq-a-inner">YouTube, YouTube Music, Spotify, SoundCloud, Deezer, iTunes/Apple Music, VK, Last.fm, and local files — all searchable from a single search bar.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">YouTube, YouTube Music, Spotify, SoundCloud, Deezer, iTunes/Apple Music, VK, Last.fm, and local files � all searchable from a single search bar.</div></div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">
@@ -1807,21 +1819,21 @@
         What is "My Wave"?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-a"><div class="faq-a-inner">My Wave is the smart recommendation engine. It analyzes your listening history, liked tracks, skip patterns, and genre preferences across all providers to generate a personalized mix — 70% familiar favorites, 20% related discoveries, 10% wild cards.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">My Wave is the smart recommendation engine. It analyzes your listening history, liked tracks, skip patterns, and genre preferences across all providers to generate a personalized mix � 70% familiar favorites, 20% related discoveries, 10% wild cards.</div></div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">
         Can I control Wave from Jarvis or voice assistants?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-a"><div class="faq-a-inner">Yes. Wave exposes a full HTTP REST API on <code>127.0.0.1:8299</code> with 32 endpoints — play, pause, search, queue, volume, lyrics, and more. Any script, curl command, or voice assistant can control it.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">Yes. Wave exposes a full HTTP REST API on <code>127.0.0.1:8299</code> with 32 endpoints � play, pause, search, queue, volume, lyrics, and more. Any script, curl command, or voice assistant can control it.</div></div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">
         Does it collect my data?
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-a"><div class="faq-a-inner">No telemetry, no analytics. Sign in with Supabase to sync your liked tracks, playlists, and preferences across devices — your data stays yours.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">No telemetry, no analytics. Sign in with Supabase to sync your liked tracks, playlists, and preferences across devices � your data stays yours.</div></div>
     </div>
   </div>
 </section>
@@ -1865,7 +1877,7 @@
   </div>
   <p style="color:#94A3B8;font-size:16px;margin-bottom:32px;">Free. Open-source. No ads. No tracking.</p>
   <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;">
-    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.4.0_x64_en-US.msi" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:16px;">
+    <a class="dl-btn" href="https://github.com/milalulu/wave/releases/latest/download/Wave_0.5.0_x64_en-US.msi" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:16px;">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download Wave
     </a>
@@ -1986,7 +1998,7 @@ function toggleEqAudio() {
   }
 }
 
-// Auto-play ambient on load (after user interaction — browsers require it)
+// Auto-play ambient on load (after user interaction � browsers require it)
 function autoPlayAmbient() {
   if (isPlaying) return;
   startAmbient();
@@ -2189,7 +2201,7 @@ const apiData = {
 
 {
   <span class="api-json-key">"ok"</span>: <span class="api-json-bool">true</span>,
-  <span class="api-json-key">"message"</span>: <span class="api-json-str">"Wave started — 25 tracks queued"</span>
+  <span class="api-json-key">"message"</span>: <span class="api-json-str">"Wave started � 25 tracks queued"</span>
 }`,
   history: `{
   <span class="api-json-key">"history"</span>: [
@@ -2241,7 +2253,7 @@ window.addEventListener('scroll', () => {
   else btt.classList.remove('show');
 });
 
-// ── Cursor tracking ──
+// -- Cursor tracking --
 (function() {
   const dot = document.getElementById('cursor-dot');
   const ring = document.getElementById('cursor-ring');
@@ -2316,7 +2328,7 @@ window.addEventListener('scroll', () => {
     dot.style.opacity = '1'; ring.style.opacity = '1'; visible = true;
   });
 
-  // ── 3D tilt on feature cards ──
+  // -- 3D tilt on feature cards --
   document.querySelectorAll('.feat').forEach(card => {
     card.addEventListener('mousemove', (e) => {
       const rect = card.getBoundingClientRect();
@@ -2329,7 +2341,7 @@ window.addEventListener('scroll', () => {
     });
   });
 
-  // ── Magnetic buttons ──
+  // -- Magnetic buttons --
   document.querySelectorAll('.dl-btn').forEach(btn => {
     btn.addEventListener('mousemove', (e) => {
       const rect = btn.getBoundingClientRect();
