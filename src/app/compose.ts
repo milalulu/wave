@@ -26,7 +26,7 @@ import type { SearchResults, Track } from "../core/types";
 import { activeProviders, isBlockedProvider } from "./platformSettings";
 import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettings";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
-import { loadYtQuality } from "./ytQuality";
+import { resolveYtQuality } from "./ytQuality";
 import { loadCrossfadeMs } from "./crossfade";
 import { loadDiscoveryRate } from "./discoveryRate";
 import { loadHistoryDecayDays } from "./historyDecay";
@@ -141,7 +141,7 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
               const results = await ytGateway.search(`${artist} ${title}`.trim(), 5);
               const first = results[0];
               if (!first) throw new Error("spotify: no youtube fallback");
-              return ytGateway.stream(first.id, loadYtQuality());
+              return ytGateway.stream(first.id, resolveYtQuality());
             }
           : undefined,
       }),

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Album, Artist, SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
 import type { MusicProvider } from "./MusicProvider";
-import { loadYtQuality, type YtQuality } from "../../app/ytQuality";
+import { resolveYtQuality, type YtQuality } from "../../app/ytQuality";
 
 export interface YtSearchResult {
   id: string;
@@ -161,7 +161,7 @@ export class YouTubeMusicProvider implements MusicProvider {
     const fromId = track.id.split(":").pop();
     const id = ytId ?? fromId;
     if (!id) throw new Error("youtube: no video id");
-    const quality = loadYtQuality();
+    const quality = resolveYtQuality();
     const key = `${id}:${quality}`;
     const hit = this.streamCache.get(key);
     if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
@@ -185,7 +185,7 @@ export class YouTubeMusicProvider implements MusicProvider {
   invalidateStream(trackId: string): void {
     const fromId = trackId.split(":").pop();
     if (!fromId) return;
-    const quality = loadYtQuality();
+    const quality = resolveYtQuality();
     const key = `${fromId}:${quality}`;
     this.streamCache.delete(key);
   }

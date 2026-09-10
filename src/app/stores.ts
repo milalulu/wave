@@ -18,6 +18,7 @@ import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadLeveling, saveLeveling } from "./levelingStore";
+import { watchConnectivity, currentConnectivity } from "./connectivity";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
 import { loadDiscoveryRate, saveDiscoveryRate, DISCOVERY_MIN, DISCOVERY_MAX } from "./discoveryRate";
 import { loadHistoryDecayDays, saveHistoryDecayDays, HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "./historyDecay";
@@ -132,6 +133,7 @@ export interface AppState extends DownloadsSlice {
   removeFromQueue: (index: number) => void;
   saveQueueAsPlaylist: (name: string) => Promise<void>;
   toggleLike: (track?: Track) => Promise<void>;
+  shareTrack: (track: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
   previewWave: () => Promise<void>;
@@ -637,6 +639,23 @@ export const useApp = create<AppState>()((set, get, api) => ({
       nowLiked ? t("common").like : t("common").unlike,
       { label: t("common").undo, run: () => void useApp.getState().toggleLike(target) },
     );
+  },
+
+  shareTrack: async (track) => {
+    const { shareText } = await import("../core/share/trackShare");
+    const text = shareText(track);
+    if (IS_ANDROID) {
+      try {
+        await invoke("share_text", { text });
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      get().notify(t("trackMenu").linkCopied);
+    } catch {
+      get().notify(text);
+    }
   },
 
   updateLocalTrack: (trackId, meta) => {
@@ -1192,6 +1211,26 @@ async function doInit(
 
   if (savedLeveling.enabled) {
     services.engine.setLeveling(true, savedLeveling.targetDb);
+  }
+
+  // Сеть пропала — предлагаем офлайн-режим вместо молчаливых ошибок стримов.
+  watchConnectivity((status) => {
+    if (status === "offline") {
+      if (!get().offlineMode) {
+        get().notify(t("toasts").wentOffline, {
+          label: t("toasts").enableOffline,
+          run: () => get().setOfflineMode(true),
+        });
+      }
+    } else {
+      get().notify(t("toasts").backOnline);
+    }
+  });
+  if (currentConnectivity() === "offline" && !get().offlineMode) {
+    get().notify(t("toasts").wentOffline, {
+      label: t("toasts").enableOffline,
+      run: () => get().setOfflineMode(true),
+    });
   }
 
   bindMediaSession(services, {

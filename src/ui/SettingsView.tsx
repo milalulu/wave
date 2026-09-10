@@ -15,7 +15,7 @@ import {
   ChevronDownIcon,
 } from "./icons";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { loadYtQuality, saveYtQuality, type YtQuality } from "../app/ytQuality";
+import { loadYtQuality, saveYtQuality, loadMobileYtQuality, saveMobileYtQuality, type YtQuality } from "../app/ytQuality";
 import { CROSSFADE_MIN, CROSSFADE_MAX, CROSSFADE_STEP } from "../app/crossfade";
 import { DISCOVERY_MIN, DISCOVERY_MAX } from "../app/discoveryRate";
 import { HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "../app/historyDecay";
@@ -128,6 +128,7 @@ export function SettingsView() {
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, string>>({});
   const [ytQuality, setYtQuality] = useState<YtQuality>(loadYtQuality());
+  const [ytMobileQuality, setYtMobileQuality] = useState<YtQuality>(loadMobileYtQuality());
   const [blocked, setBlocked] = useState<string[]>(() => getBlockedProviders());
   const [preferred, setPreferred] = useState<string[]>(() => {
     const saved = getPreferredProviders();
@@ -785,14 +786,34 @@ export function SettingsView() {
         </SettingsCard>
 
         <SettingsCard title={t("settings").ytQuality} desc={t("settings").ytQualityDesc}>
+          <div className="effect-slider">
+            <label>{t("settings").ytQualityWifi}</label>
+          </div>
           <div className="actions-row">
             {(["low", "medium", "high", "best"] as YtQuality[]).map((q) => (
               <button
-                key={q}
+                key={`wifi-${q}`}
                 className={`btn ${ytQuality === q ? "btn-primary" : ""}`}
                 onClick={() => {
                   setYtQuality(q);
                   saveYtQuality(q);
+                }}
+              >
+                {t("settings").ytQualityLabels[q]}
+              </button>
+            ))}
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").ytQualityMobile}</label>
+          </div>
+          <div className="actions-row">
+            {(["low", "medium", "high", "best"] as YtQuality[]).map((q) => (
+              <button
+                key={`mobile-${q}`}
+                className={`btn ${ytMobileQuality === q ? "btn-primary" : ""}`}
+                onClick={() => {
+                  setYtMobileQuality(q);
+                  saveMobileYtQuality(q);
                 }}
               >
                 {t("settings").ytQualityLabels[q]}

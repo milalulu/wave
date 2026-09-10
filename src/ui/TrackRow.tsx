@@ -56,6 +56,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
   const addToPlaylist = useApp((s) => s.addToPlaylist);
   const removeFromPlaylist = useApp((s) => s.removeFromPlaylist);
   const downloadTrack = useApp((s) => s.downloadTrack);
+  const shareTrack = useApp((s) => s.shareTrack);
   const startRadio = useApp((s) => s.startRadio);
   const toggleBlockTrack = useApp((s) => s.toggleBlockTrack);
   const toggleBlockArtist = useApp((s) => s.toggleBlockArtist);
@@ -268,6 +269,9 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
               {t("player").download}
             </button>
           )}
+          <button role="menuitem" tabIndex={-1} onClick={() => { void shareTrack(track); setMenuOpen(false); }}>
+            {t("trackMenu").shareTrack}
+          </button>
           {isLocal && (
             <button
               role="menuitem"

@@ -111,6 +111,8 @@ export interface Translations {
     showPreviews: string;
     recentSearches: string;
     clearRecent: string;
+    voice: string;
+    voiceUnsupported: string;
   };
   library: {
     liked: string;
@@ -266,6 +268,8 @@ export interface Translations {
     toolsMissing: string;
     ytQuality: string;
     ytQualityDesc: string;
+    ytQualityWifi: string;
+    ytQualityMobile: string;
     ytQualityLabels: Record<string, string>;
     backup: string;
     backupDesc: string;
@@ -409,6 +413,9 @@ export interface Translations {
     playNextAdded: string;
     radioStarted: string;
     alreadyInQueue: string;
+    wentOffline: string;
+    backOnline: string;
+    enableOffline: string;
   };
   tagEditor: {
     title: string;
@@ -458,6 +465,8 @@ export interface Translations {
     unblockTrack: string;
     blockArtist: string;
     unblockArtist: string;
+    shareTrack: string;
+    linkCopied: string;
   };
   onboarding: {
     title: string;
@@ -593,6 +602,8 @@ export const translations: Record<Locale, Translations> = {
       showPreviews: "Show previews",
       recentSearches: "Recent searches",
       clearRecent: "Clear",
+      voice: "Voice search",
+      voiceUnsupported: "Voice search unavailable",
     },
     library: {
       liked: "Liked",
@@ -753,6 +764,8 @@ export const translations: Record<Locale, Translations> = {
       toolsMissing: "Missing",
       ytQuality: "YouTube quality",
       ytQualityDesc: "Audio bitrate cap for streams via yt-dlp.",
+      ytQualityWifi: "Wi-Fi",
+      ytQualityMobile: "Mobile data",
       ytQualityLabels: { low: "Low", medium: "Medium", high: "High", best: "Best" },
       backup: "Backup Database",
       backupDesc: "Export your library to a file. Copy this file to another device to migrate.",
@@ -899,6 +912,9 @@ export const translations: Record<Locale, Translations> = {
       playNextAdded: "Will play next",
       radioStarted: "Radio started",
       alreadyInQueue: "Already in queue",
+      wentOffline: "Connection lost",
+      backOnline: "Back online",
+      enableOffline: "Go offline",
     },
     tagEditor: {
       title: "Title",
@@ -948,6 +964,8 @@ export const translations: Record<Locale, Translations> = {
       unblockTrack: "Allow in Wave",
       blockArtist: "Hide artist from Wave",
       unblockArtist: "Show artist in Wave",
+      shareTrack: "Share",
+      linkCopied: "Link copied",
     },
     onboarding: {
       title: "Pick your favorite artists",
@@ -1081,6 +1099,8 @@ export const translations: Record<Locale, Translations> = {
       showPreviews: "Показать превью",
       recentSearches: "Недавние запросы",
       clearRecent: "Очистить",
+      voice: "Голосовой поиск",
+      voiceUnsupported: "Голосовой поиск недоступен",
     },
     library: {
       liked: "Понравившееся",
@@ -1241,6 +1261,8 @@ export const translations: Record<Locale, Translations> = {
       toolsMissing: "Нет",
       ytQuality: "Качество YouTube",
       ytQualityDesc: "Максимальный битрейт аудио для стримов через yt-dlp.",
+      ytQualityWifi: "Wi-Fi",
+      ytQualityMobile: "Мобильный интернет",
       ytQualityLabels: { low: "Низкое", medium: "Среднее", high: "Высокое", best: "Максимум" },
       backup: "Резервная копия БД",
       backupDesc: "Экспорт библиотеки в файл. Скопируйте файл на другое устройство для миграции.",
@@ -1387,6 +1409,9 @@ export const translations: Record<Locale, Translations> = {
       playNextAdded: "Будет следующим",
       radioStarted: "Радио запущено",
       alreadyInQueue: "Уже в очереди",
+      wentOffline: "Соединение потеряно",
+      backOnline: "Снова в сети",
+      enableOffline: "В офлайн",
     },
     tagEditor: {
       title: "Название",
@@ -1436,6 +1461,8 @@ export const translations: Record<Locale, Translations> = {
       unblockTrack: "Разрешить в Wave",
       blockArtist: "Скрыть артиста из Wave",
       unblockArtist: "Показывать артиста в Wave",
+      shareTrack: "Поделиться",
+      linkCopied: "Ссылка скопирована",
     },
     onboarding: {
       title: "Выберите любимых артистов",

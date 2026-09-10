@@ -26,6 +26,11 @@ data class SetPlaybackArgs(
   var coverUrl: String? = null,
 )
 
+@InvokeArg
+data class ShareTextArgs(
+  var text: String = "",
+)
+
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
   private val activityRef: Activity = activity
 
@@ -98,6 +103,49 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
       } catch (_: Exception) {
       }
     }.apply { isDaemon = true }.start()
+  }
+
+  @Command
+  fun shareText(invoke: Invoke) {
+    val args = invoke.parseArgs(ShareTextArgs::class.java)
+    val text = args.text.ifEmpty { return invoke.reject("empty text") }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+      type = "text/plain"
+      putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(intent, null).apply {
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    activityRef.startActivity(chooser)
+    invoke.resolve()
+  }
+
+  @Command
+  fun recognizeSpeech(invoke: Invoke) {
+    val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+      putExtra(
+        android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+        android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+      )
+      putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+    }
+    try {
+      startActivityForResult(invoke, intent, "onSpeechRecognized")
+    } catch (e: android.content.ActivityNotFoundException) {
+      invoke.reject("speech recognition unavailable")
+    }
+  }
+
+  @ActivityCallback
+  fun onSpeechRecognized(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK || result.data == null) {
+      invoke.resolveObject("")
+      return
+    }
+    val matches = result.data!!.getStringArrayListExtra(
+      android.speech.RecognizerIntent.EXTRA_RESULTS,
+    )
+    invoke.resolveObject(matches?.firstOrNull() ?: "")
   }
 
   @Command

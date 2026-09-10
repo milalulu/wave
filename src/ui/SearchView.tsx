@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { searchAll } from "../app/compose";
@@ -8,8 +9,17 @@ import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
-import { SearchIcon, RefreshCwIcon } from "./icons";
+import { SearchIcon, RefreshCwIcon, MicIcon } from "./icons";
 import { EmptyState } from "./EmptyState";
+
+interface WebSpeechRecognition {
+  lang: string;
+  onresult: ((e: { results: { transcript: string }[][] }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
 
 interface SearchViewProps {
   query: string;
@@ -64,6 +74,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const [results, setResults] = useState<SearchResults[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(loadFilter());
   const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecent());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -157,6 +168,61 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     }
   };
 
+  const applyVoiceText = (text: string): void => {
+    const q = text.trim();
+    if (!q) return;
+    setInput(q);
+    onQuery(q);
+    saveRecent(q);
+    setRecentSearches(loadRecent());
+  };
+
+  const voiceSearch = (): void => {
+    if (listening) return;
+    setListening(true);
+    const done = () => setListening(false);
+    // 1. Нативный Android-диалог распознавания.
+    invoke<string>("recognize_speech", {})
+      .then((text) => {
+        done();
+        if (text) applyVoiceText(text);
+      })
+      .catch(() => {
+        // 2. Web Speech API (десктопный Chrome).
+        try {
+          const Ctor = (
+            window as unknown as {
+              webkitSpeechRecognition?: new () => WebSpeechRecognition;
+              SpeechRecognition?: new () => WebSpeechRecognition;
+            }
+          ).webkitSpeechRecognition ?? (
+            window as unknown as { SpeechRecognition?: new () => WebSpeechRecognition }
+          ).SpeechRecognition;
+          if (!Ctor) {
+            done();
+            setError(t("search").voiceUnsupported);
+            return;
+          }
+          const rec = new Ctor();
+          rec.onresult = (e) => {
+            const text = e.results?.[0]?.[0]?.transcript ?? "";
+            done();
+            if (text) applyVoiceText(text);
+          };
+          rec.onerror = () => {
+            done();
+          };
+          rec.onend = () => {
+            done();
+          };
+          rec.start();
+        } catch {
+          done();
+          setError(t("search").voiceUnsupported);
+        }
+      });
+  };
+
   const allSelected = selected === null || selected.length === providers.length;
 
   return (
@@ -174,6 +240,15 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
             ✕
           </button>
         )}
+        <button
+          type="button"
+          className={`icon-btn ${listening ? "active" : ""}`}
+          title={t("search").voice}
+          aria-label={t("search").voice}
+          onClick={voiceSearch}
+        >
+          <MicIcon size={18} />
+        </button>
         <button className="btn" type="submit" disabled={loading}>
           {loading ? t("common").loading : t("common").search}
         </button>
