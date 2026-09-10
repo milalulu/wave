@@ -4,6 +4,7 @@ import type { ViewKey } from "./Sidebar";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
+import { tileStyle } from "./tileHue";
 import { TrackRow } from "./TrackRow";
 import type { HistoryEntry } from "../core/types";
 import {
@@ -88,7 +89,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               {track.coverUrl ? (
                 <Cover src={track.coverUrl} alt="" />
               ) : (
-                <div className="mh-now-cover-empty">{track.title?.charAt(0) ?? "W"}</div>
+                <div className="mh-now-cover-empty" style={tileStyle(track.title)}>{track.title?.charAt(0) ?? "W"}</div>
               )}
             </div>
             <div className="mh-now-info">
@@ -130,7 +131,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
                     {entry.track.coverUrl ? (
                       <Cover src={entry.track.coverUrl} alt="" />
                     ) : (
-                      <div className="mh-recent-cover-empty">{entry.track.title?.charAt(0) ?? "?"}</div>
+                      <div className="mh-recent-cover-empty" style={tileStyle(entry.track.title)}>{entry.track.title?.charAt(0) ?? "?"}</div>
                     )}
                   </div>
                   <span className="mh-recent-title">{entry.track.title}</span>

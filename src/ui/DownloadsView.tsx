@@ -4,6 +4,7 @@ import { useI18n } from "./I18nContext";
 import { TrashIcon, DownloadIcon, PlayIcon } from "./icons";
 import { downloadedFiles, unregisterDownload, downloadedTrackToTrack, type DownloadedFile } from "../app/offline";
 import { Cover } from "./Cover";
+import { tileStyle } from "./tileHue";
 import { EmptyState } from "./EmptyState";
 
 const STATUS_LABEL: Record<string, "dlQueued" | "dlRunning" | "dlDone" | "dlFailed"> = {
@@ -33,7 +34,7 @@ function DownloadedTrackRow({ file, onRemove }: { file: DownloadedFile; onRemove
       {track.coverUrl ? (
         <Cover className="track-cover" src={track.coverUrl} alt="" />
       ) : (
-        <div className="track-cover track-cover-placeholder">
+        <div className="track-cover track-cover-placeholder" style={tileStyle(track.title)}>
           <PlayIcon size={14} />
         </div>
       )}

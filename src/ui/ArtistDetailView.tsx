@@ -5,6 +5,7 @@ import { TrackRow } from "./TrackRow";
 import { AlbumCard } from "./SearchView";
 import { Cover } from "./Cover";
 import { PlayIcon, BackIcon, ShuffleIcon } from "./icons";
+import { tileStyle } from "./tileHue";
 import type { Album, Track } from "../core/types";
 
 export function ArtistDetailView() {
@@ -60,7 +61,7 @@ export function ArtistDetailView() {
           {artist.coverUrl ? (
             <Cover src={artist.coverUrl} alt="" />
           ) : (
-            <div className="cover-empty artist">{artist.name.charAt(0)}</div>
+            <div className="cover-empty artist" style={tileStyle(artist.name)}>{artist.name.charAt(0)}</div>
           )}
         </div>
         <div className="detail-info">

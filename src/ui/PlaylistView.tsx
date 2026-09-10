@@ -8,6 +8,7 @@ import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon } from "./icons";
+import { tileStyle } from "./tileHue";
 import { buildM3U, parseM3U } from "../core/library/m3u";
 import { distinctCovers, groupPlaylistsByFolder } from "../core/library/playlistGroups";
 import type { Playlist, Track } from "../core/types";
@@ -299,7 +300,7 @@ export function PlaylistView() {
                       {pl.coverUrl ? (
                         <Cover className="playlist-cover" src={pl.coverUrl} alt="" />
                       ) : (
-                        <span className="playlist-cover playlist-cover-empty">{pl.name.charAt(0)}</span>
+                        <span className="playlist-cover playlist-cover-empty" style={tileStyle(pl.name)}>{pl.name.charAt(0)}</span>
                       )}
                       <span>{pl.name}</span>
                       <small>{tf("playlist").tracksCount(pl.tracks?.length ?? pl.trackIds.length)}</small>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
+import { tileStyle } from "./tileHue";
 import { ChartIcon, ShareIcon } from "./icons";
 import type { HistoryEntry } from "../core/types";
 import {
@@ -140,7 +141,7 @@ export function WrappedView() {
               {tr.coverUrl ? (
                 <Cover className="wrapped-cover" src={tr.coverUrl} alt="" />
               ) : (
-                <span className="wrapped-cover wrapped-cover-empty">{tr.title.charAt(0)}</span>
+                <span className="wrapped-cover wrapped-cover-empty" style={tileStyle(tr.title)}>{tr.title.charAt(0)}</span>
               )}
               <span className="wrapped-main">
                 <span className="wrapped-name">{tr.title}</span>

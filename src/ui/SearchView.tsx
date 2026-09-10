@@ -11,6 +11,7 @@ import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { SearchIcon, RefreshCwIcon, MicIcon } from "./icons";
+import { tileStyle } from "./tileHue";
 import { EmptyState } from "./EmptyState";
 
 interface WebSpeechRecognition {
@@ -479,7 +480,7 @@ export function AlbumCard({ album, onClick }: { album: Album; onClick?: () => vo
       {album.coverUrl ? (
         <Cover src={album.coverUrl} alt="" />
       ) : (
-        <div className="media-card-empty">{album.title.charAt(0).toUpperCase()}</div>
+        <div className="media-card-empty" style={tileStyle(album.title)}>{album.title.charAt(0).toUpperCase()}</div>
       )}
       <span className="media-card-title">{album.title}</span>
       <small>{album.artist}</small>
@@ -496,7 +497,7 @@ export function ArtistCard({ artist, onClick }: { artist: Artist; onClick?: () =
   };
   return (
     <button className="media-card" onClick={handleClick} title={`${t("common").open}: ${artist.name}`}>
-      <div className="media-card-empty artist">{artist.name.charAt(0)}</div>
+      <div className="media-card-empty artist" style={tileStyle(artist.name)}>{artist.name.charAt(0)}</div>
       <span className="media-card-title">{artist.name}</span>
       <small>{t("search").artists}</small>
     </button>

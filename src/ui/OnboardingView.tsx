@@ -3,6 +3,7 @@ import { useI18n } from "./I18nContext";
 import { useApp } from "../app/stores";
 import { searchAll } from "../app/compose";
 import { SearchIcon, SpinnerIcon } from "./icons";
+import { tileStyle } from "./tileHue";
 
 interface OnboardingArtist {
   name: string;
@@ -258,7 +259,7 @@ function ArtistPickCard({
       {artist.coverUrl ? (
         <img src={artist.coverUrl} alt="" loading="lazy" />
       ) : (
-        <div className="media-card-empty artist">{artist.name.charAt(0).toUpperCase()}</div>
+        <div className="media-card-empty artist" style={tileStyle(artist.name)}>{artist.name.charAt(0).toUpperCase()}</div>
       )}
       <span className="media-card-title">{artist.name}</span>
       {picked && <span className="onboarding-check">✓</span>}

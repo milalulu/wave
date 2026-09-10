@@ -2970,11 +2970,35 @@ input[type="range"]::-moz-range-track {
 
 .splash {
   height: 100%;
+  position: relative;
   display: grid;
   place-items: center;
   font-size: 28px;
   font-weight: 800;
+  letter-spacing: 2px;
   background: radial-gradient(1200px 600px at 50% 30%, #1a1c2b 0%, var(--bg) 60%);
+  animation: splash-in 0.6s ease-out;
+}
+.splash::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  animation: splash-spin 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes splash-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Onboarding ── */
@@ -5459,4 +5483,21 @@ input[type="range"]::-moz-range-track {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* ── Цветные плейсхолдеры обложек (hue из tileStyle) ── */
+.track-cover-placeholder,
+.media-card-empty,
+.mini-cover-empty,
+.wrapped-cover-empty,
+.mh-now-cover-empty,
+.mh-recent-cover-empty,
+.hero-cover-empty,
+.playlist-cover-empty,
+.player-mini-cover-empty,
+.player-cover-empty,
+.cover-empty,
+.player-bar.mini .player-mini-cover-empty,
+.content-nowplaying .hero-cover-empty {
+  background: linear-gradient(135deg, hsl(var(--tile-h, 222) 55% 38%), hsl(calc(var(--tile-h, 222) + 40) 60% 24%));
 }

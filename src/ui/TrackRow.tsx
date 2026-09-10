@@ -7,6 +7,7 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TagEditor } from "./TagEditor";
 import { providerLabel } from "./providers";
+import { tileStyle } from "./tileHue";
 import { HeartIcon, MoreIcon, PlayIcon, RadioIcon, DownloadIcon } from "./icons";
 import { isTrackBlocked, isArtistBlocked } from "../app/platformSettings";
 import { isTrackDownloaded } from "../app/offline";
@@ -167,7 +168,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
       {track.coverUrl ? (
         <Cover className="track-cover" src={track.coverUrl} alt="" />
       ) : (
-        <div className="track-cover track-cover-placeholder">
+        <div className="track-cover track-cover-placeholder" style={tileStyle(track.artist ?? track.title)}>
           <PlayIcon size={14} />
         </div>
       )}

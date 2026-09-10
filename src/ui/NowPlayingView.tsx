@@ -5,6 +5,7 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
+import { tileStyle } from "./tileHue";
 import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon } from "./icons";
 
 import { Spectrum } from "./Spectrum";
@@ -89,7 +90,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
             {track.coverUrl ? (
               <Cover src={track.coverUrl} alt="" />
             ) : (
-              <div className="hero-cover-empty">{track.title?.charAt(0) ?? "W"}</div>
+              <div className="hero-cover-empty" style={tileStyle(track.title)}>{track.title?.charAt(0) ?? "W"}</div>
             )}
           </div>
           <div className="hero-info">
