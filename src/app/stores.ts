@@ -82,7 +82,7 @@ export interface AppState extends DownloadsSlice {
   pushLog: (message: string) => void;
   clearLogs: () => void;
   reloadServices: () => Promise<void>;
-  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads";
+  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads" | "wrapped";
   setView: (v: AppState["view"]) => void;
   
   navStack: AppState["view"][];
@@ -97,6 +97,7 @@ export interface AppState extends DownloadsSlice {
   setSelectedPlaylist: (id: string | null) => void;
   loadPlaylists: () => Promise<void>;
   createPlaylist: (name: string, tracks?: Track[]) => Promise<void>;
+  importPlaylistFromLink: (url: string) => Promise<number>;
   deletePlaylist: (id: string) => Promise<void>;
   addToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
@@ -344,6 +345,14 @@ export const useApp = create<AppState>()((set, get, api) => ({
     };
     await services.storage.addPlaylist(playlist);
     await get().loadPlaylists();
+  },
+  importPlaylistFromLink: async (url) => {
+    const { services } = get();
+    if (!services) throw new Error("not ready");
+    const { importPlaylistLink } = await import("../core/import/playlistLink");
+    const { name, tracks } = await importPlaylistLink(services, url);
+    await get().createPlaylist(name, tracks);
+    return tracks.length;
   },
   deletePlaylist: async (id) => {
     const { services } = get();

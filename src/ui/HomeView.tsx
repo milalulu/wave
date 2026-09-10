@@ -18,6 +18,7 @@ import {
   RadioIcon,
   SearchIcon,
   SettingsIcon,
+  ChartIcon,
   WaveIcon,
 } from "./icons";
 
@@ -72,6 +73,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
     { view: "search", icon: SearchIcon, label: t("nav").search, desc: t("home").searchDesc },
     { view: "library", icon: ListIcon, label: t("nav").library, desc: t("home").libraryDesc },
     { view: "wave", icon: WaveIcon, label: t("nav").wave, desc: t("home").waveDesc },
+    { view: "wrapped", icon: ChartIcon, label: t("nav").wrapped, desc: t("home").wrappedDesc },
     { view: "playlist", icon: PlaylistIcon, label: t("nav").playlist, desc: t("home").playlistsDesc },
     { view: "downloads", icon: DownloadIcon, label: t("nav").downloads, desc: t("home").downloadsDesc },
     { view: "settings", icon: SettingsIcon, label: t("nav").settings, desc: t("home").settingsDesc },

@@ -285,6 +285,44 @@ export class SpotifyProvider implements MusicProvider {
     }
   }
 
+  /**
+   * Импорт по ссылке open.spotify.com: трек/альбом/плейлист → {name, tracks}.
+   * Использует только живые сингл-эндпоинты (см. комменты выше).
+   */
+  async importFromUrl(kind: "track" | "album" | "playlist", id: string): Promise<{ name: string; tracks: Track[] }> {
+    const token = await this.accessToken();
+    const auth = { Authorization: `Bearer ${token}` };
+    if (kind === "track") {
+      const { status, body } = await this.http.json("GET", `${API}/tracks/${id}`, undefined, auth);
+      if (status !== 200) throw new Error(`spotify track failed: ${status}`);
+      const t = body as SpotifyTrack;
+      if (!t?.id || !t.name) throw new Error("spotify: bad track object");
+      const track = this.toTrack(t);
+      return { name: `${track.artist ?? ""} - ${track.title}`.trim(), tracks: [track] };
+    }
+    if (kind === "album") {
+      const detail = await this.getAlbum(`spotify:album:${id}`);
+      return { name: detail.album.title, tracks: detail.tracks };
+    }
+    const { status, body } = await this.http.json(
+      "GET",
+      `${API}/playlists/${id}?fields=name,tracks.items(track(id,name,artists(name),album(name,images),duration_ms,preview_url,external_urls))&limit=100`,
+      undefined,
+      auth,
+    );
+    if (status !== 200) throw new Error(`spotify playlist failed: ${status}`);
+    const data = body as {
+      name?: string;
+      tracks?: { items?: { track?: SpotifyTrack | null }[] };
+    };
+    const tracks = (data.tracks?.items ?? [])
+      .map((i) => i?.track)
+      .filter((t): t is SpotifyTrack => Boolean(t?.id && t?.name))
+      .map((t) => this.toTrack(t));
+    if (tracks.length === 0) throw new Error("spotify: empty playlist (private?)");
+    return { name: data.name ?? "Spotify playlist", tracks };
+  }
+
   private async accessToken(): Promise<string> {
     if (this.token && Date.now() < this.tokenExpiresAt) return this.token;
     const auth = `Basic ${btoa(`${this.config.clientId}:${this.config.clientSecret}`)}`;

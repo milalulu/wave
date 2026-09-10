@@ -36,6 +36,9 @@ export function PlaylistView() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [showLink, setShowLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -45,8 +48,11 @@ export function PlaylistView() {
   const [shareLoading, setShareLoading] = useState(false);
   const createModalRef = useRef<HTMLDivElement>(null);
   const shareModalRef = useRef<HTMLDivElement>(null);
+  const linkModalRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(createModalRef, showCreate, () => setShowCreate(false));
   usePopoverDismiss(shareModalRef, showShare, () => setShowShare(false));
+  usePopoverDismiss(linkModalRef, showLink, () => setShowLink(false));
+  const importPlaylistFromLink = useApp((s) => s.importPlaylistFromLink);
   const sharePlaylist = useApp((s) => s.sharePlaylist);
   const unsharePlaylist = useApp((s) => s.unsharePlaylist);
   const playlistShares = useApp((s) => s.playlistShares);
@@ -107,6 +113,22 @@ export function PlaylistView() {
       notify(tf("toasts").importSuccess(tracks.length));
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleLinkImport = async () => {
+    const url = linkUrl.trim();
+    if (!url || linkLoading) return;
+    setLinkLoading(true);
+    try {
+      const count = await importPlaylistFromLink(url);
+      setLinkUrl("");
+      setShowLink(false);
+      notify(tf("toasts").importSuccess(count));
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLinkLoading(false);
     }
   };
 
@@ -208,6 +230,9 @@ export function PlaylistView() {
           <button className="btn" onClick={() => void handleImport()}>
             <UploadIcon size={18} /> {t("playlist").import}
           </button>
+          <button className="btn" onClick={() => setShowLink(true)}>
+            <UploadIcon size={18} /> {t("playlist").importLink}
+          </button>
         </div>
       </header>
 
@@ -225,6 +250,25 @@ export function PlaylistView() {
             <div className="modal-actions">
               <button className="btn" onClick={handleCreate}>{t("playlist").create}</button>
               <button className="btn secondary" onClick={() => setShowCreate(false)}>{t("common").cancel}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLink && (
+        <div className="modal-overlay" onClick={() => setShowLink(false)}>
+          <div className="modal" ref={linkModalRef} onClick={(e) => e.stopPropagation()}>
+            <h3>{t("playlist").importLink}</h3>
+            <input
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder={t("playlist").linkPlaceholder}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && void handleLinkImport()}
+            />
+            <div className="modal-actions">
+              <button className="btn" disabled={linkLoading} onClick={() => void handleLinkImport()}>{t("playlist").import}</button>
+              <button className="btn secondary" onClick={() => setShowLink(false)}>{t("common").cancel}</button>
             </div>
           </div>
         </div>

@@ -1657,6 +1657,45 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
     Ok(items)
 }
 
+/// Резолв ссылки soundcloud.com/... в объект трека или плейлиста (api-v2 /resolve).
+/// Нужно для импорта плейлистов по ссылке — работает и на Android.
+#[tauri::command]
+async fn sc_resolve_url(page_url: String) -> Result<serde_json::Value, String> {
+    let client_id = sc_extract_client_id().await?;
+    let http = crate::http::client();
+    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        async {
+            let resp = http
+                .get("https://api-v2.soundcloud.com/resolve")
+                .query(&[
+                    ("client_id", client_id.as_str()),
+                    ("url", page_url.as_str()),
+                ])
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                )
+                .send()
+                .await?;
+            let status = resp.status();
+            let body = resp.json().await?;
+            Ok::<_, reqwest::Error>((status, body))
+        },
+    )
+    .await
+    .map_err(|_| "soundcloud resolve: timeout".to_string())?
+    .map_err(|e| format!("soundcloud resolve: {e}"))?;
+
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err("soundcloud resolve: not found (private/deleted?)".to_string());
+    }
+    if !status.is_success() {
+        return Err(format!("soundcloud resolve HTTP {}", status));
+    }
+    Ok(body)
+}
+
 #[tauri::command]
 async fn http_fetch_json(
     method: String,
@@ -1931,6 +1970,7 @@ pub fn run() {
             sc_search,
             sc_search_users,
             sc_related_tracks,
+            sc_resolve_url,
             vk_search,
             http_fetch_json,
             http_fetch_text,

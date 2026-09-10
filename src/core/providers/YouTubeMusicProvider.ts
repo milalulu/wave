@@ -206,6 +206,33 @@ export class YouTubeMusicProvider implements MusicProvider {
     throw new Error("youtube provider: no albums");
   }
 
+  /**
+   * Импорт одного видео по ссылке: название/автор через oEmbed (без ключей),
+   * стрим резолвится позже обычным путём.
+   */
+  async importVideoFromUrl(videoId: string): Promise<{ name: string; tracks: Track[] }> {
+    const res = await invoke<{ status: number; body: unknown }>("http_fetch_json", {
+      method: "GET",
+      url: `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
+      body: null,
+      headers: [],
+    });
+    if (res.status !== 200 || typeof res.body !== "object" || !res.body) {
+      throw new Error("youtube: oEmbed failed");
+    }
+    const { title, author_name } = res.body as { title?: string; author_name?: string };
+    if (!title) throw new Error("youtube: no title (private/deleted?)");
+    const track: Track = {
+      id: `youtube:track:${videoId}`,
+      provider: this.id,
+      uri: `https://www.youtube.com/watch?v=${videoId}`,
+      title,
+      artist: author_name,
+      meta: { ytId: videoId },
+    };
+    return { name: `${author_name ?? ""} - ${title}`.trim(), tracks: [track] };
+  }
+
   async getArtist(_artistId: string): Promise<ArtistDetail> {
     throw new Error("youtube provider: no artists");
   }

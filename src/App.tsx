@@ -36,6 +36,9 @@ const PlaylistView = lazy(() =>
 const DownloadsView = lazy(() =>
   import("./ui/DownloadsView").then((m) => ({ default: m.DownloadsView })),
 );
+const WrappedView = lazy(() =>
+  import("./ui/WrappedView").then((m) => ({ default: m.WrappedView })),
+);
 const SettingsView = lazy(() =>
   import("./ui/SettingsView").then((m) => ({ default: m.SettingsView })),
 );
@@ -206,6 +209,7 @@ function App() {
       {view === "artist" && <ArtistDetailView />}
       {view === "playlist" && <PlaylistView />}
       {view === "downloads" && <DownloadsView />}
+      {view === "wrapped" && <WrappedView />}
       {view === "settings" && <SettingsView />}
     </Suspense>
   );

@@ -5265,3 +5265,115 @@ input[type="range"]::-moz-range-track {
   0% { transform: scaleY(0.3); }
   100% { transform: scaleY(1); }
 }
+
+/* ── Wrapped (Итоги) ── */
+.wrapped-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.wrapped-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg-elev));
+  border: 1px solid var(--border-subtle);
+  text-align: center;
+}
+.wrapped-stat-main {
+  display: flex;
+  flex-direction: column;
+}
+.wrapped-big {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--text), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.wrapped-stats-row {
+  display: flex;
+  gap: 12px;
+}
+.wrapped-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+.wrapped-value {
+  font-size: 26px;
+  font-weight: 800;
+}
+.wrapped-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.wrapped-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wrapped-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.wrapped-row:hover {
+  background: var(--hover);
+}
+.wrapped-rank {
+  width: 28px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.wrapped-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.wrapped-cover-empty {
+  display: grid;
+  place-items: center;
+  background: var(--bg-elev-2);
+  color: var(--muted);
+  font-weight: 700;
+}
+.wrapped-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wrapped-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wrapped-artist {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wrapped-meta {
+  color: var(--muted);
+  font-size: 13px;
+  flex-shrink: 0;
+}

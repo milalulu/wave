@@ -17,6 +17,7 @@ export interface Translations {
     settings: string;
     downloads: string;
     localFiles: string;
+    wrapped: string;
   };
   downloads: {
     empty: string;
@@ -84,6 +85,7 @@ export interface Translations {
     libraryDesc: string;
     playlistsDesc: string;
     downloadsDesc: string;
+    wrappedDesc: string;
     settingsDesc: string;
     recentlyPlayed: string;
     nothingPlaying: string;
@@ -127,7 +129,21 @@ export interface Translations {
     periodDay: string;
     periodWeek: string;
     periodMonth: string;
+    periodYear: string;
     periodAll: string;
+  };
+  wrapped: {
+    title: string;
+    share: string;
+    minutes: string;
+    plays: string;
+    streak: string;
+    streakUnit: string;
+    activeDays: string;
+    topArtists: string;
+    topTracks: string;
+    empty: string;
+    emptyHint: string;
   };
   smart: {
     empty: string;
@@ -151,6 +167,8 @@ export interface Translations {
     cancel: string;
     namePlaceholder: string;
     import: string;
+    importLink: string;
+    linkPlaceholder: string;
     exportM3U: string;
     exportJSON: string;
     delete: string;
@@ -473,6 +491,7 @@ export const translations: Record<Locale, Translations> = {
       settings: "Settings",
       downloads: "Downloads",
       localFiles: "Local Files",
+      wrapped: "Wrapped",
     },
     downloads: {
       empty: "Nothing here yet. Use the menu on a track to download it.",
@@ -540,6 +559,7 @@ export const translations: Record<Locale, Translations> = {
       libraryDesc: "Liked, history and statistics",
       playlistsDesc: "Your playlists and imports",
       downloadsDesc: "Tracks saved to disk",
+      wrappedDesc: "Your year in music",
       settingsDesc: "Appearance, sources and keys",
       recentlyPlayed: "Recently played",
       nothingPlaying: "Nothing is playing",
@@ -596,7 +616,21 @@ export const translations: Record<Locale, Translations> = {
       periodDay: "Day",
       periodWeek: "Week",
       periodMonth: "Month",
+      periodYear: "Year",
       periodAll: "All",
+    },
+    wrapped: {
+      title: "Wrapped",
+      share: "Share card",
+      minutes: "minutes",
+      plays: "plays",
+      streak: "day streak",
+      streakUnit: "days",
+      activeDays: "active days",
+      topArtists: "Top artists",
+      topTracks: "Top tracks",
+      empty: "Nothing to wrap yet",
+      emptyHint: "Listen to some music first",
     },
     smart: {
       empty: "Listen to some music first to generate smart playlists",
@@ -620,6 +654,8 @@ export const translations: Record<Locale, Translations> = {
       cancel: "Cancel",
       namePlaceholder: "Name",
       import: "Import",
+      importLink: "Import link",
+      linkPlaceholder: "https://…",
       exportM3U: "M3U",
       exportJSON: "JSON",
       delete: "Delete",
@@ -943,6 +979,7 @@ export const translations: Record<Locale, Translations> = {
       settings: "Настройки",
       downloads: "Загрузки",
       localFiles: "Локальные файлы",
+      wrapped: "Итоги",
     },
     downloads: {
       empty: "Пока пусто. Скачивайте треки через меню в списке.",
@@ -1010,6 +1047,7 @@ export const translations: Record<Locale, Translations> = {
       libraryDesc: "Понравившееся, история и статистика",
       playlistsDesc: "Плейлисты и импорт",
       downloadsDesc: "Треки, сохранённые на диск",
+      wrappedDesc: "Ваш год в музыке",
       settingsDesc: "Оформление, источники и ключи",
       recentlyPlayed: "Недавно играли",
       nothingPlaying: "Ничего не играет",
@@ -1066,7 +1104,21 @@ export const translations: Record<Locale, Translations> = {
       periodDay: "День",
       periodWeek: "Неделя",
       periodMonth: "Месяц",
+      periodYear: "Год",
       periodAll: "Всё",
+    },
+    wrapped: {
+      title: "Итоги",
+      share: "Поделиться",
+      minutes: "минут",
+      plays: "треков",
+      streak: "дней подряд",
+      streakUnit: "дней",
+      activeDays: "активных дней",
+      topArtists: "Топ исполнителей",
+      topTracks: "Топ треков",
+      empty: "Пока нечего подводить",
+      emptyHint: "Сначала послушайте музыку",
     },
     smart: {
       empty: "Сначала послушайте музыку — умные плейлисты появятся здесь",
@@ -1090,6 +1142,8 @@ export const translations: Record<Locale, Translations> = {
       cancel: "Отмена",
       namePlaceholder: "Название",
       import: "Импорт",
+      importLink: "Импорт ссылки",
+      linkPlaceholder: "https://…",
       exportM3U: "M3U",
       exportJSON: "JSON",
       delete: "Удалить",

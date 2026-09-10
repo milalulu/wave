@@ -22,6 +22,15 @@ export interface SoundCloudDlpGateway {
   stream(url: string): Promise<string>;
 }
 
+export interface ScResolvedTrack {
+  kind?: string;
+  id?: number;
+  title?: string;
+  duration?: number;
+  artwork_url?: string | null;
+  user?: { username?: string; avatar_url?: string | null };
+}
+
 const STREAM_TTL_MS = 5 * 60 * 1000;
 const SEARCH_TTL_MS = 10 * 60 * 1000;
 const RELATED_TTL_MS = 30 * 60 * 1000;
@@ -235,6 +244,46 @@ export class SoundCloudProvider implements MusicProvider {
 
   async getAlbum(_albumId: string): Promise<AlbumDetail> {
     throw new Error("soundcloud provider: no albums");
+  }
+
+  private rawToTrack(t: ScResolvedTrack): Track | null {
+    if (!t?.id || !t.title) return null;
+    const id = String(t.id);
+    const thumb = t.artwork_url || t.user?.avatar_url || undefined;
+    return {
+      id: `soundcloud:track:${id}`,
+      provider: this.id,
+      uri: `soundcloud:track:${id}`,
+      title: t.title,
+      artist: t.user?.username,
+      coverUrl: cover(thumb),
+      duration: t.duration ? Math.round(t.duration / 1000) : undefined,
+      meta: { scId: id, scUrl: trackUrl(id) },
+    };
+  }
+
+  /**
+   * Импорт по ссылке soundcloud.com/...: трек или сет через sc_resolve_url.
+   */
+  async importFromUrl(pageUrl: string): Promise<{ name: string; tracks: Track[] }> {
+    const obj = await invoke<{ kind?: string; title?: string; tracks?: ScResolvedTrack[] } & ScResolvedTrack>(
+      "sc_resolve_url",
+      { pageUrl },
+    );
+    if (obj.kind === "playlist") {
+      const tracks = (obj.tracks ?? [])
+        .filter((t) => !t.kind || t.kind === "track")
+        .map((t) => this.rawToTrack(t))
+        .filter((t): t is Track => t !== null);
+      if (tracks.length === 0) throw new Error("soundcloud: empty set");
+      return { name: obj.title ?? "SoundCloud set", tracks };
+    }
+    if (obj.kind === "track") {
+      const track = this.rawToTrack(obj);
+      if (!track) throw new Error("soundcloud: bad track object");
+      return { name: `${track.artist ?? ""} - ${track.title}`.trim(), tracks: [track] };
+    }
+    throw new Error(`soundcloud: unsupported object (${obj.kind ?? "unknown"})`);
   }
 
   async getArtist(artistId: string): Promise<ArtistDetail> {

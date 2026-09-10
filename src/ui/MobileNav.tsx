@@ -74,6 +74,8 @@ export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
         return t("nav").library;
       case "settings":
         return t("nav").settings;
+      case "wrapped":
+        return t("nav").wrapped;
     }
   })();
 
