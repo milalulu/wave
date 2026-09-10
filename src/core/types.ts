@@ -68,6 +68,7 @@ export interface Playlist {
   createdAt: number;
   updatedAt: number;
   coverUrl?: string;
+  folder?: string;
 }
 
 export interface PlayerSnapshot {

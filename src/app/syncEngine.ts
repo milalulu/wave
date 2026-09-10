@@ -1,5 +1,20 @@
 import { useApp } from "./stores";
-import { type SyncedTrack, type SyncedPlaylist } from "./supabase";
+import { type SyncedTrack, type SyncedPlaylist, type PlaybackStateSync } from "./supabase";
+import type { Track } from "../core/types";
+import { t } from "../core/i18n";
+
+const sessionStartedAt = Date.now();
+
+export function shouldOfferContinue(
+  remote: PlaybackStateSync | null,
+  localTrackId: string | null,
+  sessionStart: number,
+): remote is PlaybackStateSync & { track: Track } {
+  if (!remote?.track || remote.queue.length === 0) return false;
+  if (!(remote.updatedAt > sessionStart)) return false;
+  if (remote.track.id === localTrackId) return false;
+  return true;
+}
 import { loadYtQuality } from "./ytQuality";
 
 function getYtQuality(): string {
@@ -83,7 +98,7 @@ export function startSyncEngine() {
 
   const doSync = async () => {
     if (isSyncing) return;
-    const { getCurrentUser, syncLikes, syncPlaylists, syncSettings } = await import("./supabase");
+    const { getCurrentUser, syncLikes, syncPlaylists, syncSettings, syncPlaybackState } = await import("./supabase");
     const user = await getCurrentUser();
     if (!user) return;
     isSyncing = true;
@@ -129,6 +144,18 @@ export function startSyncEngine() {
         }),
       ]);
 
+      // Состояние воспроизведения — только пока играет.
+      const snap = state.snapshot;
+      if (snap.state === "playing" && snap.current) {
+        const queue = snap.queue ?? [];
+        await syncPlaybackState(user.id, {
+          track: snap.current,
+          queue,
+          index: Math.max(0, queue.findIndex((tr) => tr.id === snap.current?.id)),
+          position: snap.position ?? 0,
+        });
+      }
+
       
       for (const id of Object.keys(stamps)) {
         if (!usedIds.has(id)) delete stamps[id];
@@ -153,7 +180,7 @@ export function stopSyncEngine() {
 }
 
 export async function pullRemoteData(userId: string) {
-  const { fetchRemoteLikes, fetchRemotePlaylists, fetchRemoteSettings, fetchSharedPlaylists } =
+  const { fetchRemoteLikes, fetchRemotePlaylists, fetchRemoteSettings, fetchSharedPlaylists, fetchPlaybackState } =
     await import("./supabase");
   try {
     const [likes, playlists, settings, sharedPlaylists] = await Promise.all([
@@ -162,6 +189,7 @@ export async function pullRemoteData(userId: string) {
       fetchRemoteSettings(userId),
       fetchSharedPlaylists(userId),
     ]);
+    const remotePlayback = await fetchPlaybackState(userId).catch(() => null);
 
     const state = useApp.getState();
     const newLikedIds = new Set([...state.likedIds, ...likes.map((l) => l.trackId)]);
@@ -216,6 +244,20 @@ export async function pullRemoteData(userId: string) {
       state.setAutoContinue(settings.autoContinue);
       state.setLyricsAutoOpen(settings.lyricsAutoOpen);
       state.setLyricsAutoscroll(settings.lyricsAutoscroll);
+    }
+
+    if (shouldOfferContinue(remotePlayback, state.snapshot.current?.id ?? null, sessionStartedAt)) {
+      const remote = remotePlayback;
+      state.notify(t("toasts").continueListening(remote.track.title), {
+        label: t("toasts").continueAction,
+        run: () => {
+          const s = useApp.getState();
+          const idx = Math.min(Math.max(remote.index, 0), Math.max(remote.queue.length - 1, 0));
+          void s.play(remote.queue, idx).then(() => {
+            if (remote.position > 5) s.seek(remote.position);
+          });
+        },
+      });
     }
   } catch (e) {
     console.error("[Sync] pull failed:", e);

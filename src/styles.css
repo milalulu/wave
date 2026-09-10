@@ -5377,3 +5377,86 @@ input[type="range"]::-moz-range-track {
   font-size: 13px;
   flex-shrink: 0;
 }
+
+/* ── Подсказки поиска ── */
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 4px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-subtle);
+}
+.suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.suggest-item:hover {
+  background: var(--hover);
+}
+.suggest-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Папки плейлистов и выбор обложки ── */
+.playlist-group-title {
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.playlist-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.playlist-meta-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.playlist-meta-row input {
+  min-width: 140px;
+}
+.cover-pick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cover-pick-item {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+  width: 52px;
+  height: 52px;
+}
+.cover-pick-item.active {
+  border-color: var(--accent);
+}
+.cover-pick-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

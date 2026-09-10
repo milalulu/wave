@@ -2,6 +2,7 @@ package com.wave.desktop
 
 import android.Manifest
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -29,6 +30,12 @@ data class SetPlaybackArgs(
 @InvokeArg
 data class ShareTextArgs(
   var text: String = "",
+)
+
+@InvokeArg
+data class ScheduleAlarmArgs(
+  var id: String = "",
+  var atMs: Long = 0L,
 )
 
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
@@ -146,6 +153,46 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
       android.speech.RecognizerIntent.EXTRA_RESULTS,
     )
     invoke.resolveObject(matches?.firstOrNull() ?: "")
+  }
+
+  @Command
+  fun scheduleAlarm(invoke: Invoke) {
+    val args = invoke.parseArgs(ScheduleAlarmArgs::class.java)
+    val manager = activityRef.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+    val intent = Intent(activityRef, AlarmReceiver::class.java).apply {
+      putExtra(AlarmReceiver.EXTRA_ALARM_ID, args.id)
+    }
+    val pending = PendingIntent.getBroadcast(
+      activityRef,
+      args.id.hashCode(),
+      intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    try {
+      if (android.os.Build.VERSION.SDK_INT >= 31) {
+        manager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, args.atMs, pending)
+      } else {
+        manager.setExact(android.app.AlarmManager.RTC_WAKEUP, args.atMs, pending)
+      }
+    } catch (_: SecurityException) {
+      manager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, args.atMs, pending)
+    }
+    invoke.resolve()
+  }
+
+  @Command
+  fun cancelAlarm(invoke: Invoke) {
+    val args = invoke.parseArgs(ScheduleAlarmArgs::class.java)
+    val manager = activityRef.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+    val intent = Intent(activityRef, AlarmReceiver::class.java)
+    val pending = PendingIntent.getBroadcast(
+      activityRef,
+      args.id.hashCode(),
+      intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    manager.cancel(pending)
+    invoke.resolve()
   }
 
   @Command

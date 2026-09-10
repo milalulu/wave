@@ -381,3 +381,56 @@ export async function fetchSharedPlaylists(userId: string): Promise<SyncedPlayli
 
   return results;
 }
+
+/*
+ * Продолжить на устройстве: таблица playback_state (создать в Supabase):
+ *   create table playback_state (
+ *     user_id uuid primary key references auth.users(id),
+ *     track jsonb, queue jsonb, track_index int, position double precision,
+ *     updated_at timestamptz default now()
+ *   );
+ * Без таблицы функции тихо ничего не делают (catch → null).
+ */
+export interface PlaybackStateSync {
+  track: import("../core/types").Track | null;
+  queue: import("../core/types").Track[];
+  index: number;
+  position: number;
+  updatedAt: number;
+}
+
+export async function syncPlaybackState(
+  userId: string,
+  state: Omit<PlaybackStateSync, "updatedAt">,
+): Promise<void> {
+  try {
+    await supabase.from("playback_state").upsert({
+      user_id: userId,
+      track: state.track,
+      queue: state.queue,
+      track_index: state.index,
+      position: state.position,
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+export async function fetchPlaybackState(userId: string): Promise<PlaybackStateSync | null> {
+  try {
+    const { data } = await supabase
+      .from("playback_state")
+      .select("track, queue, track_index, position, updated_at")
+      .eq("user_id", userId)
+      .single();
+    if (!data) return null;
+    return {
+      track: (data.track ?? null) as PlaybackStateSync["track"],
+      queue: (data.queue ?? []) as PlaybackStateSync["queue"],
+      index: data.track_index ?? 0,
+      position: data.position ?? 0,
+      updatedAt: new Date(data.updated_at).getTime(),
+    };
+  } catch {
+    return null;
+  }
+}

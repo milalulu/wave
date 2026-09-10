@@ -180,6 +180,9 @@ export interface Translations {
     emptyHint: string;
     dropHere: string;
     tracksCount: (n: number) => string;
+    folder: string;
+    folderPlaceholder: string;
+    cover: string;
     share: string;
     shareEmail: string;
     shareEmailPlaceholder: string;
@@ -284,6 +287,13 @@ export interface Translations {
     crossfadeDesc: string;
     crossfadeOff: string;
     crossfadeDuration: string;
+    alarm: string;
+    alarmDesc: string;
+    alarmEnable: string;
+    alarmTime: string;
+    alarmSource: string;
+    alarmPickPlaylist: string;
+    alarmNext: (ts: number) => string;
     leveling: string;
     levelingDesc: string;
     levelingTarget: string;
@@ -416,6 +426,8 @@ export interface Translations {
     wentOffline: string;
     backOnline: string;
     enableOffline: string;
+    continueListening: (title: string) => string;
+    continueAction: string;
   };
   tagEditor: {
     title: string;
@@ -676,6 +688,9 @@ export const translations: Record<Locale, Translations> = {
       emptyHint: "Create a playlist or import from file",
       dropHere: "Drop to end of playlist",
       tracksCount: (n: number) => `${n} tracks`,
+      folder: "Folder",
+      folderPlaceholder: "No folder",
+      cover: "Cover",
       share: "Share",
       shareEmail: "Collaborator email",
       shareEmailPlaceholder: "user@example.com",
@@ -780,6 +795,13 @@ export const translations: Record<Locale, Translations> = {
       crossfadeDesc: "Duration of the smooth transition between tracks. Applies from the next track change.",
       crossfadeOff: "Off",
       crossfadeDuration: "Crossfade Duration",
+      alarm: "Alarm clock",
+      alarmDesc: "Start playback at a set time. Works after reboot once the app is opened.",
+      alarmEnable: "Enabled",
+      alarmTime: "Time",
+      alarmSource: "Play",
+      alarmPickPlaylist: "Pick a playlist",
+      alarmNext: (ts: number) => `Next ring: ${new Date(ts).toLocaleString("en", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`,
       leveling: "Volume leveling",
       levelingDesc: "Automatically evens out loudness between tracks (adaptive gain, −14 dB target).",
       levelingTarget: "Target level",
@@ -915,6 +937,8 @@ export const translations: Record<Locale, Translations> = {
       wentOffline: "Connection lost",
       backOnline: "Back online",
       enableOffline: "Go offline",
+      continueListening: (title: string) => `Continue: ${title}?`,
+      continueAction: "Continue",
     },
     tagEditor: {
       title: "Title",
@@ -1173,6 +1197,9 @@ export const translations: Record<Locale, Translations> = {
       emptyHint: "Создайте плейлист или импортируйте из файла",
       dropHere: "Перетащите в конец плейлиста",
       tracksCount: (n: number) => `${n} треков`,
+      folder: "Папка",
+      folderPlaceholder: "Без папки",
+      cover: "Обложка",
       share: "Поделиться",
       shareEmail: "Email участника",
       shareEmailPlaceholder: "user@example.com",
@@ -1277,6 +1304,13 @@ export const translations: Record<Locale, Translations> = {
       crossfadeDesc: "Длительность плавного перехода между треками. Применится со следующей смены трека.",
       crossfadeOff: "Выкл",
       crossfadeDuration: "Длительность кроссфейда",
+      alarm: "Будильник",
+      alarmDesc: "Включать воспроизведение в заданное время. После перезагрузки — сработать после открытия приложения.",
+      alarmEnable: "Включён",
+      alarmTime: "Время",
+      alarmSource: "Что играть",
+      alarmPickPlaylist: "Выберите плейлист",
+      alarmNext: (ts: number) => `Сработает: ${new Date(ts).toLocaleString("ru", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`,
       leveling: "Выравнивание громкости",
       levelingDesc: "Автоматически выравнивает громкость между треками (адаптивный гейн, цель −14 дБ).",
       levelingTarget: "Целевой уровень",
@@ -1412,6 +1446,8 @@ export const translations: Record<Locale, Translations> = {
       wentOffline: "Соединение потеряно",
       backOnline: "Снова в сети",
       enableOffline: "В офлайн",
+      continueListening: (title: string) => `Продолжить: ${title}?`,
+      continueAction: "Продолжить",
     },
     tagEditor: {
       title: "Название",

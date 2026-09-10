@@ -4,7 +4,8 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { searchAll } from "../app/compose";
 import { getCachedResults, setCachedResults } from "../app/searchCache";
-import type { Album, Artist, SearchResults } from "../core/types";
+import { getSuggestions } from "../core/search/suggest";
+import type { Album, Artist, SearchResults, Track } from "../core/types";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
@@ -77,8 +78,47 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const [listening, setListening] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(loadFilter());
   const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecent());
+  const [suggestHidden, setSuggestHidden] = useState(false);
+  const [suggestPool, setSuggestPool] = useState<{ liked: Track[]; history: Track[] } | null>(null);
+  const library = useApp((s) => s.services?.library);
+  const historyApi = useApp((s) => s.services?.history);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!library || !historyApi || suggestPool) return;
+    let cancelled = false;
+    void Promise.all([
+      library.getLikedTracks().catch(() => [] as Track[]),
+      historyApi
+        .getHistory(200)
+        .then((h) => h.map((e) => e.track))
+        .catch(() => [] as Track[]),
+    ]).then(([liked, history]) => {
+      if (!cancelled) setSuggestPool({ liked, history });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [library, historyApi, suggestPool]);
+
+  const suggestions = useMemo(
+    () =>
+      suggestPool && input.trim() && !suggestHidden
+        ? getSuggestions(input, { ...suggestPool, recent: recentSearches })
+        : [],
+    [input, suggestPool, recentSearches, suggestHidden],
+  );
+
+  const applySuggestion = (title: string, artist?: string): void => {
+    const q = artist ? `${artist} ${title}`.trim() : title;
+    setInput(q);
+    setSuggestHidden(true);
+    onQuery(q);
+    saveRecent(q);
+    setRecentSearches(loadRecent());
+    inputRef.current?.blur();
+  };
 
   useEffect(() => {
     setInput(query);
@@ -162,6 +202,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     e.preventDefault();
     window.clearTimeout(debounceRef.current);
     onQuery(input.trim());
+    setSuggestHidden(true);
     if (input.trim()) {
       saveRecent(input.trim());
       setRecentSearches(loadRecent());
@@ -232,7 +273,10 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         <input
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setSuggestHidden(false);
+          }}
           placeholder={t("search").placeholder}
         />
         {input && (
@@ -253,6 +297,23 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
           {loading ? t("common").loading : t("common").search}
         </button>
       </form>
+
+      {suggestions.length > 0 && (
+        <div className="suggest-list" role="listbox">
+          {suggestions.map((s) => (
+            <button
+              key={`${s.kind}:${s.artist ?? ""}:${s.title}`}
+              role="option"
+              aria-selected="false"
+              className="suggest-item"
+              onClick={() => applySuggestion(s.title, s.artist)}
+            >
+              <SearchIcon size={14} />
+              <span>{s.kind === "track" && s.artist ? `${s.artist} — ${s.title}` : s.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="provider-filters">
         <button

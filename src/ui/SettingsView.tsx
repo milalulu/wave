@@ -16,6 +16,7 @@ import {
 } from "./icons";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { loadYtQuality, saveYtQuality, loadMobileYtQuality, saveMobileYtQuality, type YtQuality } from "../app/ytQuality";
+import { nextAlarmTimestamp } from "../app/alarm";
 import { CROSSFADE_MIN, CROSSFADE_MAX, CROSSFADE_STEP } from "../app/crossfade";
 import { DISCOVERY_MIN, DISCOVERY_MAX } from "../app/discoveryRate";
 import { HISTORY_DECAY_MIN, HISTORY_DECAY_MAX } from "../app/historyDecay";
@@ -110,6 +111,9 @@ export function SettingsView() {
   const levelingEnabled = useApp((s) => s.levelingEnabled);
   const levelingTargetDb = useApp((s) => s.levelingTargetDb);
   const setLeveling = useApp((s) => s.setLeveling);
+  const alarm = useApp((s) => s.alarm);
+  const setAlarm = useApp((s) => s.setAlarm);
+  const playlists = useApp((s) => s.playlists);
   const discoveryRate = useApp((s) => s.discoveryRate);
   const setDiscoveryRate = useApp((s) => s.setDiscoveryRate);
   const historyDecayDays = useApp((s) => s.historyDecayDays);
@@ -137,6 +141,36 @@ export function SettingsView() {
     return merged;
   });
   const clearCaches = useApp((s) => s.clearCaches);
+  const alarmTimeStr = `${String(alarm?.hour ?? 7).padStart(2, "0")}:${String(alarm?.minute ?? 0).padStart(2, "0")}`;
+  const alarmWithTime = (v: string): import("../app/alarm").AlarmDef => {
+    const [h, m] = v.split(":").map((x) => Number(x));
+    return {
+      enabled: alarm?.enabled ?? true,
+      hour: Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 7,
+      minute: Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0,
+      mode: alarm?.mode ?? "wave",
+      playlistId: alarm?.playlistId,
+    };
+  };
+  const alarmBase = (enabled: boolean): import("../app/alarm").AlarmDef => ({
+    enabled,
+    hour: alarm?.hour ?? 7,
+    minute: alarm?.minute ?? 0,
+    mode: alarm?.mode ?? "wave",
+    playlistId: alarm?.playlistId,
+  });
+  const alarmWithMode = (mode: "wave" | "playlist"): import("../app/alarm").AlarmDef => ({
+    ...(alarm ?? { enabled: true, hour: 7, minute: 0, mode: "wave" as const }),
+    mode,
+  });
+  const alarmWithPlaylist = (playlistId?: string): import("../app/alarm").AlarmDef => ({
+    ...(alarm ?? { enabled: true, hour: 7, minute: 0, mode: "playlist" as const }),
+    mode: "playlist" as const,
+    playlistId,
+  });
+  const alarmNextText = alarm?.enabled
+    ? t("settings").alarmNext(nextAlarmTimestamp(alarm.hour, alarm.minute))
+    : "";
   const [testingAll, setTestingAll] = useState(false);
   const [allResults, setAllResults] = useState<Record<string, string>>({});
   const [tools, setTools] = useState<ToolsStatus | null>(null);
@@ -642,6 +676,51 @@ export function SettingsView() {
         </SettingsCard>
 
         <h3 className="settings-section-title">{t("settings").sectionPlayback}</h3>
+        <SettingsCard title={t("settings").alarm} desc={t("settings").alarmDesc}>
+          <div className="settings-toggles">
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={alarm?.enabled ?? false}
+                onChange={(e) => setAlarm(alarmBase(e.target.checked))}
+              />
+              <span>{t("settings").alarmEnable}</span>
+            </label>
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").alarmTime}</label>
+            <input
+              type="time"
+              value={alarmTimeStr}
+              onChange={(e) => setAlarm(alarmWithTime(e.target.value))}
+            />
+          </div>
+          <div className="effect-slider">
+            <label>{t("settings").alarmSource}</label>
+            <select
+              value={alarm?.mode ?? "wave"}
+              onChange={(e) => setAlarm(alarmWithMode(e.target.value as "wave" | "playlist"))}
+            >
+              <option value="wave">{t("nav").wave}</option>
+              <option value="playlist">{t("nav").playlist}</option>
+            </select>
+          </div>
+          {alarm?.mode === "playlist" && (
+            <div className="effect-slider">
+              <label>{t("nav").playlist}</label>
+              <select
+                value={alarm?.playlistId ?? ""}
+                onChange={(e) => setAlarm(alarmWithPlaylist(e.target.value || undefined))}
+              >
+                <option value="">{t("settings").alarmPickPlaylist}</option>
+                {playlists.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {alarm?.enabled && <p className="muted">{alarmNextText}</p>}
+        </SettingsCard>
         <SettingsCard title={t("settings").crossfade} desc={t("settings").crossfadeDesc}>
           <div className="effect-slider">
             <label>{t("settings").crossfadeDuration}</label>

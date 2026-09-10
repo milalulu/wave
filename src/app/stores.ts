@@ -18,6 +18,7 @@ import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadLeveling, saveLeveling } from "./levelingStore";
+import { loadAlarm, saveAlarm, nextAlarmTimestamp, type AlarmDef } from "./alarm";
 import { watchConnectivity, currentConnectivity } from "./connectivity";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
 import { loadDiscoveryRate, saveDiscoveryRate, DISCOVERY_MIN, DISCOVERY_MAX } from "./discoveryRate";
@@ -61,6 +62,14 @@ let initPromise: Promise<void> | null = null;
 
 const savedLeveling = loadLeveling();
 
+let alarmRampTimer: number | undefined;
+function cancelAlarmRamp(): void {
+  if (alarmRampTimer !== undefined) {
+    clearInterval(alarmRampTimer);
+    alarmRampTimer = undefined;
+  }
+}
+
 const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
 export type { DownloadItem } from "./downloadsSlice";
@@ -103,6 +112,8 @@ export interface AppState extends DownloadsSlice {
   addToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   reorderPlaylist: (playlistId: string, from: number, to: number) => void;
+  setPlaylistFolder: (playlistId: string, folder: string | null) => Promise<void>;
+  setPlaylistCover: (playlistId: string, coverUrl?: string) => Promise<void>;
   sharedPlaylists: SyncedPlaylist[];
   playlistShares: PlaylistShare[];
   sharePlaylist: (playlistId: string, email: string, permission?: "editor" | "viewer") => Promise<boolean>;
@@ -136,6 +147,9 @@ export interface AppState extends DownloadsSlice {
   shareTrack: (track: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
+  alarm: AlarmDef | null;
+  setAlarm: (alarm: AlarmDef | null) => void;
+  fireAlarm: () => Promise<void>;
   previewWave: () => Promise<void>;
   previewTracks: Track[];
   previewLoading: boolean;
@@ -422,6 +436,26 @@ export const useApp = create<AppState>()((set, get, api) => ({
       });
     }
   },
+  setPlaylistFolder: async (playlistId, folder) => {
+    const { services } = get();
+    if (!services) return;
+    const pl = await services.storage.getPlaylist(playlistId);
+    if (!pl) return;
+    pl.folder = folder?.trim() ? folder.trim() : undefined;
+    pl.updatedAt = Date.now();
+    await services.storage.updatePlaylist(pl);
+    await get().loadPlaylists();
+  },
+  setPlaylistCover: async (playlistId, coverUrl) => {
+    const { services } = get();
+    if (!services) return;
+    const pl = await services.storage.getPlaylist(playlistId);
+    if (!pl) return;
+    pl.coverUrl = coverUrl;
+    pl.updatedAt = Date.now();
+    await services.storage.updatePlaylist(pl);
+    await get().loadPlaylists();
+  },
   reorderPlaylist: (playlistId, from, to) => {
     const { services } = get();
     const pl = get().playlists.find((p) => p.id === playlistId);
@@ -546,6 +580,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   setVolume: (percent) => {
+    cancelAlarmRamp();
     get().services?.engine.setVolume(percent / 100);
   },
 
@@ -691,6 +726,52 @@ export const useApp = create<AppState>()((set, get, api) => ({
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
+  },
+  alarm: loadAlarm(),
+  setAlarm: (alarm) => {
+    saveAlarm(alarm);
+    set({ alarm });
+    if (IS_ANDROID) {
+      if (alarm?.enabled) {
+        const atMs = nextAlarmTimestamp(alarm.hour, alarm.minute);
+        invoke("schedule_alarm", { id: "wave-alarm", atMs }).catch(() => {});
+      } else {
+        invoke("cancel_alarm", { id: "wave-alarm" }).catch(() => {});
+      }
+    }
+  },
+  fireAlarm: async () => {
+    const a = get().alarm;
+    try {
+      if (a?.mode === "playlist" && a.playlistId) {
+        const pl = get().playlists.find((p) => p.id === a.playlistId);
+        const tracks = pl?.tracks ?? [];
+        if (tracks.length === 0) throw new Error("alarm playlist is empty");
+        await get().play(tracks);
+      } else {
+        await get().startWave();
+      }
+      // Плавное нарастание за ~30с от 5% до текущей громкости.
+      const engine = get().services?.engine;
+      const target = engine?.snapshot.volume ?? 1;
+      cancelAlarmRamp();
+      engine?.setVolume(Math.max(0.01, target * 0.05));
+      let step = 0;
+      alarmRampTimer = window.setInterval(() => {
+        step += 1;
+        const eng = get().services?.engine;
+        if (!eng) {
+          cancelAlarmRamp();
+          return;
+        }
+        eng.setVolume(Math.min(target, target * 0.05 + ((target * 0.95) / 15) * step));
+        if (step >= 15) cancelAlarmRamp();
+      }, 2000);
+    } catch (e) {
+      get().notify(e instanceof Error ? e.message : String(e));
+    }
+    // Разовый нативный будильник — перевзводим на завтра.
+    if (get().alarm?.enabled) get().setAlarm(get().alarm);
   },
   previewTracks: [],
   previewLoading: false,
@@ -1097,6 +1178,9 @@ async function doInit(
         case "next": void engine.next(true); break;
         case "play": void engine.play(); break;
         case "pause": engine.pause(); break;
+        default:
+          if (action.startsWith("alarm:")) void get().fireAlarm();
+          break;
       }
     };
     const pollMediaAction = () => {
@@ -1211,6 +1295,14 @@ async function doInit(
 
   if (savedLeveling.enabled) {
     services.engine.setLeveling(true, savedLeveling.targetDb);
+  }
+
+  // Нативные будильники слетают при перезагрузке — перевзводим на старте.
+  if (IS_ANDROID && get().alarm?.enabled) {
+    const a = get().alarm;
+    if (a) {
+      invoke("schedule_alarm", { id: "wave-alarm", atMs: nextAlarmTimestamp(a.hour, a.minute) }).catch(() => {});
+    }
   }
 
   // Сеть пропала — предлагаем офлайн-режим вместо молчаливых ошибок стримов.

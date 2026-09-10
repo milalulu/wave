@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../app/stores";
@@ -9,6 +9,7 @@ import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon } from "./icons";
 import { buildM3U, parseM3U } from "../core/library/m3u";
+import { distinctCovers, groupPlaylistsByFolder } from "../core/library/playlistGroups";
 import type { Playlist, Track } from "../core/types";
 
 function parseJSON(text: string): Track[] | null {
@@ -192,6 +193,14 @@ export function PlaylistView() {
   };
 
   const selected = playlists.find((p) => p.id === selectedPlaylistId);
+  const groups = useMemo(() => groupPlaylistsByFolder(playlists), [playlists]);
+  const folderNames = useMemo(
+    () => [...new Set(playlists.map((p) => p.folder?.trim()).filter((f): f is string => Boolean(f)))].sort(),
+    [playlists],
+  );
+  const covers = useMemo(() => distinctCovers(selectedTracks), [selectedTracks]);
+  const setPlaylistFolder = useApp((s) => s.setPlaylistFolder);
+  const setPlaylistCover = useApp((s) => s.setPlaylistCover);
 
   const clearDrag = (): void => {
     setDragIndex(null);
@@ -277,33 +286,40 @@ export function PlaylistView() {
       <div className="playlist-split">
         <aside className="playlist-sidebar">
           <ul className="playlist-list">
-            {playlists.map((pl) => (
-              <li
-                key={pl.id}
-                className={`playlist-item ${selectedPlaylistId === pl.id ? "active" : ""}`}
-                onClick={() => setSelectedPlaylist(pl.id)}
-              >
-                {pl.coverUrl ? (
-                  <Cover className="playlist-cover" src={pl.coverUrl} alt="" />
-                ) : (
-                  <span className="playlist-cover playlist-cover-empty">{pl.name.charAt(0)}</span>
-                )}
-                <span>{pl.name}</span>
-                <small>{tf("playlist").tracksCount(pl.tracks?.length ?? pl.trackIds.length)}</small>
-                <button
-                  className="icon-btn"
-                  onClick={(e) => { e.stopPropagation(); void exportPlaylist(pl, "json"); }}
-                  title={t("playlist").exportJSON}
-                >
-                  <DownloadIcon size={14} />
-                </button>
-                <button
-                  className="icon-btn danger"
-                  onClick={(e) => { e.stopPropagation(); if (!window.confirm(t("common").delete + "?")) return; deletePlaylist(pl.id); if (selectedPlaylistId === pl.id) setSelectedPlaylist(null); }}
-                  title={t("common").delete}
-                >
-                  <TrashIcon size={14} />
-                </button>
+            {groups.map((g) => (
+              <li key={g.folder ?? ""} className="playlist-group">
+                {g.folder && <div className="playlist-group-title">{g.folder}</div>}
+                <ul className="playlist-list">
+                  {g.playlists.map((pl) => (
+                    <li
+                      key={pl.id}
+                      className={`playlist-item ${selectedPlaylistId === pl.id ? "active" : ""}`}
+                      onClick={() => setSelectedPlaylist(pl.id)}
+                    >
+                      {pl.coverUrl ? (
+                        <Cover className="playlist-cover" src={pl.coverUrl} alt="" />
+                      ) : (
+                        <span className="playlist-cover playlist-cover-empty">{pl.name.charAt(0)}</span>
+                      )}
+                      <span>{pl.name}</span>
+                      <small>{tf("playlist").tracksCount(pl.tracks?.length ?? pl.trackIds.length)}</small>
+                      <button
+                        className="icon-btn"
+                        onClick={(e) => { e.stopPropagation(); void exportPlaylist(pl, "json"); }}
+                        title={t("playlist").exportJSON}
+                      >
+                        <DownloadIcon size={14} />
+                      </button>
+                      <button
+                        className="icon-btn danger"
+                        onClick={(e) => { e.stopPropagation(); if (!window.confirm(t("common").delete + "?")) return; deletePlaylist(pl.id); if (selectedPlaylistId === pl.id) setSelectedPlaylist(null); }}
+                        title={t("common").delete}
+                      >
+                        <TrashIcon size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
             {playlists.length === 0 && <li className="muted">{t("playlist").empty}</li>}
@@ -332,6 +348,39 @@ export function PlaylistView() {
                   <ShareIcon size={18} /> {t("playlist").share}
                 </button>
               </div>
+              <div className="playlist-meta-row">
+                <label>
+                  {t("playlist").folder}
+                  <input
+                    value={selected.folder ?? ""}
+                    list="wave-folders"
+                    placeholder={t("playlist").folderPlaceholder}
+                    onChange={(e) => void setPlaylistFolder(selected.id, e.target.value || null)}
+                  />
+                  <datalist id="wave-folders">
+                    {folderNames.map((f) => (
+                      <option key={f} value={f} />
+                    ))}
+                  </datalist>
+                </label>
+              </div>
+              {covers.length > 0 && (
+                <div className="playlist-meta-row">
+                  <span>{t("playlist").cover}</span>
+                  <div className="cover-pick">
+                    {covers.map((c) => (
+                      <button
+                        key={c}
+                        className={`cover-pick-item ${selected.coverUrl === c ? "active" : ""}`}
+                        onClick={() => void setPlaylistCover(selected.id, c)}
+                        title={c}
+                      >
+                        <Cover src={c} alt="" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </header>
             <div className="track-list">
               {selectedTracks.length > 0 && (
