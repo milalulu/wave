@@ -1,6 +1,6 @@
 [package]
 name = "wave"
-version = "0.5.0"
+version = "0.6.0"
 description = "Wave — музыкальный клиент"
 authors = ["velvett"]
 edition = "2021"
