@@ -4,7 +4,7 @@ import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
 import { AlbumCard } from "./SearchView";
 import { Cover } from "./Cover";
-import { PlayIcon, BackIcon, ShuffleIcon } from "./icons";
+import { PlayIcon, BackIcon, ShuffleIcon, RadioIcon } from "./icons";
 import { tileStyle } from "./tileHue";
 import type { Album, Track } from "../core/types";
 
@@ -12,6 +12,7 @@ export function ArtistDetailView() {
   const { t, tf } = useI18n();
   const artistDetail = useApp((s) => s.artistDetail);
   const play = useApp((s) => s.play);
+  const startArtistRadio = useApp((s) => s.startArtistRadio);
   const goBack = useApp((s) => s.goBack);
   const services = useApp((s) => s.services);
   const [similar, setSimilar] = useState<Track[]>([]);
@@ -74,6 +75,9 @@ export function ArtistDetailView() {
           </button>
           <button className="btn" onClick={handleShufflePlay}>
             <ShuffleIcon size={18} /> {t("common").shuffle}
+          </button>
+          <button className="btn" onClick={() => void startArtistRadio(artist.name)}>
+            <RadioIcon size={18} /> {t("player").radio}
           </button>
         </div>
       </header>

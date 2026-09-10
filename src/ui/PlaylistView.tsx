@@ -31,6 +31,7 @@ export function PlaylistView() {
   const setSelectedPlaylist = useApp((s) => s.setSelectedPlaylist);
   const createPlaylist = useApp((s) => s.createPlaylist);
   const deletePlaylist = useApp((s) => s.deletePlaylist);
+  const dedupePlaylist = useApp((s) => s.dedupePlaylist);
   const reorderPlaylist = useApp((s) => s.reorderPlaylist);
   const play = useApp((s) => s.play);
   const notify = useApp((s) => s.notify);
@@ -347,6 +348,9 @@ export function PlaylistView() {
                 </button>
                 <button className="btn" onClick={() => setShowShare(true)}>
                   <ShareIcon size={18} /> {t("playlist").share}
+                </button>
+                <button className="btn" onClick={() => void dedupePlaylist(selected.id)}>
+                  {t("queue").dedupe}
                 </button>
               </div>
               <div className="playlist-meta-row">

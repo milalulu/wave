@@ -140,6 +140,8 @@ export interface AppState extends DownloadsSlice {
   addToQueueAtIndex: (index: number, track: Track) => boolean;
   playNext: (track: Track) => Promise<boolean>;
   clearQueue: () => void;
+  dedupeQueue: () => void;
+  dedupePlaylist: (playlistId: string) => Promise<void>;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
   saveQueueAsPlaylist: (name: string) => Promise<void>;
@@ -183,6 +185,7 @@ export interface AppState extends DownloadsSlice {
   clearSleep: () => void;
   radioActive: boolean;
   startRadio: (track?: Track) => Promise<void>;
+  startArtistRadio: (artist: string) => Promise<void>;
   autoContinue: boolean;
   setAutoContinue: (enabled: boolean) => void;
   offlineMode: boolean;
@@ -456,6 +459,29 @@ export const useApp = create<AppState>()((set, get, api) => ({
     await services.storage.updatePlaylist(pl);
     await get().loadPlaylists();
   },
+  dedupePlaylist: async (playlistId) => {
+    const { services } = get();
+    if (!services) return;
+    const pl = await services.storage.getPlaylist(playlistId);
+    if (!pl) return;
+    const seen = new Set<string>();
+    const tracks = (pl.tracks ?? []).filter((tr) => {
+      if (seen.has(tr.id)) return false;
+      seen.add(tr.id);
+      return true;
+    });
+    const removed = (pl.tracks ?? []).length - tracks.length;
+    if (removed === 0) {
+      get().notify(t("toasts").removedDuplicates(0));
+      return;
+    }
+    pl.tracks = tracks;
+    pl.trackIds = tracks.map((tr) => tr.id);
+    pl.updatedAt = Date.now();
+    await services.storage.updatePlaylist(pl);
+    await get().loadPlaylists();
+    get().notify(t("toasts").removedDuplicates(removed));
+  },
   reorderPlaylist: (playlistId, from, to) => {
     const { services } = get();
     const pl = get().playlists.find((p) => p.id === playlistId);
@@ -633,6 +659,10 @@ export const useApp = create<AppState>()((set, get, api) => ({
 
   clearQueue: () => {
     get().services?.engine.clearQueue();
+  },
+  dedupeQueue: () => {
+    const removed = get().services?.engine.dedupeQueue() ?? 0;
+    get().notify(t("toasts").removedDuplicates(removed));
   },
 
   moveQueueItem: (fromIndex, toIndex) => {
@@ -862,6 +892,28 @@ export const useApp = create<AppState>()((set, get, api) => ({
       });
       const seed = await radioTracks(services, track);
       await services.engine.playTracks([track, ...seed]);
+      get().notify(t("player").radio);
+    } catch (e) {
+      set({ radioActive: false });
+      services.engine.setAutoFill(null);
+      get().notify(e instanceof Error ? e.message : String(e));
+    }
+  },
+  startArtistRadio: async (artist) => {
+    const { services } = get();
+    const name = artist.trim();
+    if (!services || !name) return;
+    try {
+      set({ radioActive: true });
+      services.engine.setAutoFill(async () => {
+        const last = services.engine.snapshot.current;
+        if (!last) return [];
+        return radioTracks(services, last);
+      });
+      const seed: Track = { id: `artist-radio:${name}`, provider: "radio", uri: "", title: "", artist: name };
+      const tracks = await radioTracks(services, seed);
+      if (tracks.length === 0) throw new Error(t("toasts").similarEmpty);
+      await services.engine.playTracks(tracks);
       get().notify(t("player").radio);
     } catch (e) {
       set({ radioActive: false });

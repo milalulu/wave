@@ -18,6 +18,7 @@ export function QueueView() {
   const likedIds = useApp(useShallow((s) => s.likedIds));
   const toggleLike = useApp((s) => s.toggleLike);
   const clearQueue = useApp((s) => s.clearQueue);
+const dedupeQueue = useApp((s) => s.dedupeQueue);
   const moveQueueItem = useApp((s) => s.moveQueueItem);
   const addToQueueAtIndex = useApp((s) => s.addToQueueAtIndex);
   const removeFromQueue = useApp((s) => s.removeFromQueue);
@@ -108,6 +109,9 @@ export function QueueView() {
     <div className="view">
       <div className="view-header">
         <h2>{t("queue").title}</h2>
+        <button className="btn" onClick={() => dedupeQueue()} disabled={queue.length === 0}>
+          {t("queue").dedupe}
+        </button>
         <button className="btn" onClick={() => { if (queue.length > 0 && !window.confirm(t("queue").clear + "?")) return; clearQueue(); }} disabled={queue.length === 0}>
           {t("queue").clear}
         </button>

@@ -141,4 +141,21 @@ describe("Queue", () => {
     q.replace(tracks);
     expect(q.replaceTrackFields("missing", { title: "X" })).toBe(false);
   });
+
+  it("dedupe keeps first occurrences and current track", () => {
+    const q = new Queue();
+    q.replace([...tracks, tracks[1], tracks[0]]);
+    q.next();
+    expect(q.current()?.id).toBe("b");
+    expect(q.dedupe()).toBe(2);
+    expect(q.tracksList.map((t) => t.id)).toEqual(["a", "b", "c"]);
+    expect(q.current()?.id).toBe("b");
+  });
+
+  it("dedupe returns 0 when clean", () => {
+    const q = new Queue();
+    q.replace(tracks);
+    expect(q.dedupe()).toBe(0);
+    expect(q.tracksList).toHaveLength(3);
+  });
 });

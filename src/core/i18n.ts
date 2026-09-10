@@ -356,6 +356,7 @@ export interface Translations {
   queue: {
     title: string;
     clear: string;
+    dedupe: string;
     empty: string;
     emptyHint: string;
     saveAsPlaylist: string;
@@ -404,6 +405,7 @@ export interface Translations {
     trackAddedToPlaylist: string;
     trackRemovedFromPlaylist: string;
     trackRemovedFromQueue: string;
+    removedDuplicates: (n: number) => string;
     importSuccess: (n: number) => string;
     importEmpty: string;
     exportSuccess: string;
@@ -867,6 +869,7 @@ export const translations: Record<Locale, Translations> = {
     queue: {
       title: "Queue",
       clear: "Clear",
+      dedupe: "Dedupe",
       empty: "Queue is empty",
       emptyHint: "Play a track to start building your queue",
       saveAsPlaylist: "Save as playlist",
@@ -915,6 +918,7 @@ export const translations: Record<Locale, Translations> = {
       trackAddedToPlaylist: "Added to playlist",
       trackRemovedFromPlaylist: "Removed from playlist",
       trackRemovedFromQueue: "Removed from queue",
+      removedDuplicates: (n: number) => (n === 0 ? "No duplicates" : `Removed ${n}`),
       importSuccess: (n: number) => `Imported ${n} tracks`,
       importEmpty: "File has no tracks",
       exportSuccess: "Playlist saved",
@@ -1376,6 +1380,7 @@ export const translations: Record<Locale, Translations> = {
     queue: {
       title: "Очередь",
       clear: "Очистить",
+      dedupe: "Без повторов",
       empty: "Очередь пуста",
       emptyHint: "Включите трек, чтобы собрать очередь",
       saveAsPlaylist: "Сохранить как плейлист",
@@ -1424,6 +1429,7 @@ export const translations: Record<Locale, Translations> = {
       trackAddedToPlaylist: "Добавлено в плейлист",
       trackRemovedFromPlaylist: "Удалено из плейлиста",
       trackRemovedFromQueue: "Удалено из очереди",
+      removedDuplicates: (n: number) => (n === 0 ? "Дубликатов нет" : `Удалено: ${n}`),
       importSuccess: (n: number) => `Импортировано треков: ${n}`,
       importEmpty: "В файле нет треков",
       exportSuccess: "Плейлист сохранён",

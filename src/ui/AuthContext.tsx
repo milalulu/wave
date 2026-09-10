@@ -30,6 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       // Supabase грузим лениво: 200+ КБ не должны тормозить холодный старт
       // для пользователей без аккаунта.
+      await new Promise<void>((resolve) => {
+        const w = window as unknown as {
+          requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void;
+        };
+        if (w.requestIdleCallback) w.requestIdleCallback(() => resolve(), { timeout: 3000 });
+        else setTimeout(resolve, 1500);
+      });
       const { supabase, isSupabaseConfigured, onAuthStateChange } = await import("../app/supabase");
       if (!mounted) return;
       setConfigured(isSupabaseConfigured);

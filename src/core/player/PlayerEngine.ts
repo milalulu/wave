@@ -489,6 +489,12 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.emitQueue();
   }
 
+  dedupeQueue(): number {
+    const removed = this.queue.dedupe();
+    if (removed > 0) this.emitQueue();
+    return removed;
+  }
+
   destroy(): void {
     this.clearStallTimer();
     this.detach.forEach((d) => d());

@@ -161,6 +161,37 @@ export class Queue {
     this.pos = -1;
   }
 
+  /**
+   * Убирает повторы (по id), оставляя первые вхождения.
+   * Порядок, shuffle-перемешивание и текущий трек сохраняются.
+   * @returns число удалённых треков
+   */
+  dedupe(): number {
+    const seen = new Set<string>();
+    const oldToNew = new Map<number, number>();
+    const keep: number[] = [];
+    this.tracks.forEach((t, i) => {
+      if (seen.has(t.id)) return;
+      seen.add(t.id);
+      oldToNew.set(i, keep.length);
+      keep.push(i);
+    });
+    const removed = this.tracks.length - keep.length;
+    if (removed === 0) return 0;
+    const cur = this.current();
+    this.tracks = keep.map((i) => this.tracks[i]);
+    this.order = this.order
+      .map((o) => oldToNew.get(o))
+      .filter((x): x is number => x !== undefined);
+    if (cur) {
+      const newIdx = this.tracks.findIndex((t) => t.id === cur.id);
+      this.pos = newIdx >= 0 ? this.order.indexOf(newIdx) : -1;
+    } else {
+      this.pos = -1;
+    }
+    return removed;
+  }
+
   
   replaceTrackFields(id: string, patch: Partial<Track>): boolean {
     let changed = false;
