@@ -5,4 +5,7 @@
     <string name="playback_channel_name">"Playback"</string>
     <string name="prev">"Previous"</string>
     <string name="next">"Next"</string>
+    <string name="widget_desc">"Wave playback"</string>
+    <string name="widget_play_pause">"Play or pause"</string>
+    <string name="auto_open_desc">"Open Wave on your phone"</string>
 </resources>

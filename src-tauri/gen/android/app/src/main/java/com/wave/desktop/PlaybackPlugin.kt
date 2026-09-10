@@ -23,6 +23,7 @@ data class SetPlaybackArgs(
   var artist: String? = null,
   var duration: Double = 0.0,
   var position: Double = 0.0,
+  var coverUrl: String? = null,
 )
 
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
@@ -61,7 +62,42 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
         (args.position * 1000).toLong(),
       )
     }
+    WaveWidgetProvider.saveState(activityRef, args.playing, args.title, args.artist)
+    if (args.coverUrl.isNullOrEmpty()) {
+      WaveWidgetProvider.clearCoverArt(activityRef)
+    } else {
+      fetchCoverArt(args.coverUrl!!)
+    }
+    WaveWidgetProvider.refreshAll(activityRef)
+    WaveAutoService.pushState(
+      activityRef,
+      args.playing,
+      args.title,
+      args.artist,
+      (args.duration * 1000).toLong(),
+      (args.position * 1000).toLong(),
+    )
     invoke.resolve()
+  }
+
+  private fun fetchCoverArt(url: String) {
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return
+    Thread {
+      try {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        conn.instanceFollowRedirects = true
+        conn.connect()
+        if (conn.responseCode in 200..299) {
+          val bytes = conn.inputStream.use { it.readBytes() }
+          if (bytes.isNotEmpty()) {
+            WaveWidgetProvider.setCoverArt(activityRef.applicationContext, bytes)
+          }
+        }
+      } catch (_: Exception) {
+      }
+    }.apply { isDaemon = true }.start()
   }
 
   @Command

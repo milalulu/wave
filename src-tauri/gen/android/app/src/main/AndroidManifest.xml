@@ -8,6 +8,8 @@
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <!-- Android Auto (media only) -->
+    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -32,6 +34,30 @@
             android:name=".PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name=".WaveAutoService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".WaveWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wave_widget_info" />
+        </receiver>
+
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
 
         <provider
           android:name="androidx.core.content.FileProvider"
