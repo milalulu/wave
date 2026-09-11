@@ -34,6 +34,8 @@ struct AppConfig {
     lastfm_api_secret: Option<String>,
     lastfm_session_key: Option<String>,
     lastfm_scrobble_enabled: bool,
+    proxy_url: Option<String>,
+    proxy_mode: Option<String>,
 }
 
 fn env(name: &str) -> Option<String> {
@@ -83,7 +85,20 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
         lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY")
             .or_else(|| get_string(&persisted, "WAVE_LASTFM_SESSION_KEY")),
         lastfm_scrobble_enabled: lastfm::scrobble_enabled(app),
+        proxy_url: env("WAVE_PROXY_URL").or_else(|| get_string(&persisted, "WAVE_PROXY_URL")),
+        proxy_mode: env("WAVE_PROXY_MODE").or_else(|| get_string(&persisted, "WAVE_PROXY_MODE")),
     }
+}
+
+/// Текущая proxy-конфигурация (env → persisted). Пустой URL = выкл.
+fn proxy_conf(app: &tauri::AppHandle) -> Option<crate::http::ProxyConf> {
+    let cfg = config(app);
+    crate::http::proxy_conf_from_parts(cfg.proxy_url, cfg.proxy_mode)
+}
+
+/// Применить proxy-конфиг к общему HTTP-клиенту.
+fn apply_proxy_conf(app: &tauri::AppHandle) {
+    crate::http::configure_proxy(proxy_conf(app));
 }
 
 /// Сохранить ключи API в персистентный конфиг (без env). Мерж с существующим.
@@ -113,6 +128,7 @@ fn save_app_config(app: tauri::AppHandle, config: serde_json::Value) -> Result<(
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
+    apply_proxy_conf(&app);
     Ok(())
 }
 
@@ -154,6 +170,27 @@ fn app_config(app: tauri::AppHandle) -> AppConfig {
     config(&app)
 }
 
+/// Аргументы прокси для yt-dlp: в режиме Always — всегда, иначе пусто
+/// (в режиме Auto повтор с прокси делает вызывающий код).
+fn ytdlp_proxy_args(app: &tauri::AppHandle, for_retry: bool) -> Vec<String> {
+    let Some(conf) = proxy_conf(app) else {
+        return vec![];
+    };
+    let use_proxy = conf.mode == crate::http::ProxyMode::Always || for_retry;
+    if !use_proxy {
+        return vec![];
+    }
+    vec!["--proxy".to_string(), conf.url]
+}
+
+/// Повторить ли yt-dlp через прокси после прямого провала (режим Auto).
+fn ytdlp_should_retry_proxy(app: &tauri::AppHandle, used_proxy: bool) -> bool {
+    if used_proxy {
+        return false;
+    }
+    matches!(proxy_conf(app).map(|c| c.mode), Some(crate::http::ProxyMode::Auto))
+}
+
 async fn run_ytdlp(
     app: &tauri::AppHandle,
     args: Vec<String>,
@@ -168,7 +205,29 @@ async fn run_ytdlp(
         .ytdlp_path
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "yt-dlp".to_string());
-    let mut cmd = tokio::process::Command::new(&binary);
+    // Прямой запуск (+прокси сразу в режиме Always), при провале в режиме
+    // Auto — одна повторная попытка через прокси.
+    let mut attempt_args = args.clone();
+    attempt_args.splice(..0, ytdlp_proxy_args(app, false));
+    match run_ytdlp_once(&binary, attempt_args, timeout_secs).await {
+        Ok(out) => Ok(out),
+        Err(e) => {
+            if !ytdlp_should_retry_proxy(app, false) {
+                return Err(e);
+            }
+            let mut retry_args = args.clone();
+            retry_args.splice(..0, ytdlp_proxy_args(app, true));
+            run_ytdlp_once(&binary, retry_args, timeout_secs).await
+        }
+    }
+}
+
+async fn run_ytdlp_once(
+    binary: &str,
+    args: Vec<String>,
+    timeout_secs: u64,
+) -> Result<Option<String>, String> {
+    let mut cmd = tokio::process::Command::new(binary);
     cmd.args(&args);
     #[cfg(target_os = "windows")]
     {
@@ -656,7 +715,6 @@ async fn try_innertube(
     video_id: &str,
     client: &InnertubeClient,
 ) -> Result<String, String> {
-    let http = crate::http::client();
     let key = match client.name {
         "ANDROID" | "ANDROID_MUSIC" => Some("AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w"),
         _ => None,
@@ -684,11 +742,12 @@ async fn try_innertube(
 
     let resp = tokio::time::timeout(
         std::time::Duration::from_secs(8),
-        http.post(player_url)
-            .header("Content-Type", "application/json")
-            .header("User-Agent", client.user_agent)
-            .json(&payload)
-            .send(),
+        crate::http::send_auto(|http| {
+            http.post(player_url.clone())
+                .header("Content-Type", "application/json")
+                .header("User-Agent", client.user_agent)
+                .json(&payload)
+        }),
     )
     .await
     .map_err(|_| format!("innertube({}): timeout", client.name))?
@@ -781,7 +840,6 @@ fn parse_yt_len(s: &str) -> Option<u64> {
 // "Up next" / радио по треку: innertube /next отдаёт реальный похожий плейлист.
 #[tauri::command]
 async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
-    let http = crate::http::client();
     let limit = limit.clamp(1, 30) as usize;
     // Планируем на 1 больше: первый элемент очереди всегда сам сид, его выкинем.
     let target = limit + 1;
@@ -803,14 +861,14 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
     let first_body = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
-                .header("Content-Type", "application/json")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .json(&first_payload)
-                .send()
-                .await
-                .map_err(|e| format!("innertube(next) reqwest: {e}"))?;
+            let resp = crate::http::send_auto(|http| {
+                http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .json(&first_payload)
+            })
+            .await
+            .map_err(|e| format!("innertube(next) reqwest: {e}"))?;
             let status = resp.status();
             if !status.is_success() {
                 return Err(format!("innertube(next) HTTP {}", status));
@@ -860,14 +918,14 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
         tokio::time::timeout(
             std::time::Duration::from_secs(15),
             async {
-                let resp = http
-                    .post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .json(&second_payload)
-                    .send()
-                    .await
-                    .map_err(|e| format!("innertube(next,with-playlist) reqwest: {e}"))?;
+                let resp = crate::http::send_auto(|http| {
+                    http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
+                        .header("Content-Type", "application/json")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        .json(&second_payload)
+                })
+                .await
+                .map_err(|e| format!("innertube(next,with-playlist) reqwest: {e}"))?;
                 let status = resp.status();
                 if !status.is_success() {
                     return Err(format!("innertube(next,with-playlist) HTTP {}", status));
@@ -956,7 +1014,6 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
 // Innertube поиск (без yt-dlp): быстрый HTTP-запрос к YouTube search API.
 #[tauri::command]
 async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
-    let http = crate::http::client();
     let payload = serde_json::json!({
         "context": {
             "client": {
@@ -972,16 +1029,16 @@ async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
-                .header("Content-Type", "application/json")
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .json(&payload)
-                .send()
-                .await?;
+            let resp = crate::http::send_auto(|http| {
+                http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+                    .json(&payload)
+            })
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
@@ -1053,7 +1110,6 @@ async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json
 /// Поиск YouTube через innertube — возвращает треки, артистов (каналы) и альбомы (плейлисты).
 #[tauri::command]
 async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_json::Value, String> {
-    let http = crate::http::client();
     let payload = serde_json::json!({
         "context": {
             "client": {
@@ -1069,16 +1125,16 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
-                .header("Content-Type", "application/json")
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .json(&payload)
-                .send()
-                .await?;
+            let resp = crate::http::send_auto(|http| {
+                http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+                    .json(&payload)
+            })
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
@@ -1219,15 +1275,14 @@ async fn sc_extract_client_id() -> Result<String, String> {
     if let Some(id) = SC_CLIENT_ID.get() {
         return Ok(id.clone());
     }
-    let http = crate::http::client();
     let page = tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        http.get("https://soundcloud.com")
-            .header(
+        crate::http::send_auto(|http| {
+            http.get("https://soundcloud.com").header(
                 "User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
-            .send(),
+        }),
     )
     .await
     .map_err(|_| "soundcloud page: timeout".to_string())?
@@ -1246,12 +1301,12 @@ async fn sc_extract_client_id() -> Result<String, String> {
         fetched += 1;
         let resp = match tokio::time::timeout(
             std::time::Duration::from_secs(6),
-            http.get(&script_url)
-                .header(
+            crate::http::send_auto(|http| {
+                http.get(&script_url).header(
                     "User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 )
-                .send(),
+            }),
         )
         .await
         {
@@ -1317,19 +1372,17 @@ fn extract_script_urls(html: &str) -> Vec<String> {
 }
 
 async fn sc_stream_url(
-    http: &reqwest::Client,
     track_id: &str,
     client_id: &str,
 ) -> Result<String, String> {
     let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
     let track_api = format!("https://api-v2.soundcloud.com/tracks/{track_id}?client_id={client_id}");
-    let resp = http
-        .get(&track_api)
-        .header("User-Agent", ua)
-        .send()
-        .await
-        .map_err(|e| format!("soundcloud track: {e}"))?;
+    let resp = crate::http::send_auto(|http| {
+        http.get(&track_api).header("User-Agent", ua)
+    })
+    .await
+    .map_err(|e| format!("soundcloud track: {e}"))?;
     let status = resp.status();
     let track: serde_json::Value = resp
         .json()
@@ -1356,12 +1409,11 @@ async fn sc_stream_url(
         .as_str()
         .ok_or_else(|| "soundcloud: no media url".to_string())?;
     let media_api = format!("{media_api}?client_id={client_id}");
-    let resp = http
-        .get(&media_api)
-        .header("User-Agent", ua)
-        .send()
-        .await
-        .map_err(|e| format!("soundcloud stream: {e}"))?;
+    let resp = crate::http::send_auto(|http| {
+        http.get(&media_api).header("User-Agent", ua)
+    })
+    .await
+    .map_err(|e| format!("soundcloud stream: {e}"))?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!("soundcloud stream HTTP {status}"));
@@ -1380,7 +1432,6 @@ async fn sc_stream_url(
 #[tauri::command]
 async fn sc_resolve_stream(track_url: String) -> Result<String, String> {
     let client_id = sc_extract_client_id().await?;
-    let http = crate::http::client();
 
     let track_id = track_url
         .split('/')
@@ -1397,37 +1448,74 @@ async fn sc_resolve_stream(track_url: String) -> Result<String, String> {
 
     tokio::time::timeout(
         std::time::Duration::from_secs(12),
-        sc_stream_url(&http, track_id, &client_id),
+        sc_stream_url(track_id, &client_id),
     )
     .await
     .map_err(|_| "soundcloud: timeout".to_string())?
+}
+
+/// Проверка прокси: лёгкий 204-запрос к YouTube строго через прокси-клиент.
+/// Нужна кнопке «Проверить» в настройках (РФ без VPN и т.п.).
+/// url/mode опциональны: если заданы — проверяются именно они (ещё не сохранённые).
+#[tauri::command]
+async fn proxy_test(
+    app: tauri::AppHandle,
+    url: Option<String>,
+    mode: Option<String>,
+) -> Result<String, String> {
+    let conf = match (url, mode) {
+        (Some(u), m) => crate::http::proxy_conf_from_parts(Some(u), m),
+        (None, Some(m)) => {
+            let saved = proxy_conf(&app).map(|c| c.url);
+            crate::http::proxy_conf_from_parts(saved, Some(m))
+        }
+        (None, None) => proxy_conf(&app),
+    }
+    .ok_or_else(|| "proxy not configured".to_string())?;
+    // Применяем свежий конфиг (мог измениться без рестарта) и бьём строго в прокси.
+    crate::http::configure_proxy(Some(conf));
+    let proxied = crate::http::proxied_client().ok_or_else(|| "proxy not configured".to_string())?;
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        proxied
+            .get("https://www.youtube.com/generate_204")
+            .header("User-Agent", "Mozilla/5.0")
+            .send(),
+    )
+    .await
+    .map_err(|_| "proxy test: timeout".to_string())?
+    .map_err(|e| format!("proxy test: {e}"))?;
+    if resp.status().is_success() {
+        Ok(format!("proxy OK ({})", resp.status()))
+    } else {
+        Err(format!("proxy HTTP {}", resp.status()))
+    }
 }
 
 /// Нативный поиск SoundCloud (api-v2), без yt-dlp — работает и на Android.
 #[tauri::command]
 async fn sc_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
     let client_id = sc_extract_client_id().await?;
-    let http = crate::http::client();
     let limit = limit.clamp(1, 50) as usize;
 
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .get("https://api-v2.soundcloud.com/search/tracks")
-                .query(&[
-                    ("client_id", client_id.as_str()),
-                    ("q", query.as_str()),
-                    ("limit", &limit.to_string()),
-                    ("offset", "0"),
-                    ("app_locale", "en"),
-                ])
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .send()
-                .await?;
+            let resp = crate::http::send_auto(|http| {
+                http.get("https://api-v2.soundcloud.com/search/tracks")
+                    .query(&[
+                        ("client_id", client_id.as_str()),
+                        ("q", query.as_str()),
+                        ("limit", &limit.to_string()),
+                        ("offset", "0"),
+                        ("app_locale", "en"),
+                    ])
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+            })
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
@@ -1549,27 +1637,26 @@ fn sc_collection_to_items(
 #[tauri::command]
 async fn sc_search_users(query: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
     let client_id = sc_extract_client_id().await?;
-    let http = crate::http::client();
     let limit = limit.clamp(1, 20) as usize;
 
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .get("https://api-v2.soundcloud.com/search/users")
-                .query(&[
-                    ("client_id", client_id.as_str()),
-                    ("q", query.as_str()),
-                    ("limit", &limit.to_string()),
-                    ("offset", "0"),
-                    ("app_locale", "en"),
-                ])
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .send()
-                .await?;
+            let resp = crate::http::send_auto(|http| {
+                http.get("https://api-v2.soundcloud.com/search/users")
+                    .query(&[
+                        ("client_id", client_id.as_str()),
+                        ("q", query.as_str()),
+                        ("limit", &limit.to_string()),
+                        ("offset", "0"),
+                        ("app_locale", "en"),
+                    ])
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+            })
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
@@ -1593,7 +1680,6 @@ async fn sc_search_users(query: String, limit: u32) -> Result<Vec<serde_json::Va
 #[tauri::command]
 async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_json::Value>, String> {
     let client_id = sc_extract_client_id().await?;
-    let http = crate::http::client();
     let limit = limit.clamp(1, 50) as usize;
     // Тянем с запасом: длинные "миксы" (>20 мин) отфильтруем внизу.
     let fetch = (limit * 2 + 3).min(100).max(limit);
@@ -1618,18 +1704,18 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .get(&api_url)
-                .query(&[
-                    ("client_id", client_id.as_str()),
-                    ("limit", &fetch.to_string()),
-                ])
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .send()
-                .await?;
+            let resp = crate::http::send_auto(|http| {
+                http.get(&api_url)
+                    .query(&[
+                        ("client_id", client_id.as_str()),
+                        ("limit", &fetch.to_string()),
+                    ])
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+            })
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
@@ -1662,21 +1748,20 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
 #[tauri::command]
 async fn sc_resolve_url(page_url: String) -> Result<serde_json::Value, String> {
     let client_id = sc_extract_client_id().await?;
-    let http = crate::http::client();
     let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         async {
-            let resp = http
-                .get("https://api-v2.soundcloud.com/resolve")
-                .query(&[
-                    ("client_id", client_id.as_str()),
-                    ("url", page_url.as_str()),
-                ])
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                .send()
+            let resp = crate::http::send_auto(|http| {
+                http.get("https://api-v2.soundcloud.com/resolve")
+                    .query(&[
+                        ("client_id", client_id.as_str()),
+                        ("url", page_url.as_str()),
+                    ])
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+            })
                 .await?;
             let status = resp.status();
             let body = resp.json().await?;
@@ -1925,6 +2010,8 @@ pub fn run() {
         )
         .manage(bridge.clone())
         .setup(move |app| {
+            apply_proxy_conf(app.handle());
+            #[cfg(not(target_os = "android"))]
             #[cfg(not(target_os = "android"))]
             {
                 let token = resolve_api_token(app.handle());
@@ -1971,6 +2058,7 @@ pub fn run() {
             sc_search_users,
             sc_related_tracks,
             sc_resolve_url,
+            proxy_test,
             vk_search,
             http_fetch_json,
             http_fetch_text,
@@ -2234,8 +2322,6 @@ async fn yt_download(
     if !is_youtube_page_url(&url) && (url.starts_with("http://") || url.starts_with("https://")) {
         return download_direct(&url, &output_path).await;
     }
-    use tauri::Emitter;
-    use tokio::io::{AsyncBufReadExt, BufReader};
 
     let binary = config(&app)
         .ytdlp_path
@@ -2263,7 +2349,31 @@ async fn yt_download(
         args.push("--ffmpeg-location".to_string());
         args.push(loc.to_str().unwrap_or_default().to_string());
     }
-    let mut cmd = tokio::process::Command::new(&binary);
+    let mut first_args = args.clone();
+    first_args.splice(..0, ytdlp_proxy_args(&app, false));
+    match yt_download_once(&app, &binary, first_args, job_id.clone()).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            if !ytdlp_should_retry_proxy(&app, false) {
+                return Err(e);
+            }
+            let mut retry_args = args;
+            retry_args.splice(..0, ytdlp_proxy_args(&app, true));
+            yt_download_once(&app, &binary, retry_args, job_id).await
+        }
+    }
+}
+
+async fn yt_download_once(
+    app: &tauri::AppHandle,
+    binary: &str,
+    args: Vec<String>,
+    job_id: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let mut cmd = tokio::process::Command::new(binary);
     cmd.args(args);
     #[cfg(target_os = "windows")]
     {
@@ -2363,9 +2473,7 @@ async fn download_cover(url: String, output_path: String) -> Result<(), String> 
 async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
     use futures_util::StreamExt;
     let redacted = crate::http::redact_url(url);
-    let res = crate::http::client()
-        .get(url)
-        .send()
+    let res = crate::http::send_auto(|http| http.get(url))
         .await
         .map_err(|e| format!("download {redacted}: {e}"))?;
     if !res.status().is_success() {

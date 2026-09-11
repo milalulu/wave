@@ -200,6 +200,10 @@ export interface Translations {
     behavior: string;
     apiKeys: string;
     apiKeysDesc: string;
+    proxy: string;
+    proxyDesc: string;
+    proxyUrl: string;
+    proxyModes: { off: string; auto: string; always: string };
     localFiles: string;
     localFilesDesc: string;
     selectFolder: string;
@@ -710,6 +714,10 @@ export const translations: Record<Locale, Translations> = {
       behavior: "Behavior",
       apiKeys: "API Keys",
       apiKeysDesc: "Changes apply after restart. Test button checks key via search.",
+      proxy: "Proxy",
+      proxyDesc: "Route traffic via HTTP/SOCKS5 proxy to bypass regional blocks. Auto = direct first, proxy on failure.",
+      proxyUrl: "Proxy URL",
+      proxyModes: { off: "Off", auto: "Auto", always: "Always" },
       localFiles: "Local Files",
       localFilesDesc: "Supported: mp3, m4a, flac, ogg, opus, wav, aac, wma. Tags read automatically (lofty).",
       selectFolder: "Music Folder",
@@ -1221,6 +1229,10 @@ export const translations: Record<Locale, Translations> = {
       behavior: "Поведение",
       apiKeys: "API ключи провайдеров",
       apiKeysDesc: "Изменения применяются после перезапуска. Кнопка «Тест» проверяет ключ через поиск.",
+      proxy: "Прокси",
+      proxyDesc: "Трафик через HTTP/SOCKS5 прокси для обхода региональных блокировок. Авто = сначала напрямую, при ошибке — через прокси.",
+      proxyUrl: "URL прокси",
+      proxyModes: { off: "Выкл", auto: "Авто", always: "Всегда" },
       localFiles: "Локальные файлы",
       localFilesDesc: "Поддерживаются: mp3, m4a, flac, ogg, opus, wav, aac, wma. Теги читаются автоматически (lofty).",
       selectFolder: "Папка с музыкой",

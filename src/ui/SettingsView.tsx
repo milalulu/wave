@@ -41,6 +41,8 @@ interface AppConfigResult {
   lastfmApiSecret?: string | null;
   lastfmSessionKey?: string | null;
   lastfmScrobbleEnabled?: boolean;
+  proxyUrl?: string | null;
+  proxyMode?: string | null;
 }
 
 interface ToolsStatus {
@@ -60,6 +62,8 @@ const ENV_KEYS = [
   "WAVE_LASTFM_API_SECRET",
   "WAVE_LASTFM_SESSION_KEY",
   "WAVE_API_TOKEN",
+  "WAVE_PROXY_URL",
+  "WAVE_PROXY_MODE",
 ] as const;
 
 function fromRust(cfg: AppConfigResult): Record<string, string> {
@@ -73,6 +77,8 @@ function fromRust(cfg: AppConfigResult): Record<string, string> {
     WAVE_LASTFM_API_SECRET: cfg.lastfmApiSecret ?? "",
     WAVE_LASTFM_SESSION_KEY: cfg.lastfmSessionKey ?? "",
     WAVE_LASTFM_SCROBBLE_ENABLED: cfg.lastfmScrobbleEnabled ? "1" : "0",
+    WAVE_PROXY_URL: cfg.proxyUrl ?? "",
+    WAVE_PROXY_MODE: (cfg.proxyMode ?? "").toLowerCase() || "off",
   };
   return map;
 }
@@ -351,6 +357,27 @@ export function SettingsView() {
     }
   };
 
+  const handleProxyTest = async () => {
+    setTesting("WAVE_PROXY_URL");
+    setTestResults((prev) => ({ ...prev, WAVE_PROXY_URL: t("common").loading }));
+    try {
+      const url = (config["WAVE_PROXY_URL"] ?? "").trim();
+      const mode = (config["WAVE_PROXY_MODE"] || "off").trim();
+      const result = await invoke<string>("proxy_test", {
+        url: url || null,
+        mode: mode || null,
+      });
+      setTestResults((prev) => ({ ...prev, WAVE_PROXY_URL: `✓ ${result}` }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        WAVE_PROXY_URL: `${t("settings").testFailed} ${e instanceof Error ? e.message : String(e)}`.trim(),
+      }));
+    } finally {
+      setTesting(null);
+    }
+  };
+
   const pickLocalDir = async () => {
     const dir = await open({ directory: true, multiple: false });
     if (dir && typeof dir === "string") {
@@ -447,7 +474,7 @@ export function SettingsView() {
         <h3 className="settings-section-title">{t("settings").sectionSources}</h3>
         <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
           <div className="settings-grid">
-            {envKeys.map(({ key, label, placeholder, type, test, detect }) => (
+            {envKeys.filter(({ key }) => !key.startsWith("WAVE_PROXY")).map(({ key, label, placeholder, type, test, detect }) => (
               <div key={key} className="setting-row">
                 <label htmlFor={key}>{label}</label>
                 <div className="input-group">
@@ -507,6 +534,44 @@ export function SettingsView() {
               />
               <span>{t("settings").lastfmScrobbleToggle}</span>
             </label>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").proxy} desc={t("settings").proxyDesc} wide>
+          <div className="settings-seg" role="group" aria-label={t("settings").proxy}>
+            {(["off", "auto", "always"] as const).map((m) => (
+              <button
+                key={m}
+                className={(config["WAVE_PROXY_MODE"] || "off") === m ? "active" : ""}
+                onClick={() => setConfig((c) => ({ ...c, WAVE_PROXY_MODE: m }))}
+              >
+                {t("settings").proxyModes[m]}
+              </button>
+            ))}
+          </div>
+          <div className="setting-row">
+            <label htmlFor="WAVE_PROXY_URL">{t("settings").proxyUrl}</label>
+            <div className="input-group">
+              <input
+                id="WAVE_PROXY_URL"
+                type="text"
+                placeholder="http://user:pass@host:port"
+                value={config["WAVE_PROXY_URL"] || ""}
+                onChange={(e) => setConfig((c) => ({ ...c, WAVE_PROXY_URL: e.target.value }))}
+              />
+              <button
+                className="btn small"
+                onClick={() => void handleProxyTest()}
+                disabled={testing === "WAVE_PROXY_URL"}
+              >
+                {testing === "WAVE_PROXY_URL" ? "..." : t("settings").test}
+              </button>
+            </div>
+            {testResults["WAVE_PROXY_URL"] && (
+              <span className={`test-result ${testResults["WAVE_PROXY_URL"].startsWith("✓") ? "ok" : "err"}`}>
+                {testResults["WAVE_PROXY_URL"]}
+              </span>
+            )}
           </div>
         </SettingsCard>
 
