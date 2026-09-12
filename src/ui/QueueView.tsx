@@ -6,6 +6,7 @@ import type { Track } from "../core/types";
 import { Cover } from "./Cover";
 import { VirtualList } from "./VirtualList";
 import { EmptyState } from "./EmptyState";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { HeartIcon, TrashIcon, RadioIcon, PlaylistIcon, MoreIcon } from "./icons";
 
 const LONG_PRESS_MS = 400;
@@ -27,6 +28,26 @@ const dedupeQueue = useApp((s) => s.dedupeQueue);
   const addToPlaylist = useApp((s) => s.addToPlaylist);
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) return;
+      if (focusedIndex === null) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        const idx = focusedIndex;
+        setFocusedIndex(null);
+        removeFromQueue(idx);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusedIndex, removeFromQueue]);
 
   useEffect(() => {
     if (menuIndex === null) return;
@@ -112,7 +133,7 @@ const dedupeQueue = useApp((s) => s.dedupeQueue);
         <button className="btn" onClick={() => dedupeQueue()} disabled={queue.length === 0}>
           {t("queue").dedupe}
         </button>
-        <button className="btn" onClick={() => { if (queue.length > 0 && !window.confirm(t("queue").clear + "?")) return; clearQueue(); }} disabled={queue.length === 0}>
+        <button className="btn" onClick={() => { if (queue.length > 0) setConfirmClear(true); }} disabled={queue.length === 0}>
           {t("queue").clear}
         </button>
       </div>
@@ -158,11 +179,13 @@ const dedupeQueue = useApp((s) => s.dedupeQueue);
                     "track-row",
                     "queue-row",
                     isCurrent ? "track-current" : "",
+                    focusedIndex === i ? "track-focused" : "",
                     isDragging ? "track-dragging" : "",
                     isDropTarget ? (dropAbove.current ? "track-drop-above" : "track-drop-below") : "",
                   ].filter(Boolean).join(" ")}
                   data-index={i}
                   draggable
+                  onClick={() => setFocusedIndex(focusedIndex === i ? null : i)}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", String(i));
@@ -266,6 +289,13 @@ const dedupeQueue = useApp((s) => s.dedupeQueue);
           />
       )}
       </div>
+      {confirmClear && (
+        <ConfirmDialog
+          message={t("queue").clear + "?"}
+          onConfirm={() => { clearQueue(); setConfirmClear(false); }}
+          onCancel={() => setConfirmClear(false)}
+        />
+      )}
     </div>
   );
 }

@@ -65,6 +65,8 @@ export interface Translations {
     similar: string;
     sleepTimerExpired: string;
     sleepTimerAfterTrack: string;
+    fullscreen: string;
+    exitFullscreen: string;
   };
   home: {
     heroTitle: string;
@@ -192,6 +194,8 @@ export interface Translations {
     sharedWith: string;
     shareSuccess: string;
     shareFailed: string;
+    gridView: string;
+    listView: string;
   };
   settings: {
     title: string;
@@ -487,6 +491,16 @@ export interface Translations {
     unblockArtist: string;
     shareTrack: string;
     linkCopied: string;
+    details: string;
+    detailTitle: string;
+    detailArtist: string;
+    detailAlbum: string;
+    detailAlbumArtist: string;
+    detailDuration: string;
+    detailGenre: string;
+    detailYear: string;
+    detailProvider: string;
+    detailId: string;
   };
   onboarding: {
     title: string;
@@ -568,6 +582,8 @@ export const translations: Record<Locale, Translations> = {
       similar: "Similar",
       sleepTimerExpired: "Sleep timer: paused",
       sleepTimerAfterTrack: "Sleep timer: end of track",
+      fullscreen: "Fullscreen",
+      exitFullscreen: "Exit fullscreen",
     },
     home: {
       heroTitle: "Music. Without borders.",
@@ -708,6 +724,8 @@ export const translations: Record<Locale, Translations> = {
       sharedWith: "Shared with",
       shareSuccess: "Playlist shared",
       shareFailed: "User not found",
+      gridView: "Grid view",
+      listView: "List view",
     },
     settings: {
       title: "Settings",
@@ -1006,6 +1024,16 @@ export const translations: Record<Locale, Translations> = {
       unblockArtist: "Show artist in Wave",
       shareTrack: "Share",
       linkCopied: "Link copied",
+      details: "Details",
+      detailTitle: "Title",
+      detailArtist: "Artist",
+      detailAlbum: "Album",
+      detailAlbumArtist: "Album artist",
+      detailDuration: "Duration",
+      detailGenre: "Genre",
+      detailYear: "Year",
+      detailProvider: "Source",
+      detailId: "ID",
     },
     onboarding: {
       title: "Pick your favorite artists",
@@ -1085,6 +1113,8 @@ export const translations: Record<Locale, Translations> = {
       similar: "Похожие",
       sleepTimerExpired: "Таймер сна: пауза",
       sleepTimerAfterTrack: "Таймер сна: конец трека",
+      fullscreen: "Полный экран",
+      exitFullscreen: "Выйти из полноэкранного режима",
     },
     home: {
       heroTitle: "Музыка. Без границ.",
@@ -1225,6 +1255,8 @@ export const translations: Record<Locale, Translations> = {
       sharedWith: "Доступ у",
       shareSuccess: "Плейлист расшарен",
       shareFailed: "Пользователь не найден",
+      gridView: "Сетка",
+      listView: "Список",
     },
     settings: {
       title: "Настройки",
@@ -1523,6 +1555,16 @@ export const translations: Record<Locale, Translations> = {
       unblockArtist: "Показывать артиста в Wave",
       shareTrack: "Поделиться",
       linkCopied: "Ссылка скопирована",
+      details: "Подробнее",
+      detailTitle: "Название",
+      detailArtist: "Артист",
+      detailAlbum: "Альбом",
+      detailAlbumArtist: "Исполнитель альбома",
+      detailDuration: "Длительность",
+      detailGenre: "Жанр",
+      detailYear: "Год",
+      detailProvider: "Источник",
+      detailId: "ID",
     },
     onboarding: {
       title: "Выберите любимых артистов",

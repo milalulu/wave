@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { PlayerEngine } from "../core/player/PlayerEngine";
+import { useApp } from "../app/stores";
 
 const BARS = 48;
 const BAR_W = 3;
@@ -8,6 +9,7 @@ const HEIGHT = 52;
 
 export function Spectrum({ engine }: { engine: PlayerEngine }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const state = useApp((s) => s.snapshot.state);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,6 +26,7 @@ export function Spectrum({ engine }: { engine: PlayerEngine }) {
     let raf = 0;
     const draw = (): void => {
       raf = requestAnimationFrame(draw);
+      if (state !== "playing") return;
       engine.getSpectrum(data);
       g.clearRect(0, 0, canvas.width, canvas.height);
       const bins = data.length;
@@ -49,7 +52,7 @@ export function Spectrum({ engine }: { engine: PlayerEngine }) {
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [engine]);
+  }, [engine, state]);
 
   return (
     <canvas

@@ -85,6 +85,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const historyApi = useApp((s) => s.services?.history);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     if (!library || !historyApi || suggestPool) return;
@@ -188,7 +189,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [query, enabledProviders, selected]);
+  }, [query, enabledProviders, selected, retryToken]);
 
   const toggleProvider = (id: string): void => {
     setSelected((prev) => {
@@ -341,7 +342,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
       {error && (
         <p className="error">
           {error}{" "}
-          <button className="btn small" onClick={() => { setError(null); onQuery(query); }}>
+          <button className="btn small" onClick={() => { setError(null); setRetryToken((n) => n + 1); }}>
             <RefreshCwIcon size={14} /> {t("common").retry}
           </button>
         </p>

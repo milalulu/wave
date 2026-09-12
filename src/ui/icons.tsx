@@ -205,6 +205,15 @@ export const ListIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const GridIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </Svg>
+);
+
 export const PlaylistIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -289,6 +298,18 @@ export const RadioIcon = (p: IconProps) => (
 export const ChartIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Svg>
+);
+
+export const FullscreenIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 4h6M4 4v6M20 4h-6M20 4v6M4 20h6M4 20v-6M20 20h-6M20 20v-6" />
+  </Svg>
+);
+
+export const FullscreenExitIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5" />
   </Svg>
 );
 

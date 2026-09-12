@@ -13,6 +13,7 @@ import { bindMpris } from "./mpris";
 import { bindTray } from "./tray";
 import { bindMiniBroadcast, bindMiniRemote } from "./mini";
 import { bindGlobalHotkeys } from "./hotkeys";
+import { bindDiscord } from "./discord";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
@@ -1077,17 +1078,17 @@ export const useApp = create<AppState>()((set, get, api) => ({
     applyTheme(theme);
     set({ theme });
   },
-  compactPlayer: localStorage.getItem("wave-compact-player") === "1",
+  compactPlayer: (() => { try { return localStorage.getItem("wave-compact-player") === "1"; } catch { return false; } })(),
   setCompactPlayer: (compact) => {
     localStorage.setItem("wave-compact-player", compact ? "1" : "0");
     set({ compactPlayer: compact });
   },
-  lyricsAutoOpen: localStorage.getItem("wave-lyrics-autoopen") === "1",
+  lyricsAutoOpen: (() => { try { return localStorage.getItem("wave-lyrics-autoopen") === "1"; } catch { return false; } })(),
   setLyricsAutoOpen: (enabled) => {
     localStorage.setItem("wave-lyrics-autoopen", enabled ? "1" : "0");
     set({ lyricsAutoOpen: enabled });
   },
-  lyricsAutoscroll: localStorage.getItem("wave-lyrics-autoscroll") !== "0",
+  lyricsAutoscroll: (() => { try { return localStorage.getItem("wave-lyrics-autoscroll") !== "0"; } catch { return true; } })(),
   setLyricsAutoscroll: (enabled) => {
     localStorage.setItem("wave-lyrics-autoscroll", enabled ? "1" : "0");
     set({ lyricsAutoscroll: enabled });
@@ -1390,6 +1391,9 @@ async function doInit(
     bindMiniBroadcast(services);
     bindMiniRemote(services);
     bindGlobalHotkeys(services);
+    if (localStorage.getItem("wave-discord-client-id")) {
+      bindDiscord(services);
+    }
   }
 
   let queueSaveTimer: number | undefined;

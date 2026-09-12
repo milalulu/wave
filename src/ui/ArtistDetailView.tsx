@@ -7,6 +7,7 @@ import { Cover } from "./Cover";
 import { PlayIcon, BackIcon, ShuffleIcon, RadioIcon } from "./icons";
 import { tileStyle } from "./tileHue";
 import type { Album, Track } from "../core/types";
+import { shuffleArray } from "../core/util/shuffle";
 
 export function ArtistDetailView() {
   const { t, tf } = useI18n();
@@ -48,7 +49,7 @@ export function ArtistDetailView() {
   };
 
   const handleShufflePlay = async () => {
-    const shuffled = [...topTracks].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(topTracks);
     await play(shuffled);
   };
 

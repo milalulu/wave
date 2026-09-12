@@ -191,6 +191,7 @@ export function SettingsView() {
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [discordClientId, setDiscordClientId] = useState(() => localStorage.getItem("wave-discord-client-id") ?? "");
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -258,7 +259,7 @@ export function SettingsView() {
     const entries = services.providers.map(async (p) => {
       try {
         const res = await p.search("test");
-        const ok = (res.tracks?.length ?? 0) >= 0;
+        const ok = (res.tracks?.length ?? 0) > 0;
         return { id: p.id, text: ok ? "✓ OK" : "✗" };
       } catch (e) {
         return { id: p.id, text: `✗ ${e instanceof Error ? e.message : String(e)}`.slice(0, 60) };
@@ -310,6 +311,11 @@ export function SettingsView() {
       config["WAVE_LASTFM_SCROBBLE_ENABLED"] === "1" ? "1" : "0";
     setBlockedProviders(blocked);
     setPreferredProviders(preferred);
+    if (discordClientId.trim()) {
+      localStorage.setItem("wave-discord-client-id", discordClientId.trim());
+    } else {
+      localStorage.removeItem("wave-discord-client-id");
+    }
     try {
       await invoke("save_app_config", { config: payload });
       localStorage.setItem("wave-local-dir", localDir);
@@ -1071,6 +1077,27 @@ export function SettingsView() {
               </div>
             </div>
           )}
+        </SettingsCard>
+
+        <SettingsCard title="Discord Rich Presence" desc="Show what you're listening to on Discord">
+          <div className="settings-form">
+            <div className="field">
+              <label>Discord Application ID</label>
+              <input
+                type="text"
+                value={discordClientId}
+                placeholder="123456789012345678"
+                onChange={(e) => setDiscordClientId(e.target.value)}
+              />
+              <p className="muted">
+                Create an app at{" "}
+                <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">
+                  discord.com/developers
+                </a>{" "}
+                and paste the Application ID here.
+              </p>
+            </div>
+          </div>
         </SettingsCard>
 
         <SettingsCard title={t("settings").tools} desc={t("settings").toolsDesc}>

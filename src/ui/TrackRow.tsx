@@ -11,12 +11,7 @@ import { tileStyle } from "./tileHue";
 import { HeartIcon, MoreIcon, PlayIcon, RadioIcon, DownloadIcon } from "./icons";
 import { isTrackBlocked, isArtistBlocked } from "../app/platformSettings";
 import { isTrackDownloaded } from "../app/offline";
-function formatDuration(seconds?: number): string {
-  if (!seconds || !Number.isFinite(seconds)) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { formatTime } from "../core/util/format";
 
 interface TrackRowProps {
   track: Track;
@@ -38,6 +33,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [editingTags, setEditingTags] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuFocus, setMenuFocus] = useState(-1);
   const isCurrent = isCurrentTrack;
@@ -182,7 +178,7 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
         <span className="track-artist">{track.artist}</span>
       </div>
       {track.album && <span className="track-album">{track.album}</span>}
-      <span className="track-duration">{noPlay ? "—" : formatDuration(track.duration)}</span>
+      <span className="track-duration">{noPlay ? "—" : (track.duration ? formatTime(track.duration) : "—")}</span>
       {downloaded && <span className="track-downloaded" title={t("common").downloaded}><DownloadIcon size={12} /></span>}
       {playCount !== undefined && (
         <span className="track-play-count" title={`${playCount}×`}>{playCount}×</span>
@@ -273,6 +269,9 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
           <button role="menuitem" tabIndex={-1} onClick={() => { void shareTrack(track); setMenuOpen(false); }}>
             {t("trackMenu").shareTrack}
           </button>
+          <button role="menuitem" tabIndex={-1} onClick={() => { setShowDetails(true); setMenuOpen(false); }}>
+            {t("trackMenu").details}
+          </button>
           {isLocal && (
             <button
               role="menuitem"
@@ -319,6 +318,28 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
         document.body,
       )}
       {editingTags && <TagEditor track={track} onClose={() => setEditingTags(false)} />}
+      {showDetails && (
+        <div className="track-details-overlay" onClick={() => setShowDetails(false)}>
+          <div className="track-details-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("trackMenu").details}</h3>
+            {track.coverUrl && <Cover className="track-details-cover" src={track.coverUrl} alt="" />}
+            <table className="track-details-table">
+              <tbody>
+                <tr><td>{t("trackMenu").detailTitle}</td><td>{track.title}</td></tr>
+                {track.artist && <tr><td>{t("trackMenu").detailArtist}</td><td>{track.artist}</td></tr>}
+                {track.album && <tr><td>{t("trackMenu").detailAlbum}</td><td>{track.album}</td></tr>}
+                {track.albumArtist && <tr><td>{t("trackMenu").detailAlbumArtist}</td><td>{track.albumArtist}</td></tr>}
+                <tr><td>{t("trackMenu").detailDuration}</td><td>{track.duration ? formatTime(track.duration) : "—"}</td></tr>
+                {track.genre && <tr><td>{t("trackMenu").detailGenre}</td><td>{track.genre}</td></tr>}
+                {track.year && <tr><td>{t("trackMenu").detailYear}</td><td>{track.year}</td></tr>}
+                <tr><td>{t("trackMenu").detailProvider}</td><td>{track.provider}</td></tr>
+                <tr><td>{t("trackMenu").detailId}</td><td className="track-details-id">{track.id}</td></tr>
+              </tbody>
+            </table>
+            <button className="btn" onClick={() => setShowDetails(false)}>{t("common").close}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

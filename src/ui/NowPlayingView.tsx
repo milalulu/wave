@@ -7,7 +7,7 @@ import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
 import { SleepControl } from "./SleepControl";
 import { tileStyle } from "./tileHue";
-import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon, FullscreenIcon, FullscreenExitIcon } from "./icons";
 
 import { Spectrum } from "./Spectrum";
 import { extractDominantColor, preloadDominantColor } from "./extractColor";
@@ -45,6 +45,21 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const toggleShuffle = useApp((s) => s.toggleShuffle);
   const cycleRepeat = useApp((s) => s.cycleRepeat);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      void document.exitFullscreen();
+    }
+  };
 
   const track = snapshot.current;
   const liked = track ? likedIds.has(track.id) : false;
@@ -166,6 +181,13 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 title={t("player").spectrum}
               >
                 <ChartIcon size={18} />
+              </button>
+              <button
+                className="btn"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? t("player").exitFullscreen : t("player").fullscreen}
+              >
+                {isFullscreen ? <FullscreenExitIcon size={18} /> : <FullscreenIcon size={18} />}
               </button>
             </div>
             <SeekBar track={track} className="np-seek" />

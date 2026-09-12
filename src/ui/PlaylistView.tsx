@@ -7,10 +7,12 @@ import { usePopoverDismiss } from "./usePopoverDismiss";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
-import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon } from "./icons";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon, GridIcon, ListIcon } from "./icons";
 import { tileStyle } from "./tileHue";
 import { buildM3U, parseM3U } from "../core/library/m3u";
 import { distinctCovers, groupPlaylistsByFolder } from "../core/library/playlistGroups";
+import { shuffleArray } from "../core/util/shuffle";
 import type { Playlist, Track } from "../core/types";
 
 function parseJSON(text: string): Track[] | null {
@@ -45,6 +47,8 @@ export function PlaylistView() {
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Playlist | null>(null);
+  const [gridView, setGridView] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [sharePermission, setSharePermission] = useState<"editor" | "viewer">("editor");
@@ -235,6 +239,9 @@ export function PlaylistView() {
       <header className="view-header">
         <h1>{t("playlist").title}</h1>
         <div className="header-actions">
+          <button className="icon-btn" onClick={() => setGridView(!gridView)} title={gridView ? t("playlist").listView : t("playlist").gridView}>
+            {gridView ? <ListIcon size={16} /> : <GridIcon size={16} />}
+          </button>
           <button className="btn" onClick={() => setShowCreate(true)}>
             <PlayIcon size={18} /> {t("playlist").newPlaylist}
           </button>
@@ -287,6 +294,33 @@ export function PlaylistView() {
 
       <div className="playlist-split">
         <aside className="playlist-sidebar">
+          {gridView ? (
+            <div className="playlist-group-blocks">
+              {groups.map((g) => (
+                <div key={g.folder ?? ""} className="playlist-group">
+                  {g.folder && <div className="playlist-group-title">{g.folder}</div>}
+                  <div className="playlist-grid">
+                    {g.playlists.map((pl) => (
+                      <div
+                        key={pl.id}
+                        className={`playlist-grid-card ${selectedPlaylistId === pl.id ? "active" : ""}`}
+                        onClick={() => setSelectedPlaylist(pl.id)}
+                      >
+                        {pl.coverUrl ? (
+                          <Cover className="playlist-grid-cover" src={pl.coverUrl} alt="" />
+                        ) : (
+                          <div className="playlist-grid-cover playlist-grid-cover-empty" style={tileStyle(pl.name)}>{pl.name.charAt(0)}</div>
+                        )}
+                        <span className="playlist-grid-name">{pl.name}</span>
+                        <small>{tf("playlist").tracksCount(pl.tracks?.length ?? pl.trackIds.length)}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {playlists.length === 0 && <p className="muted">{t("playlist").empty}</p>}
+            </div>
+          ) : (
           <ul className="playlist-list">
             {groups.map((g) => (
               <li key={g.folder ?? ""} className="playlist-group">
@@ -314,7 +348,7 @@ export function PlaylistView() {
                       </button>
                       <button
                         className="icon-btn danger"
-                        onClick={(e) => { e.stopPropagation(); if (!window.confirm(t("common").delete + "?")) return; deletePlaylist(pl.id); if (selectedPlaylistId === pl.id) setSelectedPlaylist(null); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(pl); }}
                         title={t("common").delete}
                       >
                         <TrashIcon size={14} />
@@ -326,6 +360,7 @@ export function PlaylistView() {
             ))}
             {playlists.length === 0 && <li className="muted">{t("playlist").empty}</li>}
           </ul>
+          )}
         </aside>
 
         {selected ? (
@@ -337,7 +372,7 @@ export function PlaylistView() {
                 <button className="btn btn-primary" onClick={() => play(selectedTracks)} disabled={selectedTracks.length === 0}>
                   <PlayIcon size={18} /> {t("playlist").play}
                 </button>
-                <button className="btn" onClick={() => { const shuffled = [...selectedTracks].sort(() => Math.random() - 0.5); play(shuffled); }} disabled={selectedTracks.length === 0}>
+                <button className="btn" onClick={() => { play(shuffleArray(selectedTracks)); }} disabled={selectedTracks.length === 0}>
                   <ShuffleIcon size={18} /> {t("playlist").shuffle}
                 </button>
                 <button className="btn" onClick={() => void exportPlaylist(selected, "m3u")}>
@@ -491,6 +526,13 @@ export function PlaylistView() {
             )}
           </div>
         </div>
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          message={confirmDelete.name ? `${t("common").delete} "${confirmDelete.name}"?` : t("common").delete + "?"}
+          onConfirm={() => { deletePlaylist(confirmDelete.id); if (selectedPlaylistId === confirmDelete.id) setSelectedPlaylist(null); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { TrackRow } from "./TrackRow";
 import { Cover } from "./Cover";
 import { PlayIcon, BackIcon, ShuffleIcon } from "./icons";
 import type { Track } from "../core/types";
+import { shuffleArray } from "../core/util/shuffle";
 
 export function AlbumDetailView() {
   const { t, tf } = useI18n();
@@ -24,7 +25,7 @@ export function AlbumDetailView() {
   };
 
   const handleShufflePlay = async () => {
-    const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleArray(tracks);
     await play(shuffled);
   };
 

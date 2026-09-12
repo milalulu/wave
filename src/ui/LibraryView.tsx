@@ -38,7 +38,7 @@ export function LibraryView() {
     });
     void services.history.getHistory(2000).then((entries) => {
       if (!cancelled) {
-        void services.library.getLikedTracks().then((liked) => {
+        void likedP.then((liked) => {
           if (!cancelled) setSmartPlaylists(generateSmartPlaylists(entries, liked));
         });
       }

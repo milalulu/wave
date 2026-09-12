@@ -1,5 +1,6 @@
 pub mod android;
 mod diag;
+pub mod discord_rpc;
 mod http;
 pub mod lastfm;
 #[cfg(target_os = "linux")]
@@ -2065,10 +2066,36 @@ pub fn run() {
             save_app_config,
             relaunch,
             mpris_update,
+            set_discord_presence,
+            clear_discord_presence,
             diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn set_discord_presence(
+    client_id: String,
+    details: String,
+    state: String,
+    large_image: Option<String>,
+    large_text: Option<String>,
+    small_image: Option<String>,
+    small_text: Option<String>,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+) -> Result<(), String> {
+    discord_rpc::set_presence(
+        client_id, details, state, large_image, large_text,
+        small_image, small_text, start_ts, end_ts,
+    ).await
+}
+
+#[tauri::command]
+async fn clear_discord_presence() -> Result<(), String> {
+    discord_rpc::clear_presence().await
 }
 
 #[tauri::command]

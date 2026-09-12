@@ -26,3 +26,5 @@ src-tauri/target
 *.njsproj
 *.sln
 *.sw?
+*.keystore
+*.jks
