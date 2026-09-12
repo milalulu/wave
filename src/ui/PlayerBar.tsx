@@ -16,7 +16,6 @@ import {
   ExpandIcon,
   HeartIcon,
   MiniPlayerIcon,
-  MoonIcon,
   NextIcon,
   PauseIcon,
   PlayIcon,
@@ -34,14 +33,7 @@ import {
   VolumeMuteIcon,
 } from "./icons";
 import { usePopoverDismiss } from "./usePopoverDismiss";
-
-function formatRemaining(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { SleepControl } from "./SleepControl";
 
 interface PlayerBarProps {
   onOpenQueue: () => void;
@@ -49,12 +41,9 @@ interface PlayerBarProps {
 }
 
 export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
-  const { t, tf } = useI18n();
+  const { t } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
   const likedIds = useApp((s) => s.likedIds);
-  const sleepUntil = useApp((s) => s.sleepUntil);
-  const sleepRemaining = useApp((s) => s.sleepRemaining);
-  const pauseAfterTrack = useApp((s) => s.pauseAfterTrack);
   const compactPlayer = useApp((s) => s.compactPlayer);
   const setCompactPlayer = useApp((s) => s.setCompactPlayer);
   const togglePlay = useApp((s) => s.togglePlay);
@@ -71,16 +60,11 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const variantsLoading = useApp((s) => s.variantsLoading);
   const playVariant = useApp((s) => s.playVariant);
   const addSimilar = useApp((s) => s.addSimilar);
-  const setSleepMinutes = useApp((s) => s.setSleepMinutes);
-  const setSleepAfterTrack = useApp((s) => s.setSleepAfterTrack);
-  const clearSleep = useApp((s) => s.clearSleep);
   const services = useApp((s) => s.services);
-  const [sleepOpen, setSleepOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
-  const sleepRef = useRef<HTMLDivElement>(null);
   const speedRef = useRef<HTMLDivElement>(null);
   const eqRef = useRef<HTMLDivElement>(null);
   const variantsRef = useRef<HTMLDivElement>(null);
@@ -95,7 +79,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
 
   const volDisplay = volDrag ?? Math.round(snapshot.volume * 100);
 
-  usePopoverDismiss(sleepRef, sleepOpen, () => setSleepOpen(false));
   usePopoverDismiss(speedRef, speedOpen, () => setSpeedOpen(false));
   usePopoverDismiss(eqRef, eqOpen, () => setEqOpen(false));
   usePopoverDismiss(variantsRef, variantsOpen, () => setVariantsOpen(false));
@@ -107,12 +90,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const liked = track ? likedIds.has(track.id) : false;
   const buffering = snapshot.state === "loading";
   const hasError = snapshot.state === "error";
-  const sleepActive = sleepUntil !== null || pauseAfterTrack;
-  const sleepLabel = pauseAfterTrack
-    ? t("player").sleepTimerOptions.afterTrack
-    : sleepRemaining > 0
-      ? formatRemaining(sleepRemaining)
-      : "";
 
   useEffect(() => {
     setVariantsOpen(false);
@@ -457,70 +434,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
             </div>
           )}
         </div>
-        <div className="sleep-menu-wrap" ref={sleepRef}>
-          <button
-            className={`icon-btn ${sleepActive ? "active" : ""}`}
-            onClick={() => setSleepOpen((o) => !o)}
-            title={sleepActive ? `${t("player").sleepTimer}: ${sleepLabel}` : t("player").sleepTimer}
-          >
-            <MoonIcon size={18} />
-          </button>
-          {sleepActive && <span className="sleep-badge">{sleepLabel}</span>}
-          {sleepOpen && (
-            <div className="sleep-menu" onClick={(e) => e.stopPropagation()}>
-              <div className="sleep-menu-title">{t("player").sleepTimer}</div>
-              {[15, 30, 60, 90].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => {
-                    setSleepMinutes(m);
-                    setSleepOpen(false);
-                  }}
-                >
-                  {tf("player").sleepTimerOptions.minutes(m)}
-                </button>
-              ))}
-              <div className="sleep-custom">
-                <input
-                  type="number"
-                  min={1}
-                  max={480}
-                  placeholder="..."
-                  className="sleep-custom-input"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const val = Number((e.target as HTMLInputElement).value);
-                      if (val > 0) { setSleepMinutes(val); setSleepOpen(false); }
-                    }
-                  }}
-                />
-                <button
-                  className="btn small"
-                  onClick={(e) => {
-                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
-                    const val = Number(input?.value);
-                    if (val > 0) { setSleepMinutes(val); setSleepOpen(false); }
-                  }}
-                >
-                  OK
-                </button>
-              </div>
-              <button
-                onClick={() => {
-                  setSleepAfterTrack();
-                  setSleepOpen(false);
-                }}
-              >
-                {t("player").sleepTimerOptions.afterTrack}
-              </button>
-              {sleepActive && (
-                <button className="danger" onClick={() => { clearSleep(); setSleepOpen(false); }}>
-                  {t("player").sleepTimerOptions.off}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        <SleepControl />
       </div>
     </footer>
   );

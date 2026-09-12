@@ -5,6 +5,7 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
 import { useSwipeDown } from "./gestures";
+import { SleepControl } from "./SleepControl";
 import { tileStyle } from "./tileHue";
 import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon } from "./icons";
 
@@ -186,6 +187,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               <button className="icon-btn" onClick={() => onNavigate("queue" as ViewKey)} title={t("nav").queue}>
                 <QueueIcon size={16} />
               </button>
+              <SleepControl />
               <div className="np-volume">
                 <button
                   className="icon-btn"
