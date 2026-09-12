@@ -54,11 +54,16 @@ pub fn validate_proxy_url(raw: &str) -> Result<String, String> {
 pub fn proxy_conf_from_parts(url: Option<String>, mode: Option<String>) -> Option<ProxyConf> {
     let url = url.filter(|s| !s.trim().is_empty())?;
     let validated = validate_proxy_url(&url).ok()?;
-    let mode = mode.map(|m| parse_proxy_mode(&m)).unwrap_or(ProxyMode::Auto);
+    let mode = mode
+        .map(|m| parse_proxy_mode(&m))
+        .unwrap_or(ProxyMode::Auto);
     if mode == ProxyMode::Off {
         return None;
     }
-    Some(ProxyConf { url: validated, mode })
+    Some(ProxyConf {
+        url: validated,
+        mode,
+    })
 }
 
 fn build_client(proxy: Option<&str>) -> reqwest::Client {
@@ -71,9 +76,7 @@ fn build_client(proxy: Option<&str>) -> reqwest::Client {
             builder = builder.proxy(pr);
         }
     }
-    builder
-        .build()
-        .expect("failed to build shared http client")
+    builder.build().expect("failed to build shared http client")
 }
 
 use std::sync::RwLock;
@@ -254,7 +257,8 @@ mod proxy_tests {
         .expect("conf");
         assert_eq!(c.mode, ProxyMode::Auto);
         // Режим по умолчанию при URL без режима — auto.
-        let c2 = proxy_conf_from_parts(Some("http://127.0.0.1:8080".to_string()), None).expect("conf");
+        let c2 =
+            proxy_conf_from_parts(Some("http://127.0.0.1:8080".to_string()), None).expect("conf");
         assert_eq!(c2.mode, ProxyMode::Auto);
     }
 }

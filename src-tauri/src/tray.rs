@@ -95,4 +95,3 @@ pub fn start(app: &tauri::App) {
         }
     });
 }
-

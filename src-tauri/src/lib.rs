@@ -188,7 +188,10 @@ fn ytdlp_should_retry_proxy(app: &tauri::AppHandle, used_proxy: bool) -> bool {
     if used_proxy {
         return false;
     }
-    matches!(proxy_conf(app).map(|c| c.mode), Some(crate::http::ProxyMode::Auto))
+    matches!(
+        proxy_conf(app).map(|c| c.mode),
+        Some(crate::http::ProxyMode::Auto)
+    )
 }
 
 async fn run_ytdlp(
@@ -611,10 +614,7 @@ async fn yt_stream_fast(
 /// Быстрый резолв произвольного URL (SoundCloud и т.д.): 2 попытки, 10с таймаут,
 /// с фолбэком на полный resolve_stream (7 попыток).
 #[tauri::command]
-async fn dl_stream_fast(
-    app: tauri::AppHandle,
-    url: String,
-) -> Result<String, String> {
+async fn dl_stream_fast(app: tauri::AppHandle, url: String) -> Result<String, String> {
     let cookies = ytdlp_cookies_args(&app);
     let attempts = vec![
         // Попытка 1: mp3 (SoundCloud обычно отдаёт mp3)
@@ -711,10 +711,7 @@ static INNERTUBE_CLIENTS: &[InnertubeClient] = &[
     },
 ];
 
-async fn try_innertube(
-    video_id: &str,
-    client: &InnertubeClient,
-) -> Result<String, String> {
+async fn try_innertube(video_id: &str, client: &InnertubeClient) -> Result<String, String> {
     let key = match client.name {
         "ANDROID" | "ANDROID_MUSIC" => Some("AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w"),
         _ => None,
@@ -767,7 +764,10 @@ async fn try_innertube(
         let reason = body["playabilityStatus"]["reason"]
             .as_str()
             .unwrap_or("unknown");
-        return Err(format!("innertube({}): {} — {}", client.name, status, reason));
+        return Err(format!(
+            "innertube({}): {} — {}",
+            client.name, status, reason
+        ));
     }
 
     let formats = body["streamingData"]["adaptiveFormats"]
@@ -777,11 +777,7 @@ async fn try_innertube(
     let mut audio: Vec<&serde_json::Value> = formats
         .iter()
         .filter(|f| f["mimeType"].as_str().unwrap_or("").starts_with("audio/"))
-        .filter(|f| {
-            f["url"]
-                .as_str()
-                .is_some_and(|u| !u.is_empty())
-        })
+        .filter(|f| f["url"].as_str().is_some_and(|u| !u.is_empty()))
         .collect();
 
     if audio.is_empty() {
@@ -792,14 +788,8 @@ async fn try_innertube(
     }
 
     audio.sort_by(|a, b| {
-        let a_m4a = a["mimeType"]
-            .as_str()
-            .unwrap_or("")
-            .contains("mp4") as i32;
-        let b_m4a = b["mimeType"]
-            .as_str()
-            .unwrap_or("")
-            .contains("mp4") as i32;
+        let a_m4a = a["mimeType"].as_str().unwrap_or("").contains("mp4") as i32;
+        let b_m4a = b["mimeType"].as_str().unwrap_or("").contains("mp4") as i32;
         let a_br = a["bitrate"].as_i64().unwrap_or(0);
         let b_br = b["bitrate"].as_i64().unwrap_or(0);
         b_m4a
@@ -858,24 +848,26 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
         "videoId": &video_id,
     });
 
-    let first_body = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
-            let resp = crate::http::send_auto(|http| {
-                http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .json(&first_payload)
-            })
+    let first_body = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let resp = crate::http::send_auto(|http| {
+            http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
+                .header("Content-Type", "application/json")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                )
+                .json(&first_payload)
+        })
+        .await
+        .map_err(|e| format!("innertube(next) reqwest: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(format!("innertube(next) HTTP {}", status));
+        }
+        resp.json::<serde_json::Value>()
             .await
-            .map_err(|e| format!("innertube(next) reqwest: {e}"))?;
-            let status = resp.status();
-            if !status.is_success() {
-                return Err(format!("innertube(next) HTTP {}", status));
-            }
-            Ok::<_, String>(resp.json::<serde_json::Value>().await.map_err(|e| format!("{e}"))?)
-        },
-    )
+            .map_err(|e| format!("{e}"))
+    })
     .await
     .map_err(|_| "innertube(next): timeout".to_string())??;
 
@@ -915,24 +907,26 @@ async fn yt_related_videos(video_id: String, limit: u32) -> Result<Vec<serde_jso
             "playlistId": pid,
             "params": p,
         });
-        tokio::time::timeout(
-            std::time::Duration::from_secs(15),
-            async {
-                let resp = crate::http::send_auto(|http| {
-                    http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
-                        .header("Content-Type", "application/json")
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                        .json(&second_payload)
-                })
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            let resp = crate::http::send_auto(|http| {
+                http.post("https://music.youtube.com/youtubei/v1/next?prettyPrint=false")
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    )
+                    .json(&second_payload)
+            })
+            .await
+            .map_err(|e| format!("innertube(next,with-playlist) reqwest: {e}"))?;
+            let status = resp.status();
+            if !status.is_success() {
+                return Err(format!("innertube(next,with-playlist) HTTP {}", status));
+            }
+            resp.json::<serde_json::Value>()
                 .await
-                .map_err(|e| format!("innertube(next,with-playlist) reqwest: {e}"))?;
-                let status = resp.status();
-                if !status.is_success() {
-                    return Err(format!("innertube(next,with-playlist) HTTP {}", status));
-                }
-                Ok::<_, String>(resp.json::<serde_json::Value>().await.map_err(|e| format!("{e}"))?)
-            },
-        )
+                .map_err(|e| format!("{e}"))
+        })
         .await
         .map_err(|_| "innertube(next,with-playlist): timeout".to_string())??
     } else {
@@ -1026,9 +1020,8 @@ async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json
         "query": query,
     });
 
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
                     .header("Content-Type", "application/json")
@@ -1042,17 +1035,17 @@ async fn yt_search_innertube(query: String, limit: u32) -> Result<Vec<serde_json
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "innertube search: timeout".to_string())?
-    .map_err(|e| format!("innertube search: {e}"))?;
+        })
+        .await
+        .map_err(|_| "innertube search: timeout".to_string())?
+        .map_err(|e| format!("innertube search: {e}"))?;
 
     if !status.is_success() {
         return Err(format!("innertube search HTTP {}", status));
     }
 
-    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"]
+    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]
+        ["sectionListRenderer"]["contents"]
         .as_array()
         .ok_or("innertube search: no results")?;
 
@@ -1122,9 +1115,8 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
         "query": query,
     });
 
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false")
                     .header("Content-Type", "application/json")
@@ -1138,17 +1130,17 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "innertube search full: timeout".to_string())?
-    .map_err(|e| format!("innertube search full: {e}"))?;
+        })
+        .await
+        .map_err(|_| "innertube search full: timeout".to_string())?
+        .map_err(|e| format!("innertube search full: {e}"))?;
 
     if !status.is_success() {
         return Err(format!("innertube search full HTTP {}", status));
     }
 
-    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"]
+    let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]
+        ["sectionListRenderer"]["contents"]
         .as_array()
         .ok_or("innertube search full: no results")?;
 
@@ -1164,7 +1156,9 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
         for item in items {
             if let Some(video) = item.get("videoRenderer").and_then(|v| v.as_object()) {
                 let id = video["videoId"].as_str().unwrap_or("");
-                if id.is_empty() { continue; }
+                if id.is_empty() {
+                    continue;
+                }
                 let title = video["title"]["runs"]
                     .as_array()
                     .and_then(|r| r.first())
@@ -1189,7 +1183,9 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
                 }));
             } else if let Some(channel) = item.get("channelRenderer").and_then(|c| c.as_object()) {
                 let id = channel["channelId"].as_str().unwrap_or("");
-                if id.is_empty() { continue; }
+                if id.is_empty() {
+                    continue;
+                }
                 let name = channel["title"]["runs"]
                     .as_array()
                     .and_then(|r| r.first())
@@ -1206,12 +1202,20 @@ async fn yt_search_innertube_full(query: String, limit: u32) -> Result<serde_jso
                     "thumbnail": thumbnail,
                     "subscriberCount": subscriber_count,
                 }));
-            } else if let Some(playlist) = item.get("playlistRenderer").and_then(|p| p.as_object()) {
+            } else if let Some(playlist) = item.get("playlistRenderer").and_then(|p| p.as_object())
+            {
                 let id = playlist["playlistId"].as_str().unwrap_or("");
-                if id.is_empty() { continue; }
+                if id.is_empty() {
+                    continue;
+                }
                 let title = playlist["title"]["simpleText"]
                     .as_str()
-                    .or_else(|| playlist["title"]["runs"].as_array().and_then(|r| r.first()).and_then(|r| r["text"].as_str()))
+                    .or_else(|| {
+                        playlist["title"]["runs"]
+                            .as_array()
+                            .and_then(|r| r.first())
+                            .and_then(|r| r["text"].as_str())
+                    })
                     .unwrap_or("");
                 let thumbnail = playlist["thumbnail"]["thumbnails"]
                     .as_array()
@@ -1293,12 +1297,7 @@ async fn sc_extract_client_id() -> Result<String, String> {
         .await
         .map_err(|e| format!("soundcloud page read: {e}"))?;
 
-    let mut fetched = 0;
-    for script_url in extract_script_urls(&page).into_iter().rev() {
-        if fetched >= 6 {
-            break;
-        }
-        fetched += 1;
+    for script_url in extract_script_urls(&page).into_iter().rev().take(6) {
         let resp = match tokio::time::timeout(
             std::time::Duration::from_secs(6),
             crate::http::send_auto(|http| {
@@ -1371,18 +1370,14 @@ fn extract_script_urls(html: &str) -> Vec<String> {
     urls
 }
 
-async fn sc_stream_url(
-    track_id: &str,
-    client_id: &str,
-) -> Result<String, String> {
+async fn sc_stream_url(track_id: &str, client_id: &str) -> Result<String, String> {
     let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
-    let track_api = format!("https://api-v2.soundcloud.com/tracks/{track_id}?client_id={client_id}");
-    let resp = crate::http::send_auto(|http| {
-        http.get(&track_api).header("User-Agent", ua)
-    })
-    .await
-    .map_err(|e| format!("soundcloud track: {e}"))?;
+    let track_api =
+        format!("https://api-v2.soundcloud.com/tracks/{track_id}?client_id={client_id}");
+    let resp = crate::http::send_auto(|http| http.get(&track_api).header("User-Agent", ua))
+        .await
+        .map_err(|e| format!("soundcloud track: {e}"))?;
     let status = resp.status();
     let track: serde_json::Value = resp
         .json()
@@ -1398,22 +1393,21 @@ async fn sc_stream_url(
     let progress = transcodings
         .iter()
         .find(|t| t["format"]["protocol"].as_str() == Some("progressive"));
-    let trans = progress.or_else(|| {
-        transcodings
-            .iter()
-            .find(|t| t["format"]["protocol"].as_str() == Some("hls"))
-    })
-    .ok_or_else(|| "soundcloud: no playable transcoding".to_string())?;
+    let trans = progress
+        .or_else(|| {
+            transcodings
+                .iter()
+                .find(|t| t["format"]["protocol"].as_str() == Some("hls"))
+        })
+        .ok_or_else(|| "soundcloud: no playable transcoding".to_string())?;
 
     let media_api = trans["url"]
         .as_str()
         .ok_or_else(|| "soundcloud: no media url".to_string())?;
     let media_api = format!("{media_api}?client_id={client_id}");
-    let resp = crate::http::send_auto(|http| {
-        http.get(&media_api).header("User-Agent", ua)
-    })
-    .await
-    .map_err(|e| format!("soundcloud stream: {e}"))?;
+    let resp = crate::http::send_auto(|http| http.get(&media_api).header("User-Agent", ua))
+        .await
+        .map_err(|e| format!("soundcloud stream: {e}"))?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!("soundcloud stream HTTP {status}"));
@@ -1474,7 +1468,8 @@ async fn proxy_test(
     .ok_or_else(|| "proxy not configured".to_string())?;
     // Применяем свежий конфиг (мог измениться без рестарта) и бьём строго в прокси.
     crate::http::configure_proxy(Some(conf));
-    let proxied = crate::http::proxied_client().ok_or_else(|| "proxy not configured".to_string())?;
+    let proxied =
+        crate::http::proxied_client().ok_or_else(|| "proxy not configured".to_string())?;
     let resp = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         proxied
@@ -1498,9 +1493,8 @@ async fn sc_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, 
     let client_id = sc_extract_client_id().await?;
     let limit = limit.clamp(1, 50) as usize;
 
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.get("https://api-v2.soundcloud.com/search/tracks")
                     .query(&[
@@ -1519,11 +1513,10 @@ async fn sc_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, 
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "soundcloud search: timeout".to_string())?
-    .map_err(|e| format!("soundcloud search: {e}"))?;
+        })
+        .await
+        .map_err(|_| "soundcloud search: timeout".to_string())?
+        .map_err(|e| format!("soundcloud search: {e}"))?;
 
     if !status.is_success() {
         return Err(format!("soundcloud search HTTP {}", status));
@@ -1534,7 +1527,10 @@ async fn sc_search(query: String, limit: u32) -> Result<Vec<serde_json::Value>, 
         .ok_or("soundcloud search: no collection")?;
 
     let mut out = Vec::new();
-    for t in collection.iter().filter(|t| t["kind"].as_str() == Some("track")) {
+    for t in collection
+        .iter()
+        .filter(|t| t["kind"].as_str() == Some("track"))
+    {
         let Some(tid) = t["id"].as_u64() else {
             continue;
         };
@@ -1573,9 +1569,10 @@ fn sc_collection_to_items(
     user_priority: bool,
 ) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
-    for t in collection.iter().filter(|t| {
-        user_priority || t["kind"].as_str() == Some("track")
-    }) {
+    for t in collection
+        .iter()
+        .filter(|t| user_priority || t["kind"].as_str() == Some("track"))
+    {
         if user_priority {
             if t["kind"].as_str() != Some("user") {
                 continue;
@@ -1639,9 +1636,8 @@ async fn sc_search_users(query: String, limit: u32) -> Result<Vec<serde_json::Va
     let client_id = sc_extract_client_id().await?;
     let limit = limit.clamp(1, 20) as usize;
 
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.get("https://api-v2.soundcloud.com/search/users")
                     .query(&[
@@ -1660,11 +1656,10 @@ async fn sc_search_users(query: String, limit: u32) -> Result<Vec<serde_json::Va
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "soundcloud users: timeout".to_string())?
-    .map_err(|e| format!("soundcloud users: {e}"))?;
+        })
+        .await
+        .map_err(|_| "soundcloud users: timeout".to_string())?
+        .map_err(|e| format!("soundcloud users: {e}"))?;
 
     if !status.is_success() {
         return Err(format!("soundcloud users HTTP {}", status));
@@ -1696,14 +1691,10 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
         .or_else(|| raw.strip_prefix("soundcloud:tracks:"))
         .unwrap_or(raw);
 
-    let api_url = format!(
-        "https://api-v2.soundcloud.com/tracks/{}/related",
-        track_id
-    );
+    let api_url = format!("https://api-v2.soundcloud.com/tracks/{}/related", track_id);
 
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.get(&api_url)
                     .query(&[
@@ -1719,11 +1710,10 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "soundcloud related: timeout".to_string())?
-    .map_err(|e| format!("soundcloud related: {e}"))?;
+        })
+        .await
+        .map_err(|_| "soundcloud related: timeout".to_string())?
+        .map_err(|e| format!("soundcloud related: {e}"))?;
 
     if !status.is_success() {
         return Err(format!("soundcloud related HTTP {}", status));
@@ -1748,9 +1738,8 @@ async fn sc_related_tracks(track_id: String, limit: u32) -> Result<Vec<serde_jso
 #[tauri::command]
 async fn sc_resolve_url(page_url: String) -> Result<serde_json::Value, String> {
     let client_id = sc_extract_client_id().await?;
-    let (status, body): (reqwest::StatusCode, serde_json::Value) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
+    let (status, body): (reqwest::StatusCode, serde_json::Value) =
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
             let resp = crate::http::send_auto(|http| {
                 http.get("https://api-v2.soundcloud.com/resolve")
                     .query(&[
@@ -1762,15 +1751,14 @@ async fn sc_resolve_url(page_url: String) -> Result<serde_json::Value, String> {
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                     )
             })
-                .await?;
+            .await?;
             let status = resp.status();
             let body = resp.json().await?;
             Ok::<_, reqwest::Error>((status, body))
-        },
-    )
-    .await
-    .map_err(|_| "soundcloud resolve: timeout".to_string())?
-    .map_err(|e| format!("soundcloud resolve: {e}"))?;
+        })
+        .await
+        .map_err(|_| "soundcloud resolve: timeout".to_string())?
+        .map_err(|e| format!("soundcloud resolve: {e}"))?;
 
     if status == reqwest::StatusCode::NOT_FOUND {
         return Err("soundcloud resolve: not found (private/deleted?)".to_string());
@@ -1823,18 +1811,15 @@ async fn http_fetch_json(
             builder = builder.json(&b);
         }
     }
-    let (status, text) = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        async {
-            let res = builder
-                .send()
-                .await
-                .map_err(|e| format!("http {method} {redacted}: {e}"))?;
-            let status = res.status().as_u16();
-            let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
-            Ok::<_, String>((status, text))
-        },
-    )
+    let (status, text) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let res = builder
+            .send()
+            .await
+            .map_err(|e| format!("http {method} {redacted}: {e}"))?;
+        let status = res.status().as_u16();
+        let text = res.text().await.map_err(|e| format!("read body: {e}"))?;
+        Ok::<_, String>((status, text))
+    })
     .await
     .map_err(|_| format!("http {method} {redacted}: timeout"))??;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|_| {
