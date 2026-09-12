@@ -52,6 +52,16 @@ interface ToolsStatus {
   ffmpegReady: boolean;
 }
 
+interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  loaded: boolean;
+  error?: string | null;
+  log: string[];
+}
+
 const ENV_KEYS = [
   "WAVE_YTDLP_PATH",
   "WAVE_YTDLP_COOKIES",
@@ -192,6 +202,18 @@ export function SettingsView() {
   const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [discordClientId, setDiscordClientId] = useState(() => localStorage.getItem("wave-discord-client-id") ?? "");
+  const [plugins, setPlugins] = useState<PluginInfo[]>([]);
+  const [pluginsBusy, setPluginsBusy] = useState(false);
+  const refreshPlugins = useCallback(async () => {
+    try {
+      setPlugins((await invoke<PluginInfo[]>("plugin_list")) ?? []);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e));
+    }
+  }, [notify]);
+  useEffect(() => {
+    void refreshPlugins();
+  }, [refreshPlugins]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -1098,6 +1120,87 @@ export function SettingsView() {
               </p>
             </div>
           </div>
+        </SettingsCard>
+
+        <SettingsCard title={t("settings").plugins} desc={t("settings").pluginsDesc}>
+          <div className="settings-action-row">
+            <button
+              className="btn"
+              onClick={async () => {
+                await invoke("plugin_open_dir");
+                void refreshPlugins();
+              }}
+            >
+              <FolderIcon size={16} /> {t("settings").pluginsOpenDir}
+            </button>
+            <button
+              className="btn"
+              disabled={pluginsBusy}
+              onClick={async () => {
+                setPluginsBusy(true);
+                try {
+                  setPlugins((await invoke<PluginInfo[]>("plugin_reload")) ?? []);
+                  notify(t("settings").pluginsReload);
+                } catch (e) {
+                  notify(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setPluginsBusy(false);
+                }
+              }}
+            >
+              <RefreshCwIcon size={16} /> {t("settings").pluginsReload}
+            </button>
+          </div>
+          {plugins.length === 0 ? (
+            <p className="muted">{t("settings").pluginsEmpty}</p>
+          ) : (
+            <div className="plugin-list">
+              {plugins.map((p) => (
+                <div className="plugin-row" key={p.id}>
+                  <div className="plugin-info">
+                    <div className="plugin-title">
+                      {p.name}
+                      {p.version ? <span className="plugin-version muted">v{p.version}</span> : null}
+                      {!p.loaded && !p.enabled ? (
+                        <span className="plugin-badge">{t("settings").pluginsDisabled}</span>
+                      ) : null}
+                    </div>
+                    <div className="plugin-id muted">{p.id}</div>
+                    {p.error && <div className="plugin-error muted">{p.error}</div>}
+                    {p.log.length > 0 && (
+                      <div className="plugin-log muted">
+                        {p.log.slice(-6).map((line, i) => (
+                          <div key={i}>{line}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <label className="toggle-row toggle-row-compact">
+                    <input
+                      type="checkbox"
+                      checked={p.enabled}
+                      onChange={async (e) => {
+                        e.target.disabled = true;
+                        try {
+                          setPlugins(
+                            (await invoke<PluginInfo[]>("plugin_set_enabled", {
+                              id: p.id,
+                              enabled: e.target.checked,
+                            })) ?? [],
+                          );
+                        } catch (err) {
+                          notify(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          e.target.disabled = false;
+                        }
+                      }}
+                    />
+                    <span>{p.enabled ? t("settings").pluginsEnabled : t("settings").pluginsDisabled}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
         </SettingsCard>
 
         <SettingsCard title={t("settings").tools} desc={t("settings").toolsDesc}>

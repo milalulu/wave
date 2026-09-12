@@ -5,6 +5,7 @@ mod http;
 pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
+mod plugin_host;
 mod tools;
 #[cfg(not(target_os = "android"))]
 mod tray;
@@ -1996,6 +1997,14 @@ pub fn run() {
         )
         .manage(bridge.clone())
         .setup(move |app| {
+            {
+                let plugins_dir = app
+                    .path()
+                    .app_config_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                    .join("plugins");
+                app.manage(plugin_host::PluginHost::new(app.handle().clone(), plugins_dir));
+            }
             apply_proxy_conf(app.handle());
             #[cfg(not(target_os = "android"))]
             #[cfg(not(target_os = "android"))]
@@ -2068,6 +2077,13 @@ pub fn run() {
             mpris_update,
             set_discord_presence,
             clear_discord_presence,
+            plugin_list,
+            plugin_reload,
+            plugin_set_enabled,
+            plugin_open_dir,
+            plugin_event,
+            plugin_state,
+            plugin_search_result,
             diagnostics
         ])
         .run(tauri::generate_context!())
@@ -2096,6 +2112,55 @@ async fn set_discord_presence(
 #[tauri::command]
 async fn clear_discord_presence() -> Result<(), String> {
     discord_rpc::clear_presence().await
+}
+
+#[tauri::command]
+fn plugin_list(state: tauri::State<plugin_host::PluginHost>) -> Vec<plugin_host::PluginInfo> {
+    state.list()
+}
+
+#[tauri::command]
+fn plugin_reload(state: tauri::State<plugin_host::PluginHost>) -> Vec<plugin_host::PluginInfo> {
+    state.reload();
+    state.list()
+}
+
+#[tauri::command]
+fn plugin_set_enabled(
+    state: tauri::State<plugin_host::PluginHost>,
+    id: String,
+    enabled: bool,
+) -> Vec<plugin_host::PluginInfo> {
+    state.set_enabled(&id, enabled);
+    state.list()
+}
+
+#[tauri::command]
+fn plugin_open_dir(app: tauri::AppHandle, state: tauri::State<plugin_host::PluginHost>) {
+    state.open_dir(&app);
+}
+
+#[tauri::command]
+fn plugin_event(
+    state: tauri::State<plugin_host::PluginHost>,
+    name: String,
+    value: Option<serde_json::Value>,
+) {
+    state.push_event(&name, value);
+}
+
+#[tauri::command]
+fn plugin_state(state: tauri::State<plugin_host::PluginHost>, value: serde_json::Value) {
+    state.push_state(value);
+}
+
+#[tauri::command]
+fn plugin_search_result(
+    state: tauri::State<plugin_host::PluginHost>,
+    req_id: u64,
+    value: serde_json::Value,
+) {
+    state.search_result(req_id, value);
 }
 
 #[tauri::command]

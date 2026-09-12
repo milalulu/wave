@@ -346,6 +346,15 @@ export interface Translations {
     diagSize: (bytes: number) => string;
     diagPath: string;
     diagDatabase: string;
+    plugins: string;
+    pluginsDesc: string;
+    pluginsEmpty: string;
+    pluginsReload: string;
+    pluginsOpenDir: string;
+    pluginsEnabled: string;
+    pluginsDisabled: string;
+    pluginsLoadError: string;
+    pluginsLog: string;
   };
   shortcuts: {
     title: string;
@@ -879,6 +888,15 @@ export const translations: Record<Locale, Translations> = {
           : `${(bytes / 1024).toFixed(1)} KB`,
       diagPath: "Path",
       diagDatabase: "Database",
+      plugins: "Plugins",
+      pluginsDesc: "Lua plugins extend Wave: playback hooks, HTTP, notifications and more. Put .lua files in the plugins folder, then reload.",
+      pluginsEmpty: "No plugins found. Put .lua files in the plugins folder.",
+      pluginsReload: "Reload plugins",
+      pluginsOpenDir: "Open Plugins Folder",
+      pluginsEnabled: "Enabled",
+      pluginsDisabled: "Disabled",
+      pluginsLoadError: "Failed to load",
+      pluginsLog: "Log",
     },
     shortcuts: {
       title: "Keyboard Shortcuts",
@@ -1410,6 +1428,15 @@ export const translations: Record<Locale, Translations> = {
           : `${(bytes / 1024).toFixed(1)} КБ`,
       diagPath: "Путь",
       diagDatabase: "База данных",
+      plugins: "Плагины",
+      pluginsDesc: "Lua-плагины расширяют Wave: хуки плеера, HTTP, уведомления и другое. Положи .lua-файлы в папку плагинов и перезагрузи.",
+      pluginsEmpty: "Плагинов не найдено. Добавь .lua-файлы в папку плагинов.",
+      pluginsReload: "Перезагрузить плагины",
+      pluginsOpenDir: "Открыть папку плагинов",
+      pluginsEnabled: "Включено",
+      pluginsDisabled: "Отключено",
+      pluginsLoadError: "Не удалось загрузить",
+      pluginsLog: "Лог",
     },
     shortcuts: {
       title: "Горячие клавиши",

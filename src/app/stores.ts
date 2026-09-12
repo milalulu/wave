@@ -14,6 +14,7 @@ import { bindTray } from "./tray";
 import { bindMiniBroadcast, bindMiniRemote } from "./mini";
 import { bindGlobalHotkeys } from "./hotkeys";
 import { bindDiscord } from "./discord";
+import { bindPlugins } from "./plugins";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
@@ -1391,6 +1392,7 @@ async function doInit(
     bindMiniBroadcast(services);
     bindMiniRemote(services);
     bindGlobalHotkeys(services);
+    bindPlugins(services);
     if (localStorage.getItem("wave-discord-client-id")) {
       bindDiscord(services);
     }
