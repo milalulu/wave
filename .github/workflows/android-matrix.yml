@@ -100,23 +100,11 @@ jobs:
           script: |
             adb install -r matrix-app.apk
             adb shell am start -W -n com.wave.desktop/.MainActivity
-            PID=""
-            for i in $(seq 1 24); do
-              PID=$(adb shell pidof com.wave.desktop | tr -d '\r')
-              [ -n "$PID" ] && break
-              sleep 5
-            done
+            PID=""; for i in $(seq 1 24); do PID=$(adb shell pidof com.wave.desktop | tr -d '\r'); [ -n "$PID" ] && break; sleep 5; done
             echo "pid=$PID"
-            if [ -z "$PID" ]; then
-              echo "--- logcat (wave/crash) ---"
-              adb logcat -d | grep -iE "wave\.desktop|FATAL EXCEPTION|AndroidRuntime" | tail -40 || true
-              echo "app did not start"
-              exit 1
-            fi
+            if [ -z "$PID" ]; then echo "--- logcat (wave/crash) ---"; adb logcat -d | grep -iE "wave\.desktop|FATAL EXCEPTION|AndroidRuntime" | tail -40 || true; echo "app did not start"; exit 1; fi
             adb exec-out screencap -p > "boot-api${{ matrix.api-level }}.png"
-            if adb logcat -d | grep -iE "FATAL EXCEPTION" | grep -i "wave" ; then
-              echo "crash detected"; exit 1;
-            fi
+            if adb logcat -d | grep -iE "FATAL EXCEPTION" | grep -i "wave"; then echo "crash detected"; exit 1; fi
             echo "smoke OK"
 
       - name: Upload screenshot
