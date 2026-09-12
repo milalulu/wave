@@ -54,10 +54,7 @@ const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
 #[cfg(target_os = "windows")]
 const FFMPEG_BASE: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/";
 
-#[cfg(target_os = "macos")]
-const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
-#[cfg(target_os = "macos")]
-const FFMPEG_BASE: &str = "https://github.com/BtbN/FFmpeg-Builds/releases/download/";
+// macOS тянет статический бинарь с evermeet.cx — пины BtbN не используются.
 
 #[cfg(target_os = "linux")]
 const FFMPEG_TAG: &str = "autobuild-2026-07-31-14-10";
@@ -155,20 +152,6 @@ fn ffmpeg_zip_name(checksums_text: &str) -> Option<&str> {
         let _ = it.next()?;
         let name = it.next()?.trim_start_matches('*');
         if name.ends_with("win64-gpl.zip") {
-            Some(name)
-        } else {
-            None
-        }
-    })
-}
-
-#[cfg(target_os = "macos")]
-fn ffmpeg_archive_name(checksums_text: &str) -> Option<&str> {
-    checksums_text.lines().find_map(|line| {
-        let mut it = line.split_whitespace();
-        let _ = it.next()?;
-        let name = it.next()?.trim_start_matches('*');
-        if name.ends_with("macos-gpl.pkg") || name.ends_with("macos-gpl.tar.xz") {
             Some(name)
         } else {
             None
