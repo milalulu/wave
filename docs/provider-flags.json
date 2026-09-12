@@ -1,0 +1,5 @@
+{
+  "disabled": [],
+  "updatedAt": "2026-09-10",
+  "note": "Remote kill-switch: provider ids listed here are excluded from search/radio/variants until next app start (checked at most once a day). Use when a provider API dies and users should not hit it."
+}

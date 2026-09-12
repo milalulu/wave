@@ -43,6 +43,58 @@ export function getBlockedProviders(): string[] {
   return readArray(BLOCKED_KEY);
 }
 
+const REMOTE_FLAGS_KEY = "wave-remote-disabled";
+const REMOTE_FLAGS_AT_KEY = "wave-remote-disabled-at";
+const REMOTE_FLAGS_TTL_MS = 24 * 3600 * 1000;
+export const REMOTE_FLAGS_URL =
+  "https://raw.githubusercontent.com/milalulu/wave/master/docs/provider-flags.json";
+
+/** Валидация удалённых флагов: только известные id провайдеров. */
+export function parseProviderFlags(data: unknown): string[] {
+  if (typeof data !== "object" || data === null) return [];
+  const raw = (data as { disabled?: unknown }).disabled;
+  if (!Array.isArray(raw)) return [];
+  const known = new Set<string>(KNOWN_PROVIDERS);
+  return raw.filter((x): x is string => typeof x === "string" && known.has(x));
+}
+
+export function getRemoteDisabledCached(): string[] {
+  try {
+    const raw = localStorage.getItem(REMOTE_FLAGS_KEY);
+    if (!raw) return [];
+    return parseProviderFlags(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+type FetchFn = (url: string, init?: { signal?: AbortSignal }) => Promise<{
+  ok: boolean;
+  json: () => Promise<unknown>;
+}>;
+
+/** Обновить кеш флагов (не чаще раза в сутки). Fail-open: молча пропускаем. */
+export async function refreshRemoteProviderFlags(
+  fetchFn: FetchFn = fetch,
+  now: number = Date.now(),
+): Promise<void> {
+  try {
+    const at = Number(localStorage.getItem(REMOTE_FLAGS_AT_KEY) ?? 0);
+    if (now - at < REMOTE_FLAGS_TTL_MS) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const res = await fetchFn(REMOTE_FLAGS_URL, { signal: ctl.signal });
+      if (!res.ok) return;
+      const disabled = parseProviderFlags(await res.json());
+      localStorage.setItem(REMOTE_FLAGS_KEY, JSON.stringify({ disabled }));
+      localStorage.setItem(REMOTE_FLAGS_AT_KEY, String(now));
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {}
+}
+
 export function setBlockedProviders(ids: string[]): void {
   writeArray(BLOCKED_KEY, [...new Set(ids)]);
 }
@@ -56,7 +108,7 @@ export function setPreferredProviders(ids: string[]): void {
 }
 
 export function isBlockedProvider(id: string): boolean {
-  return getBlockedProviders().includes(id);
+  return getBlockedProviders().includes(id) || getRemoteDisabledCached().includes(id);
 }
 
 export function isPreviewTrack(track: { provider: string; meta?: Record<string, unknown> }): boolean {
@@ -92,7 +144,7 @@ export function filterPreviewResults(
 }
 
 export function filterProviders<T extends { id: string }>(providers: T[]): T[] {
-  const blocked = new Set(getBlockedProviders());
+  const blocked = new Set([...getBlockedProviders(), ...getRemoteDisabledCached()]);
   return providers.filter((p) => !blocked.has(p.id));
 }
 

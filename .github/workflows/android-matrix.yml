@@ -1,0 +1,120 @@
+name: Android matrix smoke
+
+# Прогон debug-APK на зоопарке API (minSdk 24 → target 36):
+# установка, запуск, отсутствие падений, скриншот на артефакты.
+on:
+  schedule:
+    - cron: "42 4 * * 0"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: |
+          if ! cargo ndk --version >/dev/null 2>&1; then
+            cargo install cargo-ndk --locked
+          else
+            echo "cargo-ndk already installed, skipping"
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build x86_64 debug APK
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          mobile: android
+          args: --apk --target x86_64
+
+      - name: Collect APK
+        run: |
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} matrix-app.apk \;
+          ls -la matrix-app.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-apk
+          path: matrix-app.apk
+          retention-days: 3
+
+  smoke:
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [24, 29, 33, 36]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: matrix-apk
+
+      - name: Run smoke on API ${{ matrix.api-level }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_4
+          script: |
+            adb install -r matrix-app.apk
+            adb shell monkey -p com.wave.desktop -c android.intent.category.LAUNCHER 1
+            sleep 30
+            PID=$(adb shell pidof com.wave.desktop | tr -d '\r')
+            echo "pid=$PID"
+            [ -n "$PID" ] || { echo "app did not start"; exit 1; }
+            adb exec-out screencap -p > "boot-api${{ matrix.api-level }}.png"
+            if adb logcat -d | grep -iE "FATAL EXCEPTION|AndroidRuntime.*wave" ; then
+              echo "crash detected"; exit 1;
+            fi
+            echo "smoke OK"
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-api${{ matrix.api-level }}
+          path: boot-api${{ matrix.api-level }}.png
+          retention-days: 7

@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { SqliteStorage } from "./SqliteStorage";
+import { pickStorage } from "./storage";
 import type { Storage } from "../core/database/Storage";
 import { HistoryService } from "../core/library/HistoryService";
 import { LibraryService } from "../core/library/LibraryService";
@@ -23,7 +23,7 @@ import type { LocalSource } from "../core/providers/LocalProvider";
 import { LocalProvider } from "../core/providers/LocalProvider";
 import type { MusicProvider } from "../core/providers/MusicProvider";
 import type { SearchResults, Track } from "../core/types";
-import { activeProviders, isBlockedProvider } from "./platformSettings";
+import { activeProviders, isBlockedProvider, refreshRemoteProviderFlags } from "./platformSettings";
 import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettings";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
 import { resolveYtQuality } from "./ytQuality";
@@ -155,6 +155,12 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
 
 export async function composeServices(): Promise<AppServices> {
   const cfg = await invoke<AppConfig>("app_config");
+  // Удалённые флаги (kill-switch сломанных провайдеров): ждём не дольше
+  // 1.5с, дальше — кеш (fail-open, холодный старт не страдает).
+  await Promise.race([
+    refreshRemoteProviderFlags().catch(() => undefined),
+    new Promise((r) => setTimeout(r, 1500)),
+  ]);
   const { providers, local } = buildProviders(cfg);
 
   // eslint-disable-next-line prefer-const
@@ -232,7 +238,7 @@ export async function composeServices(): Promise<AppServices> {
     },
   });
 
-  const storage = new SqliteStorage();
+  const storage = (await pickStorage()).storage;
   const library = new LibraryService(storage);
   const history = new HistoryService(storage);
    wave = new WaveEngine(storage, providers, new SmartWaveSource());

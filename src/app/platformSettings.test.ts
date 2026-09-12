@@ -6,12 +6,15 @@ import {
   getBlockedArtists,
   getBlockedProviders,
   getBlockedTrackIds,
+  getRemoteDisabledCached,
   isArtistBlocked,
   isBlockedProvider,
   isExcludePreviewsEnabled,
   isPreviewTrack,
   isTrackBlocked,
   orderProviders,
+  parseProviderFlags,
+  refreshRemoteProviderFlags,
   setBlockedProviders,
   setExcludePreviewsEnabled,
   toggleBlockedArtist,
@@ -167,5 +170,50 @@ describe("platformSettings preview filter", () => {
     expect(isExcludePreviewsEnabled()).toBe(false);
     setExcludePreviewsEnabled(true);
     expect(isExcludePreviewsEnabled()).toBe(true);
+  });
+});
+
+describe("remote provider flags (kill-switch)", () => {
+  it("parseProviderFlags принимает только известные id", () => {
+    expect(parseProviderFlags({ disabled: ["spotify", "vk"] })).toEqual(["spotify", "vk"]);
+    expect(parseProviderFlags({ disabled: ["spotify", "nope", 42, null] })).toEqual(["spotify"]);
+    expect(parseProviderFlags({})).toEqual([]);
+    expect(parseProviderFlags(null)).toEqual([]);
+    expect(parseProviderFlags({ disabled: "spotify" })).toEqual([]);
+  });
+
+  it("filterProviders объединяет локальные и удалённые блокировки", () => {
+    setBlockedProviders(["youtube"]);
+    localStorage.setItem("wave-remote-disabled", JSON.stringify({ disabled: ["spotify"] }));
+    expect(filterProviders(providers).map((p) => p.id)).toEqual(["deezer", "itunes", "local"]);
+    expect(isBlockedProvider("spotify")).toBe(true);
+    expect(isBlockedProvider("deezer")).toBe(false);
+  });
+
+  it("refreshRemoteProviderFlags кеширует и уважает TTL", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ disabled: ["vk"] }),
+    }));
+    await refreshRemoteProviderFlags(fetchMock as never, 100_000_000);
+    expect(getRemoteDisabledCached()).toEqual(["vk"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Повтор внутри TTL — без сети.
+    await refreshRemoteProviderFlags(fetchMock as never, 100_000_001);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refresh молча переживает ошибки сети", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("down");
+    });
+    await refreshRemoteProviderFlags(fetchMock as never, 100_000_000);
+    expect(getRemoteDisabledCached()).toEqual([]);
+  });
+
+  it("битый кеш не ломает фильтрацию", () => {
+    localStorage.setItem("wave-remote-disabled", "not-json{{{");
+    expect(getRemoteDisabledCached()).toEqual([]);
+    expect(filterProviders(providers)).toHaveLength(4);
   });
 });

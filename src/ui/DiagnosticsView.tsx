@@ -35,6 +35,7 @@ export function DiagnosticsView() {
   const { t } = useI18n();
   const logs = useApp((s) => s.logs);
   const clearLogs = useApp((s) => s.clearLogs);
+  const notify = useApp((s) => s.notify);
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -133,6 +134,27 @@ export function DiagnosticsView() {
         <div className="settings-action-row">
           <button className="btn" onClick={clearLogs} disabled={logs.length === 0}>
             <TrashIcon size={16} /> {t("settings").diagClearLogs}
+          </button>
+          <button
+            className="btn"
+            onClick={() => {
+              const report = JSON.stringify(
+                {
+                  app: "wave",
+                  at: new Date().toISOString(),
+                  diagnostics: data,
+                  logs: logs.slice(-200),
+                },
+                null,
+                2,
+              );
+              navigator.clipboard
+                ?.writeText(report)
+                .then(() => notify(t("settings").diagReportCopied))
+                .catch(() => notify(report.slice(0, 300)));
+            }}
+          >
+            {t("settings").diagCopyReport}
           </button>
         </div>
         {logs.length === 0 ? (

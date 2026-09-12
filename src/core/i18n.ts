@@ -333,6 +333,8 @@ export interface Translations {
     diagLogs: string;
     diagClearLogs: string;
     diagNoLogs: string;
+    diagCopyReport: string;
+    diagReportCopied: string;
     diagAndroid: string;
     diagReady: string;
     diagMissing: string;
@@ -847,6 +849,8 @@ export const translations: Record<Locale, Translations> = {
       diagLogs: "Event log",
       diagClearLogs: "Clear log",
       diagNoLogs: "No events logged yet",
+      diagCopyReport: "Copy report",
+      diagReportCopied: "Report copied — paste it into a GitHub issue",
       diagAndroid: "Android",
       diagReady: "Ready",
       diagMissing: "Missing",
@@ -1362,6 +1366,8 @@ export const translations: Record<Locale, Translations> = {
       diagLogs: "Журнал событий",
       diagClearLogs: "Очистить журнал",
       diagNoLogs: "Событий пока не было",
+      diagCopyReport: "Скопировать отчёт",
+      diagReportCopied: "Отчёт скопирован — вставьте его в GitHub issue",
       diagAndroid: "Android",
       diagReady: "Установлено",
       diagMissing: "Нет",
