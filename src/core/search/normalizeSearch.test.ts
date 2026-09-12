@@ -5,6 +5,11 @@ import {
   normalizeArtist,
   normalizeSearchResults,
   rankTracks,
+  levenshtein,
+  wordPrefixScore,
+  fuzzyWordScore,
+  popularity01,
+  artistScore,
 } from "./normalizeSearch";
 
 function track(overrides: Partial<Track> & { title: string; provider: string; id: string }): Track {
@@ -252,5 +257,122 @@ describe("normalizeSearchResults edge cases", () => {
 
     const out = normalizeSearchResults(results, "Mystery Track");
     expect(out[0].tracks).toHaveLength(1);
+  });
+});
+
+describe("fuzzy matching", () => {
+  it("levenshtein counts edits with a cap", () => {
+    expect(levenshtein("hello", "hello", 2)).toBe(0);
+    expect(levenshtein("hello", "hallo", 2)).toBe(1);
+    expect(levenshtein("hello", "hallo", 0)).toBe(1);
+    expect(levenshtein("abc", "xyzabc", 2)).toBe(3);
+  });
+
+  it("wordPrefixScore rewards unfinished typing", () => {
+    expect(wordPrefixScore("billie eilish", "billie eil")).toBe(1);
+    expect(wordPrefixScore("billie eilish", "bil")).toBe(1);
+    expect(wordPrefixScore("billie eilish", "bil zzz")).toBe(0.5);
+    expect(wordPrefixScore("billie eilish", "eilish billie")).toBe(1);
+    expect(wordPrefixScore("billie eilish", "zzz")).toBe(0);
+    expect(wordPrefixScore("billie eilish", "")).toBe(0);
+  });
+
+  it("fuzzyWordScore tolerates typos in long words", () => {
+    expect(fuzzyWordScore("bohemian rhapsody", "bohemian rapsody")).toBe(1);
+    expect(fuzzyWordScore("bohemian rhapsody", "bohemian xyzxyz")).toBe(0.5);
+    expect(fuzzyWordScore("hi ho", "hi ho")).toBe(0);
+  });
+
+  it("unfinished query still ranks the right track first", () => {
+    const tracks = [
+      track({ id: "1", provider: "youtube", title: "Unrelated Song", artist: "Band" }),
+      track({ id: "2", provider: "youtube", title: "Bohemian Rhapsody", artist: "Queen" }),
+    ];
+    expect(rankTracks(tracks, "bohem")[0].id).toBe("2");
+  });
+
+  it("typo query still ranks the right track first", () => {
+    const tracks = [
+      track({ id: "1", provider: "youtube", title: "Unrelated Song", artist: "Band" }),
+      track({ id: "2", provider: "youtube", title: "Bohemian Rhapsody", artist: "Queen" }),
+    ];
+    expect(rankTracks(tracks, "Bohemian Rapsody")[0].id).toBe("2");
+  });
+});
+
+describe("popularity boost", () => {
+  it("popularity01 normalizes provider scales", () => {
+    expect(popularity01("spotify", { popularity: 95 })).toBeCloseTo(0.95, 2);
+    expect(popularity01("spotify", {})).toBe(0);
+    expect(popularity01("deezer", { popularity: 800000 })).toBeGreaterThan(0.9);
+    expect(popularity01("deezer", { popularity: 10 })).toBeLessThan(0.3);
+    expect(popularity01("youtube", {})).toBe(0);
+    expect(popularity01("x")).toBe(0);
+  });
+
+  it("popular track wins on equal text match", () => {
+    const tracks = [
+      track({ id: "1", provider: "deezer", title: "Hello", artist: "Adele", meta: { popularity: 10 } }),
+      track({ id: "2", provider: "spotify", title: "Hello", artist: "Adele", meta: { popularity: 95 } }),
+    ];
+    // rankTracks sorts (dedupe merges later); popular copy scores higher.
+    const ranked = rankTracks(tracks, "Hello");
+    expect(ranked[0].id).toBe("2");
+    const out = normalizeSearchResults(
+      [{ provider: "x", tracks, albums: [], artists: [] }],
+      "Hello",
+    );
+    expect(out[0].tracks).toHaveLength(1);
+    expect(out[0].tracks[0].provider).toBe("spotify");
+  });
+});
+
+describe("artist ranking", () => {
+  it("exact and prefix matches beat word soup", () => {
+    const artists = [
+      artist({ id: "1", provider: "soundcloud", name: "The Billie Eilish Cover Band" }),
+      artist({ id: "2", provider: "spotify", name: "Billie Eilish" }),
+    ];
+    const out = normalizeSearchResults(
+      [{ provider: "x", tracks: [], albums: [], artists }],
+      "Billie Eilish",
+    );
+    // Same-name artists merge; winner keeps the better copy.
+    expect(out[0].artists[0].name).toBe("Billie Eilish");
+  });
+
+  it("popular namesake wins the merge", () => {
+    const artists = [
+      artist({ id: "1", provider: "soundcloud", name: "Queen" }),
+      artist({
+        id: "2",
+        provider: "spotify",
+        name: "Queen",
+        meta: { popularity: 95, followers: 40000000 },
+      }),
+    ];
+    const out = normalizeSearchResults(
+      [{ provider: "x", tracks: [], albums: [], artists }],
+      "queen",
+    );
+    expect(out[0].artists).toHaveLength(1);
+    expect(out[0].artists[0].provider).toBe("spotify");
+  });
+
+  it("unfinished and typo artist queries still match", () => {
+    const mk = (name: string) => [{ provider: "x", tracks: [], albums: [], artists: [artist({ id: "1", provider: "soundcloud", name })] }];
+    expect(normalizeSearchResults(mk("Billie Eilish"), "billie eili")[0].artists).toHaveLength(1);
+    expect(normalizeSearchResults(mk("Billie Eilish"), "bilie eilish")[0].artists).toHaveLength(1);
+  });
+
+  it("artistScore prefers followers on equal names", () => {
+    const a = artist({ id: "1", provider: "soundcloud", name: "Mona" });
+    const b = artist({
+      id: "2",
+      provider: "youtube",
+      name: "Mona",
+      meta: { subscriberCount: "2.5M subscribers" },
+    });
+    expect(artistScore(b, "mona")).toBeGreaterThan(artistScore(a, "mona"));
   });
 });

@@ -21,6 +21,7 @@ interface SpotifyTrack {
   album?: { name?: string; images?: SpotifyImage[] };
   duration_ms?: number;
   preview_url?: string;
+  popularity?: number;
   external_urls?: { spotify?: string };
 }
 
@@ -37,6 +38,8 @@ interface SpotifyArtist {
   id: string;
   name?: string;
   images?: SpotifyImage[];
+  popularity?: number;
+  followers?: { total?: number };
 }
 
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
@@ -78,6 +81,7 @@ export class SpotifyProvider implements MusicProvider {
       duration: t.duration_ms ? Math.round(t.duration_ms / 1000) : undefined,
       meta: {
         spotifyUrl: t.external_urls?.spotify,
+        ...(typeof t.popularity === "number" ? { popularity: t.popularity } : {}),
         ...(t.preview_url && !this.config.ytFallback ? { preview: true } : {}),
       },
     };
@@ -119,6 +123,10 @@ export class SpotifyProvider implements MusicProvider {
         provider: this.id,
         name: a.name ?? "",
         coverUrl: cover(a.images),
+        meta: {
+          ...(typeof a.popularity === "number" ? { popularity: a.popularity } : {}),
+          ...(typeof a.followers?.total === "number" ? { followers: a.followers.total } : {}),
+        },
       }));
     return { provider: this.id, tracks, albums, artists };
   }

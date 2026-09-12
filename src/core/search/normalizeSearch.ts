@@ -96,6 +96,95 @@ function artistKey(a: Artist): string {
   return normalizeArtist(a.name);
 }
 
+function clamp01(x: number): number {
+  return x <= 0 ? 0 : x >= 1 ? 1 : x;
+}
+
+/** Ограниченный Левенштейн с ранним выходом (для опечаток). */
+export function levenshtein(a: string, b: string, maxDist: number): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
+  if (a.length > b.length) [a, b] = [b, a];
+  let prev = Array.from({ length: a.length + 1 }, (_, i) => i);
+  for (let j = 1; j <= b.length; j++) {
+    const cur = [j];
+    let rowMin = j;
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[i] = Math.min(prev[i] + 1, cur[i - 1] + 1, prev[i - 1] + cost);
+      if (cur[i] < rowMin) rowMin = cur[i];
+    }
+    if (rowMin > maxDist) return maxDist + 1;
+    prev = cur;
+  }
+  return prev[a.length];
+}
+
+function splitWords(s: string): string[] {
+  return s.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Доля слов запроса, являющихся префиксами слов текста (недопечатанный ввод:
+ * "billie eil" → "billie eilish").
+ */
+export function wordPrefixScore(textNorm: string, queryNorm: string): number {
+  const qw = splitWords(queryNorm);
+  if (qw.length === 0) return 0;
+  const tw = splitWords(textNorm);
+  let hit = 0;
+  for (const q of qw) {
+    if (q.length < 2) continue;
+    if (tw.some((w) => w.startsWith(q))) hit++;
+  }
+  return hit / qw.length;
+}
+
+/** Доля слов запроса с опечаткой (edit distance), 0..1. */
+export function fuzzyWordScore(textNorm: string, queryNorm: string): number {
+  const qw = splitWords(queryNorm).filter((w) => w.length >= 4);
+  if (qw.length === 0) return 0;
+  const tw = splitWords(textNorm).filter((w) => w.length >= 3);
+  let hit = 0;
+  for (const q of qw) {
+    const tol = Math.max(1, Math.floor(q.length / 4));
+    if (
+      tw.some(
+        (w) => Math.abs(w.length - q.length) <= tol && levenshtein(q, w, tol) <= tol,
+      )
+    ) {
+      hit++;
+    }
+  }
+  return hit / qw.length;
+}
+
+function parseCount(raw: unknown): number {
+  if (typeof raw === "number") return raw > 0 ? raw : 0;
+  if (typeof raw !== "string") return 0;
+  const m = raw.replace(/,/g, "").match(/([\d.]+)\s*([KkMmBb])?/);
+  if (!m) return 0;
+  const mult = m[2]?.toUpperCase() === "B" ? 1e9 : m[2]?.toUpperCase() === "M" ? 1e6 : m[2]?.toUpperCase() === "K" ? 1e3 : 1;
+  return Number(m[1]) * mult;
+}
+
+/**
+ * Популярность 0..1 из meta разных провайдеров:
+ * spotify popularity 0–100, deezer rank (лог-шкала),
+ * подписчики/фолловеры (число или "1.2M").
+ */
+export function popularity01(provider: string, meta?: Record<string, unknown>): number {
+  if (!meta) return 0;
+  const pop = meta.popularity;
+  if (typeof pop === "number" && pop > 0) {
+    if (provider === "spotify") return clamp01(pop / 100);
+    return clamp01(Math.log10(pop + 1) / 6);
+  }
+  const followers = parseCount(meta.followers ?? meta.followersCount ?? meta.subscriberCount);
+  if (followers > 0) return clamp01(Math.log10(followers + 1) / 8);
+  return 0;
+}
+
 function trackScore(t: Track, queryNorm: string): number {
   let score = 0;
 
@@ -114,6 +203,14 @@ function trackScore(t: Track, queryNorm: string): number {
   if (artistNorm && queryWords.some((w) => artistNorm.includes(w))) {
     score += 20;
   }
+
+  // Недопечатанный ввод ("billie eil") и опечатки ("belie eilish").
+  const haystack = `${artistNorm} ${titleNorm}`;
+  score += Math.round(wordPrefixScore(haystack, queryNorm) * 30);
+  score += Math.round(fuzzyWordScore(haystack, queryNorm) * 15);
+
+  // Популярное выше при равной текстовой похожести.
+  score += Math.round(popularity01(t.provider, t.meta) * 20);
 
   if (FULL_PLAYBACK.has(t.provider)) score += 15;
   else if (t.meta?.preview) score -= 10;
@@ -170,10 +267,17 @@ function pickBestAlbum(group: Album[]): Album {
   return best;
 }
 
-function pickBestArtist(group: Artist[]): Artist {
+function pickBestArtist(group: Artist[], queryNorm: string): Artist {
   let best = group[0];
+  let bestScore = -Infinity;
+  let bestCover = false;
   for (const a of group) {
-    if (a.coverUrl && !best.coverUrl) best = a;
+    const s = artistScore(a, queryNorm);
+    if (s > bestScore || (s === bestScore && !!a.coverUrl && !bestCover)) {
+      bestScore = s;
+      bestCover = !!a.coverUrl;
+      best = a;
+    }
   }
   return best;
 }
@@ -235,7 +339,7 @@ function deduplicateAlbums(albums: Album[]): Album[] {
   return result.map((r) => r.album);
 }
 
-function deduplicateArtists(artists: Artist[]): Artist[] {
+function deduplicateArtists(artists: Artist[], queryNorm: string): Artist[] {
   const groups = new Map<string, Artist[]>();
   const order = new Map<string, number>();
   let idx = 0;
@@ -254,7 +358,7 @@ function deduplicateArtists(artists: Artist[]): Artist[] {
 
   const result: { artist: Artist; order: number }[] = [];
   for (const [, group] of groups) {
-    result.push({ artist: pickBestArtist(group), order: order.get(group[0].id) ?? 0 });
+    result.push({ artist: pickBestArtist(group, queryNorm), order: order.get(group[0].id) ?? 0 });
   }
 
   result.sort((a, b) => a.order - b.order);
@@ -282,23 +386,30 @@ function rankAlbums(albums: Album[], queryNorm: string): Album[] {
 }
 
 function rankArtists(artists: Artist[], queryNorm: string): Artist[] {
-  const scored = artists.map((a) => {
-    const nameNorm = normalizeArtist(a.name);
-    let score = 0;
-    if (nameNorm === queryNorm) score += 100;
-    else if (nameNorm.startsWith(queryNorm)) score += 70;
-    else if (queryNorm.startsWith(nameNorm)) score += 60;
-    else {
-      const words = queryNorm.split(/\s+/).filter(Boolean);
-      score += Math.round(
-        (words.filter((w) => nameNorm.includes(w)).length / words.length) * 40,
-      );
-    }
-    if (a.coverUrl) score += 5;
-    return { artist: a, score };
-  });
+  const scored = artists.map((a) => ({ artist: a, score: artistScore(a, queryNorm) }));
   scored.sort((a, b) => b.score - a.score);
   return scored.map((s) => s.artist);
+}
+
+export function artistScore(a: Artist, queryNorm: string): number {
+  const nameNorm = normalizeArtist(a.name);
+  let score = 0;
+  if (nameNorm === queryNorm) score += 100;
+  else if (nameNorm.startsWith(queryNorm)) score += 70;
+  else if (queryNorm.startsWith(nameNorm)) score += 60;
+  else {
+    const words = queryNorm.split(/\s+/).filter(Boolean);
+    score += Math.round(
+      (words.filter((w) => nameNorm.includes(w)).length / words.length) * 40,
+    );
+  }
+  // Недопечатанное имя и опечатки.
+  score += Math.round(wordPrefixScore(nameNorm, queryNorm) * 40);
+  score += Math.round(fuzzyWordScore(nameNorm, queryNorm) * 25);
+  // Известного артиста (подписчики/популярность) — выше тезок.
+  score += Math.round(popularity01(a.provider, a.meta) * 30);
+  if (a.coverUrl) score += 5;
+  return score;
 }
 
 export function normalizeSearchResults(
@@ -313,7 +424,7 @@ export function normalizeSearchResults(
 
   const tracks = rankTracks(deduplicateTracks(allTracks, queryNorm), queryNorm);
   const albums = rankAlbums(deduplicateAlbums(allAlbums), queryNorm);
-  const artists = rankArtists(deduplicateArtists(allArtists), queryNorm);
+  const artists = rankArtists(deduplicateArtists(allArtists, queryNorm), queryNorm);
 
   if (tracks.length === 0 && albums.length === 0 && artists.length === 0) {
     return allResults;
