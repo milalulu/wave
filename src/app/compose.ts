@@ -7,7 +7,9 @@ import { LibraryService } from "../core/library/LibraryService";
 import { WaveEngine, SmartWaveSource } from "../core/library/WaveEngine";
 import { PlayerEngine } from "../core/player/PlayerEngine";
 import { WebAudioAdapter } from "../core/player/WebAudioAdapter";
-import { offlineEnabled, localUriFor } from "./offline";
+import { createStreamResolver } from "./streamResolver";
+import { OutputRouter } from "../core/player/OutputRouter";
+import { StreamPrewarmer } from "../core/player/streamPrewarm";
 import { LyricsService } from "../core/lyrics/LyricsService";
 import { LastFmScrobbler } from "../core/lastfm/LastFmScrobbler";
 import { iTunesProvider } from "../core/providers/iTunesProvider";
@@ -23,7 +25,7 @@ import type { LocalSource } from "../core/providers/LocalProvider";
 import { LocalProvider } from "../core/providers/LocalProvider";
 import type { MusicProvider } from "../core/providers/MusicProvider";
 import type { SearchResults, Track } from "../core/types";
-import { activeProviders, isBlockedProvider, refreshRemoteProviderFlags } from "./platformSettings";
+import { activeProviders, refreshRemoteProviderFlags } from "./platformSettings";
 import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettings";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
 import { resolveYtQuality } from "./ytQuality";
@@ -34,7 +36,6 @@ import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
 import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
-import { PROXY_BASE } from "../core/player/WebAudioAdapter";
 import { normalizeSearchResults } from "../core/search/normalizeSearch";
 import { rankCandidates } from "../core/recommendations/rankCandidates";
 
@@ -93,6 +94,8 @@ const vkGateway: VkGateway = {
 export interface AppServices {
   engine: PlayerEngine;
   providers: MusicProvider[];
+  prewarmer?: StreamPrewarmer;
+  output?: OutputRouter;
   local: LocalProvider;
   storage: Storage;
   library: LibraryService;
@@ -165,28 +168,12 @@ export async function composeServices(): Promise<AppServices> {
 
   // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
-  const engine: PlayerEngine = new PlayerEngine(new WebAudioAdapter(loadCrossfadeMs()), {
+  const resolveUri = createStreamResolver(providers);
+  const prewarmer = new StreamPrewarmer(resolveUri);
+  const output = new OutputRouter(new WebAudioAdapter(loadCrossfadeMs()));
+  const engine: PlayerEngine = new PlayerEngine(output, {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
-    resolveUri: async (track) => {
-      const cached = streamCache.get(track.id);
-      if (cached) return cached;
-
-      if (isBlockedProvider(track.provider)) {
-        throw new Error(`provider blocked: ${track.provider}`);
-      }
-      const local = localUriFor(track);
-      if (local) return local;
-      if (offlineEnabled()) {
-        throw new Error("offline mode: track not downloaded");
-      }
-      const provider = providers.find((p) => p.id === track.provider);
-      const raw = provider ? await provider.resolveUri(track) : track.uri;
-      const url = raw.includes("googlevideo.com")
-        ? `${PROXY_BASE}/audio?url=${encodeURIComponent(raw)}`
-        : raw;
-      streamCache.set(track.id, url);
-      return url;
-    },
+    resolveUri,
     invalidateStream: (trackId) => {
       streamCache.invalidate(trackId);
       const match = trackId.match(/^([^:]+):/);
@@ -265,10 +252,12 @@ export async function composeServices(): Promise<AppServices> {
       }
     }
   });
-  return { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
+  return { engine, providers, prewarmer, output, local, storage, library, history, wave, lyrics, scrobbler };
 }
 
 export async function reconfigureServices(services: AppServices): Promise<AppServices> {
+  services.prewarmer?.cancel();
+  streamCache.clear();
   const cfg = await invoke<AppConfig>("app_config");
   const { providers: next, local: nextLocal } = buildProviders(cfg);
   services.providers.length = 0;

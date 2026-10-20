@@ -5813,3 +5813,13 @@ input[type="range"]::-moz-range-track {
 @media (max-width: 720px) {
   .app { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Cast device picker, shared by desktop and mobile controls. */
+.cast-backdrop {position:fixed;inset:0;z-index:2000;background:#0009;display:grid;place-items:center;padding:16px;}
+.cast-dialog {background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(520px,100%);max-height:90dvh;overflow:auto;box-sizing:border-box;}
+.cast-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.cast-devices {display:grid;gap:8px;margin-bottom:12px;}
+.cast-address {display:flex;gap:8px;margin:8px 0 16px;}
+.cast-address input {min-width:0;flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font:inherit;}
+.cast-address input:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+.cast-dialog p {overflow-wrap:anywhere;}

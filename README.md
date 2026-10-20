@@ -19,7 +19,7 @@
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/github/v/release/milalulu/wave?label=download&style=for-the-badge&logo=windows&logoColor=white&color=00e5ff" /></a>
   <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
-  <img src="https://img.shields.io/badge/tests-355%20passing-22c55e?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-374%20passing-22c55e?style=for-the-badge" />
 </p>
 
 ---
@@ -218,7 +218,7 @@ src-tauri/
 └── gen/android/          # натив: PlaybackService, виджет, Auto, будильник, шеринг
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS; проверки `core/` и `app/` — 355 тестов в 44 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
+**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 374 теста в 49 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
 
 ---
 
@@ -239,7 +239,7 @@ src-tauri/
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
-pnpm test                # 355 тестов
+pnpm test                # 374 теста
 pnpm tauri dev           # разработка
 pnpm tauri build         # релиз
 ```
@@ -282,9 +282,48 @@ Lua-файл. Загруженный плагин по умолчанию вык
 через конструктор. В Rust `plugin_host` управляет экземплярами и сообщениями,
 `plugin_support` содержит ограничения, проверку кода и сохранение файлов.
 
-Chromecast требует отдельного решения для платформенного sender и доступных устройству
-URL аудио. Web Sender предназначен для браузеров с поддержкой Cast; наличие WebView
-само по себе этого не обеспечивает ([документация Google](https://developers.google.com/cast/docs/web_sender)).
+### Chromecast (beta)
+
+В нативном приложении кнопка Cast доступна в плеере. Можно найти устройство через
+mDNS или указать его IPv4-адрес вручную. Компьютер/телефон и приёмник должны быть
+в одной локальной сети. Подключение использует нативный
+[oxicast](https://github.com/denniskribl/oxicast), без Web Sender в WebView.
+
+Очередь, пауза, перемотка и громкость используют обычные кнопки Wave. При отключении
+воспроизведение возвращается на локальный выход **на паузе**. Скорость, эквалайзер,
+кроссфейд и остальные эффекты применяются только к локальному выходу.
+
+`core/player/OutputRouter` сериализует смену выхода и загрузку треков;
+`app/cast` переводит события приёмника в интерфейс аудиоадаптера.
+`src-tauri/src/cast` владеет сессией, `cast_relay` передаёт текущий аудиофайл или
+прямой HTTP(S)-поток с поддержкой Range. Relay слушает выбранный LAN-интерфейс,
+проверяет IP приёмника и случайный токен, закрывается вместе с сессией.
+Управляющий API остаётся на loopback. Интернет-URL проверяются перед передачей;
+локальная обёртка `/audio` разворачивается. Cast использует сертификаты устройств
+без публичной цепочки доверия: подключайте устройства в доверенной домашней сети.
+
+Пока поддерживаются одиночные IPv4-приёмники в RFC1918-сетях и прямые аудиопотоки.
+HLS/DASH-манифесты, DRM и группы колонок не заявлены. На Android mDNS получает
+multicast lock только на время поиска. Приложение должно оставаться запущенным,
+поскольку оно обслуживает медиапоток. Совместимость с реальным Cast-устройством
+ещё нужно проверить; автоматические тесты её не заменяют.
+
+### Запуск треков и проверки сборки
+
+Идеи PR #1/#2 адаптированы к текущему коду: кэш учитывает эффективное качество и
+срок подписанной ссылки, одновременные запросы объединяются, офлайн-режим и блокировки
+проверяются до кэша. Прогрев первых трёх результатов выполняется последовательно
+после debounce; смена списка отменяет ещё не начатую работу. Плеер повторно проверяет
+политику при запуске даже после предзагрузки. Полная буферизация остаётся только
+для WebKit; Chromium пробует поток через Range-прокси.
+
+Проверки: TypeScript/Vitest, ESLint, Rust fmt/clippy/tests, frontend/Linux-сборки;
+локально также собран Android debug APK для arm64. Android CI явно устанавливает
+API 36, Build Tools 35 и NDK 27.0.12077973. Скрипт `scripts/android-smoke.sh`
+проверяет запуск и сохранение одного PID в течение 30 секунд, сохраняет logcat и снимок.
+Этот smoke-тест и воспроизведение на физических устройствах локально не запускались.
+
+---
 
 ## HTTP API
 
@@ -318,7 +357,8 @@ curl -H "X-Api-Token: $TOKEN" -X POST -d '{"query":"Daft Punk"}' \
 - [x] Gapless, автогейн, офлайн-загрузки, leveling UI
 - [x] Плейлисты (папки, импорт по ссылке/M3U, шаринг), Итоги, виджет, Auto
 - [x] Будильник, голосовой поиск, авто-офлайн, экономия трафика
-- [ ] Chromecast: отдельная реализация sender-транспорта и проверка на устройстве. Заглушка из локальной `next` не перенесена.
+- [x] Нативный Chromecast sender (beta): обнаружение, выбор выхода, управление и медиарелей
+- [ ] Проверка Chromecast на реальных устройствах и расширение совместимости
 - [x] Проверка вёрстки радио, главной и настроек в браузере: ширины 390–1920 px
 - [ ] Полный десктоп-аудит в нативном приложении на целевых ОС
 - [x] Radio by artist: отдельный экран и HTTP API с единым управлением станцией

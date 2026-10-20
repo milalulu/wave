@@ -24,6 +24,10 @@ export const BUFFER_CACHE_MAX = 4;
 
 export const LEVEL_TICK_MS = 120;
 
+export function isWebKitEngine(ua = typeof navigator === "undefined" ? "" : navigator.userAgent): boolean {
+  return /AppleWebKit\//.test(ua) && !/Chrome\/|Chromium\/|Edg\//.test(ua);
+}
+
 // За сколько секунд до конца трека подхватывать предзагруженный буфер,
 // чтобы склейка прошла точно по часам контекста (настоящий gapless).
 export const CHAIN_LOOKAHEAD_SEC = 0.3;
@@ -73,6 +77,7 @@ export class WebAudioAdapter implements AudioAdapter {
   
   private mode: ElementMode = "element";
   private probed = false;
+  private elementProxyRetried = false;
   private probeTimer: number | undefined;
   private readyProbeTimer: number | undefined;
   private pendingElementSrc: string | null = null;
@@ -495,6 +500,7 @@ export class WebAudioAdapter implements AudioAdapter {
       return;
     }
     active.src = src;
+    this.elementProxyRetried = false;
     active.load();
     this.preloadedUri = null;
     this.scheduleProbe();
@@ -873,11 +879,24 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private runProbe(readyCheck: boolean): void {
     if (this.mode !== "element") return;
-    const el = this.elements[0];
+    const el = this.elements[this.activeIdx];
     if (!el || el.error) return;
     const stuck = readyCheck ? el.readyState === 0 : el.currentSrc === "";
     if (!stuck) return;
     const src = this.pendingElementSrc;
+    if (!isWebKitEngine()) {
+      const host = src ? this.hostOf(src) : "";
+      if (src && !this.elementProxyRetried && ["googlevideo.com", "sndcdn.com", "media-streaming.soundcloud.cloud", "dzcdn.net", "userapi.com"]
+        .some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+        this.elementProxyRetried = true;
+        const proxied = `${PROXY_BASE}/audio?url=${encodeURIComponent(src)}`;
+        this.pendingElementSrc = proxied;
+        el.src = proxied;
+        el.load();
+        if (this.playRequested) void el.play().catch(() => undefined);
+      }
+      return;
+    }
     this.switchToBufferMode();
     if (!src) return;
     void this.bufLoad(src)

@@ -163,6 +163,19 @@ describe("SoundCloudProvider", () => {
 });
 
 describe("YouTubeMusicProvider", () => {
+  it("не возвращает подписанный URL после истечения срока в кэше провайдера", async () => {
+    vi.useFakeTimers();
+    try {
+      const stream = vi.fn(async () => `https://stream.test/audio?expire=${Math.floor(Date.now()/1000)+120}`);
+      const provider = new YouTubeMusicProvider({search:async()=>[],stream});
+      const track = {id:"youtube:track:exp",provider:"youtube",title:"Song",uri:"exp"};
+      await provider.resolveUri(track);
+      await vi.advanceTimersByTimeAsync(61_000);
+      await provider.resolveUri(track);
+      expect(stream).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("мапит результаты поиска и резолвит поток по ytId", async () => {
     const gateway: YtDlpGateway = {
       search: async () => [

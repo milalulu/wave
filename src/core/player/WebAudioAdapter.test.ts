@@ -7,6 +7,7 @@ import {
   MEDIA_ELEMENT_READY_PROBE_MS,
   PROXY_BASE,
   WebAudioAdapter,
+  isWebKitEngine,
 } from "./WebAudioAdapter";
 import type { PlayerState } from "../types";
 
@@ -276,6 +277,12 @@ afterEach(() => {
 });
 
 describe("WebAudioAdapter", () => {
+  it("limits full-buffer fallback to WebKit, excluding Chromium and Firefox", () => {
+    expect(isWebKitEngine("Mozilla AppleWebKit/605.1 Safari/605.1")).toBe(true);
+    expect(isWebKitEngine("Mozilla AppleWebKit/537.36 Chrome/130 Safari/537.36")).toBe(false);
+    expect(isWebKitEngine("Mozilla Gecko/20100101 Firefox/130")).toBe(false);
+    expect(isWebKitEngine("")).toBe(false);
+  });
   it("строит граф на свежих (не игравших) элементах до play", () => {
     const adapter = new WebAudioAdapter();
     adapter.load("a.mp3");
@@ -543,6 +550,8 @@ describe("WebAudioAdapter", () => {
 });
 
 describe("WebAudioAdapter: буферный фолбэк (сломанный <audio>)", () => {
+  beforeEach(() => vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 AppleWebKit/605.1 Safari/605.1"));
+  afterEach(() => vi.restoreAllMocks());
   const media = (bytes = 16): Response =>
     ({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(bytes)) }) as Response;
 

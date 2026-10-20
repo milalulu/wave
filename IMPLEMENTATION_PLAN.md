@@ -174,4 +174,6 @@ Auth: заголовок `X-Api-Token: <token>` (если задан в конф
 - [x] Stage 6: Jarvis HTTP API
 - [x] Stage 7: UI-полировка
 - [x] Автоматические проверки TypeScript, Vitest, lint, Rust fmt/clippy и Rust unit tests
+- [x] Локальная сборка Android arm64 debug APK
+- [x] Нативный Cast sender и автоматические проверки адаптера/relay
 - [ ] Ручная проверка нативного воспроизведения и Cast на целевых устройствах

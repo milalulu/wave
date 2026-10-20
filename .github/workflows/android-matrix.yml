@@ -40,6 +40,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0 ndk;27.0.12077973'
+
+      - name: Select Android NDK
+        run: echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -58,17 +63,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build x86_64 debug APK
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          mobile: android
-          args: --apk --target x86_64
+        run: pnpm tauri android build --apk --debug --target x86_64
 
       - name: Collect APK
         run: |
-          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} matrix-app.apk \;
-          ls -la matrix-app.apk
+          mapfile -t apks < <(find src-tauri/gen/android/app/build/outputs/apk -name '*-debug.apk')
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" matrix-app.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -86,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
@@ -97,21 +100,15 @@ jobs:
           api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
-          script: |
-            adb install -r matrix-app.apk
-            adb shell am start -W -n com.wave.desktop/.MainActivity
-            test -n "$(adb shell pidof com.wave.desktop)" && echo ALIVE-1 || sleep 45
-            test -n "$(adb shell pidof com.wave.desktop)" && echo ALIVE-2 || sleep 45
-            test -n "$(adb shell pidof com.wave.desktop)" && echo ALIVE-3 || sleep 60
-            adb shell pidof com.wave.desktop | grep -q . || (echo "--- logcat (wave/crash) ---"; adb logcat -d | grep -iE "wave\.desktop|FATAL EXCEPTION|AndroidRuntime|Fatal signal" | tail -40 || true; echo "app did not start"; exit 1)
-            adb exec-out screencap -p > "boot-api${{ matrix.api-level }}.png"
-            if adb logcat -d | grep -iE "FATAL EXCEPTION" | grep -i "wave"; then echo "crash detected"; exit 1; fi
-            echo "smoke OK"
+          script: bash scripts/android-smoke.sh matrix-app.apk "${{ matrix.api-level }}"
 
       - name: Upload screenshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: boot-api${{ matrix.api-level }}
-          path: boot-api${{ matrix.api-level }}.png
+          path: |
+            boot-api${{ matrix.api-level }}.png
+            boot-api${{ matrix.api-level }}.log
+            boot-api${{ matrix.api-level }}-crash.log
           retention-days: 7

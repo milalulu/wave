@@ -159,6 +159,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     const cached = getCachedResults(cacheKey);
     if (cached) {
       setResults(cached);
+      useApp.getState().services?.prewarmer?.prewarm(cached.flatMap((r) => r.tracks));
       return;
     }
     if (enabledProviders.length === 0) {
@@ -173,6 +174,7 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
         if (cancelled) return;
         setCachedResults(cacheKey, r);
         setResults(r);
+        useApp.getState().services?.prewarmer?.prewarm(r.flatMap((x) => x.tracks));
         const engine = useApp.getState().services?.engine;
         if (engine) {
           const topTracks = r.flatMap((s) => s.tracks.slice(0, 3));

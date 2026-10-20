@@ -1,3 +1,4 @@
+import { streamUrlExpiry } from "../util/streamExpiry";
 import { invoke } from "@tauri-apps/api/core";
 import type { Album, Artist, SearchResults, Track } from "../types";
 import type { AlbumDetail, ArtistDetail } from "../types";
@@ -164,11 +165,11 @@ export class YouTubeMusicProvider implements MusicProvider {
     const quality = resolveYtQuality();
     const key = `${id}:${quality}`;
     const hit = this.streamCache.get(key);
-    if (hit && Date.now() - hit.at < STREAM_TTL_MS) return hit.url;
+    if (hit && Date.now() - hit.at < STREAM_TTL_MS && Date.now() < (streamUrlExpiry(hit.url) ?? Infinity)) return hit.url;
 
     try {
       const url = await withResolveTimeout(
-        invoke<string>("yt_resolve_innertube", { videoId: id }),
+        invoke<string>("yt_resolve_innertube", { videoId: id, quality }),
         "innertube",
       );
       this.streamCache.set(key, { url, at: Date.now() });

@@ -1,3 +1,4 @@
+import { CastButton } from "./CastButton";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
@@ -194,6 +195,7 @@ export function MobilePlayerBar({ onOpenPlayer, onOpenQueue }: MobilePlayerBarPr
       >
         <NextIcon size={22} />
       </button>
+      <CastButton />
       <button className="mini-btn mini-queue" onClick={onOpenQueue} aria-label={t("nav").queue}>
         <ListIcon size={22} />
       </button>

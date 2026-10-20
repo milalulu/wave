@@ -1,4 +1,6 @@
 pub mod android;
+mod cast;
+mod cast_relay;
 mod diag;
 pub mod discord_rpc;
 mod http;
@@ -479,8 +481,14 @@ async fn resolve_stream(
     let mut progressive_url: Option<String> = None;
     let mut hls_url: Option<String> = None;
     let mut last_err: Option<String> = None;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
     for args in attempts {
-        match run_ytdlp(app, args, 90).await {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let attempt = tokio::time::timeout(remaining, run_ytdlp(app, args, 12)).await;
+        match attempt.unwrap_or_else(|_| Err("yt-dlp: resolve budget exceeded".into())) {
             Ok(Some(stdout)) => {
                 let u = stdout
                     .lines()
@@ -714,7 +722,11 @@ static INNERTUBE_CLIENTS: &[InnertubeClient] = &[
     },
 ];
 
-async fn try_innertube(video_id: &str, client: &InnertubeClient) -> Result<String, String> {
+async fn try_innertube(
+    video_id: &str,
+    client: &InnertubeClient,
+    quality: Option<&str>,
+) -> Result<String, String> {
     let key = match client.name {
         "ANDROID" | "ANDROID_MUSIC" => Some("AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w"),
         _ => None,
@@ -790,15 +802,7 @@ async fn try_innertube(video_id: &str, client: &InnertubeClient) -> Result<Strin
         ));
     }
 
-    audio.sort_by(|a, b| {
-        let a_m4a = a["mimeType"].as_str().unwrap_or("").contains("mp4") as i32;
-        let b_m4a = b["mimeType"].as_str().unwrap_or("").contains("mp4") as i32;
-        let a_br = a["bitrate"].as_i64().unwrap_or(0);
-        let b_br = b["bitrate"].as_i64().unwrap_or(0);
-        b_m4a
-            .cmp(&a_m4a)
-            .then((a_br - 128000).abs().cmp(&(b_br - 128000).abs()))
-    });
+    audio.sort_by(|a, b| compare_audio_formats(a, b, quality));
 
     audio
         .first()
@@ -807,11 +811,48 @@ async fn try_innertube(video_id: &str, client: &InnertubeClient) -> Result<Strin
         .ok_or_else(|| format!("innertube({}): no URL", client.name))
 }
 
+fn compare_audio_formats(
+    a: &serde_json::Value,
+    b: &serde_json::Value,
+    quality: Option<&str>,
+) -> std::cmp::Ordering {
+    let mp4 = |f: &serde_json::Value| f["mimeType"].as_str().unwrap_or("").contains("mp4");
+    let a_br = a["bitrate"].as_u64().unwrap_or(0);
+    let b_br = b["bitrate"].as_u64().unwrap_or(0);
+    let rate = match quality.unwrap_or("best") {
+        "low" => a_br.abs_diff(48_000).cmp(&b_br.abs_diff(48_000)),
+        "medium" => a_br.abs_diff(128_000).cmp(&b_br.abs_diff(128_000)),
+        "high" => a_br.abs_diff(256_000).cmp(&b_br.abs_diff(256_000)),
+        _ => b_br.cmp(&a_br),
+    };
+    // Prefer the broadly supported MP4 container, then the requested bitrate.
+    mp4(b).cmp(&mp4(a)).then(rate).then(a_br.cmp(&b_br))
+}
+
+#[cfg(test)]
+mod stream_quality_tests {
+    #[test]
+    fn innertube_respects_requested_quality_within_supported_container() {
+        let formats = [48_000, 128_000, 256_000]
+            .map(|bitrate| serde_json::json!({"mimeType":"audio/mp4","bitrate":bitrate}));
+        for (quality, expected) in [
+            ("low", 48_000),
+            ("medium", 128_000),
+            ("high", 256_000),
+            ("best", 256_000),
+        ] {
+            let mut candidates = formats.clone();
+            candidates.sort_by(|a, b| super::compare_audio_formats(a, b, Some(quality)));
+            assert_eq!(candidates[0]["bitrate"], expected);
+        }
+    }
+}
+
 #[tauri::command]
-async fn yt_resolve_innertube(video_id: String) -> Result<String, String> {
+async fn yt_resolve_innertube(video_id: String, quality: Option<String>) -> Result<String, String> {
     let mut errs = Vec::new();
     for client in INNERTUBE_CLIENTS {
-        match try_innertube(&video_id, client).await {
+        match try_innertube(&video_id, client, quality.as_deref()).await {
             Ok(url) => return Ok(url),
             Err(e) => errs.push(e),
         }
@@ -1997,6 +2038,7 @@ pub fn run() {
                 .build(),
         )
         .manage(bridge.clone())
+        .manage(cast::CastHost::default())
         .setup(move |app| {
             {
                 let plugins_dir = app
@@ -2082,6 +2124,12 @@ pub fn run() {
             mpris_update,
             set_discord_presence,
             clear_discord_presence,
+            cast::cast_discover,
+            cast::cast_connect,
+            cast::cast_disconnect,
+            cast::cast_load,
+            cast::cast_control,
+            cast::cast_status,
             plugin_ready,
             plugin_list,
             plugin_reload,

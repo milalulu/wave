@@ -38,7 +38,30 @@ data class ScheduleAlarmArgs(
   var atMs: Long = 0L,
 )
 
+@InvokeArg
+data class CastDiscoveryArgs(var enabled: Boolean = false)
+
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
+  private var castMulticastLock: android.net.wifi.WifiManager.MulticastLock? = null
+
+  @Command
+  fun castDiscoveryLock(invoke: Invoke) {
+    val args = invoke.parseArgs(CastDiscoveryArgs::class.java)
+    synchronized(this) {
+      if (args.enabled && castMulticastLock == null) {
+        val wifi = activityRef.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        castMulticastLock = wifi.createMulticastLock("wave-cast-discovery").apply {
+          setReferenceCounted(false)
+          acquire()
+        }
+      } else if (!args.enabled) {
+        castMulticastLock?.let { if (it.isHeld) it.release() }
+        castMulticastLock = null
+      }
+    }
+    invoke.resolve()
+  }
+
   private val activityRef: Activity = activity
 
   @Command

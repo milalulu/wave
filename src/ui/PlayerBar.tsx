@@ -1,3 +1,4 @@
+import { CastButton } from "./CastButton";
 import { isTauri } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useApp } from "../app/stores";
@@ -345,6 +346,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           <div className="volume-fill" style={{ width: `${volDisplay}%` }} />
           <div className="volume-thumb" style={{ left: `${volDisplay}%` }} />
         </div>
+      <CastButton />
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
           <QueueIcon size={18} />
         </button>

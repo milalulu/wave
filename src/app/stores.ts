@@ -320,6 +320,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     try {
       const detail = await provider.getAlbum(albumId);
       set({ albumDetail: detail });
+      services.prewarmer?.prewarm(detail.tracks);
       get().setView("album");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
@@ -333,6 +334,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     try {
       const detail = await provider.getArtist(artistId);
       set({ artistDetail: detail });
+      services.prewarmer?.prewarm(detail.topTracks);
       get().setView("artist");
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
@@ -342,7 +344,10 @@ export const useApp = create<AppState>()((set, get, api) => ({
 
   playlists: [],
   selectedPlaylistId: null,
-  setSelectedPlaylist: (id) => set({ selectedPlaylistId: id }),
+  setSelectedPlaylist: (id) => {
+    set({ selectedPlaylistId: id });
+    get().services?.prewarmer?.prewarm(get().playlists.find((p) => p.id === id)?.tracks ?? []);
+  },
   sharedPlaylists: [],
   playlistShares: [],
   loadPlaylists: async () => {
@@ -564,6 +569,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   reloadServices: async () => {
     get().cancelArtistRadio();
     const { services } = get();
+    services?.prewarmer?.cancel();
     if (!services) return;
     const rebuilt = await reconfigureServices(services);
     set({ services: rebuilt });
@@ -579,6 +585,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   play: async (tracks, index = 0) => {
     get().cancelArtistRadio();
     const { services } = get();
+    services?.prewarmer?.cancel();
     if (!services) return;
     if (get().radioActive) {
       services.engine.setAutoFill(get().autoContinue ? null : async () => []);
@@ -753,6 +760,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   startWave: async () => {
     get().cancelArtistRadio();
     const { services } = get();
+    services?.prewarmer?.cancel();
     if (!services) return;
     try {
       const tracks = await services.wave.generateWave(20);

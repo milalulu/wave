@@ -1,17 +1,16 @@
 const VALIDATE_TIMEOUT_MS = 3000;
 
-function isYouTubeUrl(url: string): boolean {
-  return (
-    url.includes("googlevideo.com") ||
-    url.includes("youtube.com") ||
-    url.includes("youtu.be") ||
-    url.includes("ytimg.com")
-  );
+function isKnownStream(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return ["googlevideo.com", "youtube.com", "youtu.be", "ytimg.com", "sndcdn.com", "media-streaming.soundcloud.cloud"]
+      .some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch { return false; }
 }
 
 export async function validateStreamUrl(url: string): Promise<void> {
   if (!url.startsWith("http://") && !url.startsWith("https://")) return;
-  if (isYouTubeUrl(url)) return;
+  if (isKnownStream(url)) return;
   if (url.includes("127.0.0.1:8299/audio")) return;
 
   const controller = new AbortController();

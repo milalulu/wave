@@ -23,8 +23,8 @@ export const STALL_TIMEOUT_MS = 12000;
 
 export const PLAY_START_TIMEOUT_MS = 10000;
 
-const PREFETCH_BATCH = 20;
-const PREFETCH_CONCURRENCY = 8;
+const PREFETCH_BATCH = 5;
+const PREFETCH_CONCURRENCY = 2;
 
 interface PlayerEngineOptions {
   rng?: () => number;
@@ -574,9 +574,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         this.preloadCache.delete(track.id);
       }
       this.clearStallTimer();
-      const uri = cached
-        ? (cached instanceof Promise ? await cached : cached)
-        : (this.resolveUri ? await this.resolveUri(track) : track.uri);
+      // The application resolver rechecks policy, quality and signed-URL expiry.
+      // A prefetched URL must never bypass those checks when playback begins.
+      const uri = this.resolveUri ? await this.resolveUri(track)
+        : cached ? await cached : track.uri;
       if (!uri) throw new Error("no stream URL");
       if (seq !== this.playSeq) return;
 
