@@ -19,7 +19,7 @@
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/github/v/release/milalulu/wave?label=download&style=for-the-badge&logo=windows&logoColor=white&color=00e5ff" /></a>
   <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
-  <img src="https://img.shields.io/badge/tests-312%20passing-22c55e?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-355%20passing-22c55e?style=for-the-badge" />
 </p>
 
 ---
@@ -218,7 +218,7 @@ src-tauri/
 └── gen/android/          # натив: PlaybackService, виджет, Auto, будильник, шеринг
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS, 312 тестов в 38 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
+**Принцип:** бизнес-логика в `core/` (чистый TS; проверки `core/` и `app/` — 355 тестов в 44 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
 
 ---
 
@@ -239,7 +239,7 @@ src-tauri/
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
-pnpm test                # 312 тестов
+pnpm test                # 355 тестов
 pnpm tauri dev           # разработка
 pnpm tauri build         # релиз
 ```
@@ -253,6 +253,38 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-u
 ```
 
 ---
+
+## Радио по артисту и Lua-плагины
+
+Радиостанция запускается из карточки артиста или через
+`POST /api/v1/radio/artist` с `{ "artist": "Daft Punk" }`.
+UI и API используют один сценарий: новый запрос отменяет ожидание предыдущего,
+ошибку можно повторить, выбор трека сохраняет очередь станции и режим радио.
+Сетевые провайдеры ограничены по времени ожидания; среди дубликатов выбирается
+предпочтительный источник до формирования очереди.
+
+Lua-плагины находятся в папке `plugins` внутри каталога конфигурации приложения.
+В настройках доступны список, журнал, включение и установка по HTTPS-ссылке на
+Lua-файл. Загруженный плагин по умолчанию выключен. Установщик проверяет синтаксис,
+ограничивает размер и сохраняет файл атомарно; существующий файл не перезаписывает.
+Подключайте только доверенные плагины: включённый плагин может обращаться к сети
+и запускать команды через `wave.exec` из объявленного им `allowed_commands`.
+
+`wave.get_config` / `wave.set_config` сохраняют настройки плагина;
+`wave.get_playlists`, `wave.get_liked`, `wave.get_history` читают библиотеку.
+Сетевые операции не блокируют обработчик событий. Запросы имеют уникальные ID,
+таймауты и ограничение параллелизма. Lua ограничен по памяти и числу инструкций;
+нативные `io`/`os` отключены. Это ограничения выполнения, а не изоляция недоверенного кода.
+После перезагрузки ответы предыдущего экземпляра отбрасываются.
+
+Архитектура: отбор станции — `core/radio`; сбор кандидатов — `app/artistRadio`;
+состояние и запуск — `app/artistRadioSlice`. `ApiBridge` получает команды приложения
+через конструктор. В Rust `plugin_host` управляет экземплярами и сообщениями,
+`plugin_support` содержит ограничения, проверку кода и сохранение файлов.
+
+Chromecast требует отдельного решения для платформенного sender и доступных устройству
+URL аудио. Web Sender предназначен для браузеров с поддержкой Cast; наличие WebView
+само по себе этого не обеспечивает ([документация Google](https://developers.google.com/cast/docs/web_sender)).
 
 ## HTTP API
 
@@ -286,9 +318,10 @@ curl -H "X-Api-Token: $TOKEN" -X POST -d '{"query":"Daft Punk"}' \
 - [x] Gapless, автогейн, офлайн-загрузки, leveling UI
 - [x] Плейлисты (папки, импорт по ссылке/M3U, шаринг), Итоги, виджет, Auto
 - [x] Будильник, голосовой поиск, авто-офлайн, экономия трафика
-- [ ] Chromecast (нужно реальное устройство для проверки)
-- [ ] Десктоп-аудит на широком экране
-- [ ] Radio by artist как отдельное UI
+- [ ] Chromecast: отдельная реализация sender-транспорта и проверка на устройстве. Заглушка из локальной `next` не перенесена.
+- [x] Проверка вёрстки радио, главной и настроек в браузере: ширины 390–1920 px
+- [ ] Полный десктоп-аудит в нативном приложении на целевых ОС
+- [x] Radio by artist: отдельный экран и HTTP API с единым управлением станцией
 
 ---
 

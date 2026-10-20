@@ -64,6 +64,7 @@ route_handler!(variants, "variants.list");
 route_handler!(sources_list, "sources.list");
 route_handler!(sources_set, "sources.set");
 route_handler!(radio, "player.radio");
+route_handler!(artist_radio, "player.artistRadio");
 route_handler!(similar, "player.similar");
 route_handler!(lyrics, "lyrics.list");
 route_handler!(download, "download.track");
@@ -121,6 +122,7 @@ pub fn router(app: AppHandle, bridge: BridgeHandle, token: String) -> Router {
         .route("/api/v1/sources", get(sources_list))
         .route("/api/v1/sources", post(sources_set))
         .route("/api/v1/radio", post(radio))
+        .route("/api/v1/radio/artist", post(artist_radio))
         .route("/api/v1/similar", post(similar))
         .route("/api/v1/lyrics", get(lyrics))
         .route("/api/v1/download", post(download))

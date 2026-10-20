@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { createArtistRadioSlice, type ArtistRadioSlice } from "./artistRadioSlice";
 import { listen } from "@tauri-apps/api/event";
 
 import type { AlbumDetail, ArtistDetail, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
@@ -76,7 +77,7 @@ const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator
 
 export type { DownloadItem } from "./downloadsSlice";
 
-export interface AppState extends DownloadsSlice {
+export interface AppState extends DownloadsSlice, ArtistRadioSlice {
   services: AppServices | null;
   ready: boolean;
   onboardingCompleted: boolean;
@@ -94,7 +95,7 @@ export interface AppState extends DownloadsSlice {
   pushLog: (message: string) => void;
   clearLogs: () => void;
   reloadServices: () => Promise<void>;
-  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads" | "wrapped";
+  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped";
   setView: (v: AppState["view"]) => void;
   
   navStack: AppState["view"][];
@@ -187,7 +188,6 @@ export interface AppState extends DownloadsSlice {
   clearSleep: () => void;
   radioActive: boolean;
   startRadio: (track?: Track) => Promise<void>;
-  startArtistRadio: (artist: string) => Promise<void>;
   autoContinue: boolean;
   setAutoContinue: (enabled: boolean) => void;
   offlineMode: boolean;
@@ -562,6 +562,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   reloadServices: async () => {
+    get().cancelArtistRadio();
     const { services } = get();
     if (!services) return;
     const rebuilt = await reconfigureServices(services);
@@ -576,6 +577,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   play: async (tracks, index = 0) => {
+    get().cancelArtistRadio();
     const { services } = get();
     if (!services) return;
     if (get().radioActive) {
@@ -742,19 +744,20 @@ export const useApp = create<AppState>()((set, get, api) => ({
       const tracks = await services.local.openDirectory();
       if (tracks.length === 0) return;
       set({ localTracks: tracks });
-      await services.engine.playTracks(tracks);
+      await get().play(tracks);
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
   },
 
   startWave: async () => {
+    get().cancelArtistRadio();
     const { services } = get();
     if (!services) return;
     try {
       const tracks = await services.wave.generateWave(20);
       if (tracks.length === 0) throw new Error("wave is empty");
-      await services.engine.playTracks(tracks);
+      await get().play(tracks);
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
@@ -829,7 +832,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
       const playlists = generateSmartPlaylists(history, likedTracks);
       const target = playlists.find((p) => p.type === type);
       if (!target || target.tracks.length === 0) throw new Error("empty");
-      await services.engine.playTracks(target.tracks);
+      await get().play(target.tracks);
     } catch (e) {
       get().notify(e instanceof Error ? e.message : String(e));
     }
@@ -838,6 +841,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   ...createDownloadsSlice(set, get, api),
 
   radioActive: false,
+  ...createArtistRadioSlice(set, get, api),
   autoContinue: (() => {    try {
       return localStorage.getItem("wave-autocontinue") !== "0";
     } catch {
@@ -882,6 +886,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     clearSearchCache();
   },
   startRadio: async (seedTrack) => {
+    get().cancelArtistRadio();
     const { services, snapshot } = get();
     const track = seedTrack ?? snapshot.current;
     if (!services || !track) return;
@@ -901,29 +906,6 @@ export const useApp = create<AppState>()((set, get, api) => ({
       get().notify(e instanceof Error ? e.message : String(e));
     }
   },
-  startArtistRadio: async (artist) => {
-    const { services } = get();
-    const name = artist.trim();
-    if (!services || !name) return;
-    try {
-      set({ radioActive: true });
-      services.engine.setAutoFill(async () => {
-        const last = services.engine.snapshot.current;
-        if (!last) return [];
-        return radioTracks(services, last);
-      });
-      const seed: Track = { id: `artist-radio:${name}`, provider: "radio", uri: "", title: "", artist: name };
-      const tracks = await radioTracks(services, seed);
-      if (tracks.length === 0) throw new Error(t("toasts").similarEmpty);
-      await services.engine.playTracks(tracks);
-      get().notify(t("player").radio);
-    } catch (e) {
-      set({ radioActive: false });
-      services.engine.setAutoFill(null);
-      get().notify(e instanceof Error ? e.message : String(e));
-    }
-  },
-
   variants: [],
   variantsLoading: false,
   loadVariants: async (track) => {
@@ -1386,14 +1368,13 @@ async function doInit(
     seek: (s) => services.engine.seek(s),
   });
 
-  if ((window as { __TAURI__?: unknown }).__TAURI__) {
-    bindMpris(services);
-    bindTray(services);
-    bindMiniBroadcast(services);
-    bindMiniRemote(services);
-    bindGlobalHotkeys(services);
-    bindPlugins(services);
-    if (localStorage.getItem("wave-discord-client-id")) {
+  if (isTauri()) {
+    if (!IS_ANDROID) {
+      bindMpris(services);
+      bindTray(services);
+      bindMiniBroadcast(services);
+      bindMiniRemote(services);
+      bindGlobalHotkeys(services);
       bindDiscord(services);
     }
   }
@@ -1455,10 +1436,14 @@ async function doInit(
     }, 1500);
   });
   set({ services });
-  const bridge = new ApiBridge(services);
+  const bridge = new ApiBridge(services, {
+    startArtistRadio: (artist) => get().startArtistRadio(artist),
+    play: (tracks, index) => get().play(tracks, index),
+  });
   await bridge.start();
   await get().refreshLibrary();
   await get().loadPlaylists();
+  if (isTauri()) bindPlugins(services);
   bind();
   set({ ready: true });
   checkYtDlpUpdate();
@@ -1475,7 +1460,7 @@ function checkYtDlpUpdate() {
 }
 
 async function checkForUpdates(): Promise<void> {
-  if ((window as { __TAURI__?: unknown }).__TAURI__ === undefined) return;
+  if (!isTauri()) return;
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();

@@ -94,7 +94,8 @@ export function WaveView() {
 
   const sortedGenres = useMemo(() => [...genreStats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8), [genreStats]);
   const maxGenreCount = sortedGenres[0]?.[1] ?? 0;
-  const firstPreviewCurrent = useMemo(() => previewTracks.findIndex((tr) => tr.id === snapshot.current?.id), [previewTracks, snapshot.current?.id]);
+  const currentId = snapshot.current?.id;
+  const firstPreviewCurrent = useMemo(() => previewTracks.findIndex((tr) => tr.id === currentId), [previewTracks, currentId]);
   const sortedMoods = useMemo(() => Object.entries(moodStats)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8), [moodStats]);

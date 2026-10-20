@@ -3829,6 +3829,21 @@ input[type="range"]::-moz-range-track {
   overflow: auto;
 }
 
+.settings-install-row {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.settings-install-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-install-row .btn {
+  flex-shrink: 0;
+}
+
 .toggle-row-compact {
   flex-shrink: 0;
   padding-top: 2px;
@@ -5728,4 +5743,73 @@ input[type="range"]::-moz-range-track {
 .player-bar.mini .player-mini-cover-empty,
 .content-nowplaying .hero-cover-empty {
   background: linear-gradient(135deg, hsl(var(--tile-h, 222) 55% 38%), hsl(calc(var(--tile-h, 222) + 40) 60% 24%));
+}
+
+/* ── 0.7: Artist Radio ── */
+.artist-radio-view .detail-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.artist-radio-view .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.artist-radio-view .chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.artist-radio-view .chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.artist-radio-view .track-row.skeleton {
+  height: 56px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--hover) 25%, var(--bg-elev-2) 50%, var(--hover) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.2s infinite;
+}
+@keyframes skeletonShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.artist-radio-view .empty-state {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Keep the app grid inside the viewport even with long titles. */
+.app { grid-template-columns: 230px minmax(0, 1fr); }
+.content { min-width: 0; }
+.artist-radio-view .detail-header { flex-wrap: wrap; }
+.artist-radio-view .detail-info { flex: 1 1 200px; }
+.artist-radio-view .detail-info h1 { overflow-wrap: anywhere; }
+.artist-radio-view .detail-actions { flex: 1 1 100%; flex-wrap: wrap; }
+.artist-radio-view .detail-actions .btn { padding: 10px 16px; }
+.artist-radio-view .detail-tracks { min-height: 0; }
+
+@media (min-width: 1024px) {
+  .content > .view { max-width: 1120px; }
+  .artist-radio-view { max-width: 1120px; margin-inline: auto; }
+}
+@media (min-width: 1440px) {
+  .app { grid-template-columns: 250px minmax(0, 1fr); }
+  .content { padding-inline: var(--sp-10); }
+  .content > .view, .artist-radio-view { max-width: 1360px; }
+}
+@media (max-width: 720px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
 }

@@ -38,3 +38,5 @@ getrandom = "0.2"
 zbus = { version = "4", default-features = false, features = ["tokio"] }
 async-trait = "0.1"
 mlua = { version = "0.10", features = ["lua54", "send", "vendored", "serialize"] }
+
+tempfile = "3"

@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useApp } from "../app/stores";
 import { openMiniPlayerWindow } from "../app/mini";
@@ -277,7 +278,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         <button
           className="icon-btn"
           onClick={() => {
-            if ((window as { __TAURI__?: unknown }).__TAURI__ && !/Android/i.test(navigator.userAgent)) {
+            if (isTauri() && !/Android/i.test(navigator.userAgent)) {
               void openMiniPlayerWindow();
             } else {
               setCompactPlayer(true);

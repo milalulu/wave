@@ -15,6 +15,7 @@ import { formatTime } from "../core/util/format";
 
 interface TrackRowProps {
   track: Track;
+  onPlayTrack?: () => void;
   index?: number;
   playCount?: number;
   
@@ -25,7 +26,7 @@ interface TrackRowProps {
   onDragEnd?: (e: DragEvent<HTMLDivElement>) => void;
 }
 
-export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
+export const TrackRow = memo(function TrackRow({ track, onPlayTrack, index, playCount, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
   const { t } = useI18n();
   const isCurrentTrack = useApp((s) => nowPlaying !== undefined ? nowPlaying : s.snapshot.current?.id === track.id);
   const likedIds = useApp((s) => s.likedIds);
@@ -105,7 +106,10 @@ export const TrackRow = memo(function TrackRow({ track, index, playCount, nowPla
   };
 
   const onPlay = (): void => {
-    if (!noPlay) void play([track], 0);
+    if (!noPlay) {
+      if (onPlayTrack) onPlayTrack();
+      else void play([track], 0);
+    }
   };
 
   useEffect(() => {

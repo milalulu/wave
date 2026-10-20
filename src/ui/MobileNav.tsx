@@ -27,6 +27,7 @@ export function parentTab(view: ViewKey): ViewKey | null {
   switch (view) {
     case "album":
     case "artist":
+    case "artistRadio":
     case "playlist":
     case "queue":
     case "downloads":
@@ -46,6 +47,7 @@ export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
   const { t } = useI18n();
   const albumTitle = useApp((s) => s.albumDetail?.album.title);
   const artistName = useApp((s) => s.artistDetail?.artist.name);
+  const stationArtist = useApp((s) => s.artistRadioState.artist);
   const playlistName = useApp((s) =>
     s.playlists.find((p) => p.id === s.selectedPlaylistId)?.name,
   );
@@ -56,6 +58,8 @@ export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
         return albumTitle ?? t("nav").library;
       case "artist":
         return artistName ?? t("nav").library;
+      case "artistRadio":
+        return stationArtist ? `${t("player").radio}: ${stationArtist}` : t("player").radio;
       case "playlist":
         return playlistName ?? t("nav").playlist;
       case "queue":

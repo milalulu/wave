@@ -16,6 +16,11 @@ import {
   toggleBlockedTrack,
 } from "./platformSettings";
 
+interface BridgeActions {
+  startArtistRadio: (artist: string) => Promise<import("../core/radio/artistRadio").ArtistRadioStation | null>;
+  play: (tracks: Track[], index?: number) => Promise<void>;
+}
+
 interface BridgeRequest {
   id: number;
   action: string;
@@ -25,7 +30,7 @@ interface BridgeRequest {
 export class ApiBridge {
   private unlisten: UnlistenFn | null = null;
 
-  constructor(private services: AppServices) {}
+  constructor(private services: AppServices, private actions?: BridgeActions) {}
 
   async start(): Promise<void> {
     this.unlisten = await listen("api-request", (event) => {
@@ -120,6 +125,8 @@ export class ApiBridge {
         return this.sourcesSet(payload);
       case "player.radio":
         return this.radio(payload);
+      case "player.artistRadio":
+        return this.artistRadio(payload);
       case "player.similar":
         return this.similar(payload);
       case "lyrics.list":
@@ -139,12 +146,17 @@ export class ApiBridge {
     }
   }
 
+  private async playTracks(tracks: Track[], index = 0): Promise<void> {
+    if (this.actions) await this.actions.play(tracks, index);
+    else await this.services.engine.playTracks(tracks, index);
+  }
+
   private async actionPlay(payload: Record<string, unknown>): Promise<unknown> {
     const { engine } = this.services;
     if (payload.track) {
-      await engine.playTrack(payload.track as unknown as Track);
+      await this.playTracks([payload.track as unknown as Track]);
     } else if (Array.isArray(payload.queue)) {
-      await engine.playTracks(payload.queue as unknown as Track[], asNumber(payload.index));
+      await this.playTracks(payload.queue as unknown as Track[], asNumber(payload.index));
     } else {
       throw new Error("play requires track or queue");
     }
@@ -172,7 +184,7 @@ export class ApiBridge {
     if (tracks.length === 0) throw new Error("nothing found");
     const index = asNumber(payload.index);
     const start = index >= 0 && index < tracks.length ? index : 0;
-    await this.services.engine.playTracks(tracks, start);
+    await this.playTracks(tracks, start);
     return { track: tracks[start], count: tracks.length };
   }
 
@@ -194,7 +206,7 @@ export class ApiBridge {
         `wave is empty (liked=${liked.length}, history=${history.length})`,
       );
     }
-    await this.services.engine.playTracks(tracks);
+    await this.playTracks(tracks);
     return { count: tracks.length };
   }
 
@@ -226,8 +238,24 @@ export class ApiBridge {
     const seed = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
     if (!seed) throw new Error("no track to start radio");
     const tracks = await radioTracks(this.services, seed);
-    await this.services.engine.playTracks([seed, ...tracks]);
+    await this.playTracks([seed, ...tracks]);
     return { count: tracks.length, seedId: seed.id };
+  }
+
+  private async artistRadio(payload: Record<string, unknown>): Promise<unknown> {
+    const artist =
+      typeof payload.artist === "string"
+        ? payload.artist
+        : (this.services.engine.snapshot.current?.artist ?? "");
+    if (!artist.trim()) throw new Error("artist required");
+    if (!this.actions) throw new Error("Artist radio controller is unavailable");
+    const station = await this.actions.startArtistRadio(artist);
+    if (!station) throw new Error("Artist radio could not be started or was superseded");
+    return {
+      artist: station.artist,
+      count: station.tracks.length,
+      similarArtists: station.similarArtists,
+    };
   }
 
   private async similar(payload: Record<string, unknown>): Promise<unknown> {

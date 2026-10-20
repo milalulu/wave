@@ -3,6 +3,8 @@ import type { AppServices } from "./compose";
 
 export function bindDiscord(services: AppServices): () => void {
   let lastPush = 0;
+  let hasPresence = false;
+  const cleanups: Array<() => void> = [];
 
   const push = (force: boolean): void => {
     const now = Date.now();
@@ -12,13 +14,12 @@ export function bindDiscord(services: AppServices): () => void {
     const snap = services.engine.snapshot;
     const track = snap.current;
 
-    if (!track || snap.state !== "playing") {
-      void invoke("clear_discord_presence").catch(() => {});
+    const clientId = localStorage.getItem("wave-discord-client-id") ?? "";
+    if (!clientId || !track || snap.state !== "playing") {
+      if (hasPresence) void invoke("clear_discord_presence").catch(() => {});
+      hasPresence = false;
       return;
     }
-
-    const clientId = localStorage.getItem("wave-discord-client-id") ?? "";
-    if (!clientId) return;
 
     const details = track.title;
     const state = track.artist ? `by ${track.artist}` : "";
@@ -26,6 +27,7 @@ export function bindDiscord(services: AppServices): () => void {
     const largeText = track.album || undefined;
     const startTs = snap.duration > 0 ? Math.floor(Date.now() / 1000 - snap.position) : undefined;
 
+    hasPresence = true;
     void invoke("set_discord_presence", {
       clientId,
       details,
@@ -41,11 +43,14 @@ export function bindDiscord(services: AppServices): () => void {
 
   const events = ["state", "track"] as const;
   for (const ev of events) {
-    services.engine.on(ev, () => push(true));
+    cleanups.push(services.engine.on(ev, () => push(true)));
   }
-  services.engine.on("time", () => push(false));
+  cleanups.push(services.engine.on("time", () => push(false)));
 
   push(true);
 
-  return () => {};
+  return () => {
+    cleanups.forEach((stop) => stop());
+    void invoke("clear_discord_presence").catch(() => {});
+  };
 }

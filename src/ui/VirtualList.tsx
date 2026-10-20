@@ -28,6 +28,8 @@ export function VirtualList<T>({
     if (el) setScrollEl(el);
   }, []);
 
+  // TanStack Virtual exposes live getters; this component must remain uncompiled.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollEl,

@@ -6,6 +6,7 @@ pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
 mod plugin_host;
+mod plugin_support;
 mod tools;
 #[cfg(not(target_os = "android"))]
 mod tray;
@@ -2003,12 +2004,16 @@ pub fn run() {
                     .app_config_dir()
                     .unwrap_or_else(|_| std::path::PathBuf::from("."))
                     .join("plugins");
-                app.manage(plugin_host::PluginHost::new(app.handle().clone(), plugins_dir));
+                app.manage(plugin_host::PluginHost::new(
+                    app.handle().clone(),
+                    plugins_dir,
+                ));
             }
             apply_proxy_conf(app.handle());
             #[cfg(not(target_os = "android"))]
-            #[cfg(not(target_os = "android"))]
             {
+                app.handle()
+                    .plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
                 let token = resolve_api_token(app.handle());
                 http::server::start(app.handle().clone(), bridge.clone(), token);
                 #[cfg(target_os = "linux")]
@@ -2077,6 +2082,7 @@ pub fn run() {
             mpris_update,
             set_discord_presence,
             clear_discord_presence,
+            plugin_ready,
             plugin_list,
             plugin_reload,
             plugin_set_enabled,
@@ -2084,6 +2090,8 @@ pub fn run() {
             plugin_event,
             plugin_state,
             plugin_search_result,
+            plugin_data_result,
+            plugin_install,
             diagnostics
         ])
         .run(tauri::generate_context!())
@@ -2104,9 +2112,17 @@ async fn set_discord_presence(
     end_ts: Option<i64>,
 ) -> Result<(), String> {
     discord_rpc::set_presence(
-        client_id, details, state, large_image, large_text,
-        small_image, small_text, start_ts, end_ts,
-    ).await
+        client_id,
+        details,
+        state,
+        large_image,
+        large_text,
+        small_image,
+        small_text,
+        start_ts,
+        end_ts,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2115,24 +2131,44 @@ async fn clear_discord_presence() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn plugin_ready(state: tauri::State<'_, plugin_host::PluginHost>) -> Result<(), String> {
+    let host = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || host.reload())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn plugin_list(state: tauri::State<plugin_host::PluginHost>) -> Vec<plugin_host::PluginInfo> {
     state.list()
 }
 
 #[tauri::command]
-fn plugin_reload(state: tauri::State<plugin_host::PluginHost>) -> Vec<plugin_host::PluginInfo> {
-    state.reload();
-    state.list()
+async fn plugin_reload(
+    state: tauri::State<'_, plugin_host::PluginHost>,
+) -> Result<Vec<plugin_host::PluginInfo>, String> {
+    let host = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        host.reload();
+        host.list()
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn plugin_set_enabled(
-    state: tauri::State<plugin_host::PluginHost>,
+async fn plugin_set_enabled(
+    state: tauri::State<'_, plugin_host::PluginHost>,
     id: String,
     enabled: bool,
-) -> Vec<plugin_host::PluginInfo> {
-    state.set_enabled(&id, enabled);
-    state.list()
+) -> Result<Vec<plugin_host::PluginInfo>, String> {
+    let host = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        host.set_enabled(&id, enabled)?;
+        Ok(host.list())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2161,6 +2197,26 @@ fn plugin_search_result(
     value: serde_json::Value,
 ) {
     state.search_result(req_id, value);
+}
+
+#[tauri::command]
+fn plugin_data_result(
+    state: tauri::State<plugin_host::PluginHost>,
+    req_id: u64,
+    value: serde_json::Value,
+) {
+    state.data_result(req_id, value);
+}
+
+#[tauri::command]
+async fn plugin_install(
+    state: tauri::State<'_, plugin_host::PluginHost>,
+    url: String,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.install(&url))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

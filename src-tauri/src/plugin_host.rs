@@ -1,13 +1,19 @@
-use mlua::{Lua, Table, Value};
+use crate::plugin_support::{
+    self, limited_lua, next_request_id, read_limited, validate_source, write_atomic, MAX_BODY,
+    MAX_SOURCE, REQUEST_TIMEOUT,
+};
+use mlua::{Lua, LuaSerdeExt, Table, Value};
 use serde::Serialize;
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
+
+const PLUGIN_DATA_TIMEOUT: Duration = Duration::from_secs(5);
 
 const EXAMPLE_PLUGIN: &str = r#"-- ============================================================
 -- Hello Wave — пример плагина для Wave.
@@ -18,6 +24,7 @@ const EXAMPLE_PLUGIN: &str = r#"-- =============================================
 wave_plugin = {
   name = "Hello Wave",
   version = "1.0.0",
+  allowed_commands = { "echo" },
 }
 
 wave.log("Hello Wave plugin loaded!")
@@ -56,14 +63,24 @@ end)
 --     wave.log("HTTP " .. (res.status or "?") .. " len=" .. #(res.body or ""))
 -- end)
 
--- Запуск внешней команды.
+-- Запуск внешней команды (только команды из wave_plugin.allowed_commands).
 -- wave.exec("echo", {"hello from wave"}, function(res)
 --     wave.log("exec code=" .. (res.code or "?"))
 -- end)
 
+-- Персистентная конфигурация плагина (хранится на диске).
+-- wave.set_config("greeting", "добро пожаловать")
+-- wave.log("greeting = " .. tostring(wave.get_config("greeting", "default value")))
+
+-- Доступ к библиотеке пользователя.
+-- wave.log("playlists = " .. #(wave.get_playlists() or {}))
+-- wave.log("liked = " .. #(wave.get_liked() or {}))
+-- wave.log("history = " .. #(wave.get_history() or {}))
+
 -- Поиск треков (результаты приходят в обратный вызов).
 -- wave.search("Daft Punk Da Funk", function(results)
---     local first = (results and results[1] and results[1].title) or "none"
+--     local group = results and results.results and results.results[1]
+--     local first = (group and group.tracks and group.tracks[1] and group.tracks[1].title) or "none"
 --     wave.log("Search done, first hit: " .. tostring(first))
 -- end)
 "#;
@@ -106,22 +123,27 @@ enum HostMsg {
         body: String,
     },
     Http {
-        plugin: String,
+        reply: Sender<WorkerMsg>,
         id: u64,
         url: String,
         headers: HashMap<String, String>,
     },
     Exec {
-        plugin: String,
+        reply: Sender<WorkerMsg>,
         id: u64,
         cmd: String,
         args: Vec<String>,
     },
     Search {
-        plugin: String,
+        reply: Sender<WorkerMsg>,
         id: u64,
         query: String,
         provider: Option<String>,
+    },
+    DataGet {
+        kind: String,
+        req_id: u64,
+        reply: Sender<Option<serde_json::Value>>,
     },
 }
 
@@ -134,27 +156,29 @@ struct PluginEntry {
     error: Option<String>,
     tx: Option<Sender<WorkerMsg>>,
     thread: Option<std::thread::JoinHandle<()>>,
+    cancelled: Arc<AtomicBool>,
 }
 
+type EventSink = Arc<dyn Fn(&str, serde_json::Value) -> Result<(), String> + Send + Sync>;
+
 struct Registry {
-    app: AppHandle,
+    emit: EventSink,
     plugins: HashMap<String, PluginEntry>,
     order: Vec<String>,
     states: HashMap<String, bool>,
     states_path: PathBuf,
-    req_owner: HashMap<u64, String>,
+    configs: HashMap<String, serde_json::Value>,
+    configs_path: PathBuf,
+    req_owner: HashMap<u64, (Sender<WorkerMsg>, Instant)>,
+    data_pending: HashMap<u64, (Sender<Option<serde_json::Value>>, Instant)>,
     logs: HashMap<String, VecDeque<String>>,
     client: reqwest::blocking::Client,
+    latest_state: Option<serde_json::Value>,
 }
 
 impl Registry {
-    fn app_handle(&self) -> AppHandle {
-        self.app.clone()
-    }
-
     fn worker_tx(&mut self, id: u64) -> Option<Sender<WorkerMsg>> {
-        let plugin = self.req_owner.remove(&id)?;
-        self.plugins.get(&plugin).and_then(|e| e.tx.clone())
+        self.req_owner.remove(&id).map(|(tx, _)| tx)
     }
 
     fn push(&mut self, tx: &Sender<WorkerMsg>, msg: WorkerMsg) {
@@ -205,34 +229,47 @@ fn do_http(
     match req.send() {
         Ok(resp) => {
             let status = resp.status().as_u16();
-            let status_text = resp
-                .status()
-                .canonical_reason()
-                .unwrap_or("")
-                .to_string();
+            let status_text = resp.status().canonical_reason().unwrap_or("").to_string();
             let mut hdr = serde_json::Map::new();
             for (k, v) in resp.headers() {
                 if let Ok(vs) = v.to_str() {
                     hdr.insert(k.to_string(), serde_json::Value::String(vs.to_string()));
                 }
             }
-            let body = resp.bytes().unwrap_or_else(|_| Vec::new().into());
-            const MAX_BODY: usize = 2_000_000;
-            let slice = &body[..body.len().min(MAX_BODY)];
-            json!({
-                "status": status,
-                "statusText": status_text,
-                "headers": serde_json::Value::Object(hdr),
-                "body": String::from_utf8_lossy(slice),
-                "truncated": body.len() > MAX_BODY,
-            })
+            match read_limited(resp, MAX_BODY) {
+                Ok(body) => {
+                    json!({ "status": status, "statusText": status_text, "headers": hdr, "body": String::from_utf8_lossy(&body) })
+                }
+                Err(error) => json!({ "error": error }),
+            }
         }
         Err(e) => json!({ "error": e.to_string() }),
     }
 }
 
 fn pump_loop(rx: Receiver<HostMsg>, registry: Arc<Mutex<Registry>>) {
+    let slots = Arc::new(tokio::sync::Semaphore::new(8));
     loop {
+        if let Ok(mut g) = registry.lock() {
+            let now = Instant::now();
+            g.req_owner.retain(|id, (tx, deadline)| {
+                if now < *deadline {
+                    return true;
+                }
+                let _ = tx.send(WorkerMsg::AsyncResult {
+                    id: *id,
+                    value: Some(json!({"error": "request timeout"})),
+                });
+                false
+            });
+            g.data_pending.retain(|_, (reply, deadline)| {
+                if now < *deadline {
+                    return true;
+                }
+                let _ = reply.send(None);
+                false
+            });
+        }
         let msg = match rx.recv_timeout(Duration::from_millis(400)) {
             Ok(m) => m,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
@@ -250,7 +287,7 @@ fn pump_loop(rx: Receiver<HostMsg>, registry: Arc<Mutex<Registry>>) {
             }
             HostMsg::Control { method, args } => {
                 if let Ok(g) = registry.lock() {
-                    let _ = g.app_handle().emit(
+                    let _ = (g.emit)(
                         "wave-plugin-control",
                         json!({ "method": method, "args": args }),
                     );
@@ -258,97 +295,137 @@ fn pump_loop(rx: Receiver<HostMsg>, registry: Arc<Mutex<Registry>>) {
             }
             HostMsg::Notify { title, body } => {
                 if let Ok(g) = registry.lock() {
-                    let _ = g.app_handle().emit(
+                    let _ = (g.emit)(
                         "wave-plugin-notify",
                         json!({ "title": title, "body": body }),
                     );
                 }
             }
             HostMsg::Http {
-                plugin,
+                reply,
                 id,
                 url,
                 headers,
-            } => {
-                {
-                    if let Ok(mut g) = registry.lock() {
-                        g.req_owner.insert(id, plugin);
-                    }
-                }
-                let client = registry
-                    .lock()
-                    .map(|g| g.client.clone())
-                    .unwrap_or_else(|_| reqwest::blocking::Client::new());
-                let (tx_out, rx_out) = channel::<serde_json::Value>();
-                let url_c = url.clone();
-                let headers_c = headers.clone();
-                std::thread::spawn(move || {
-                    let _ = tx_out.send(do_http(&client, &url_c, &headers_c));
-                });
-                let value = match rx_out.recv_timeout(Duration::from_secs(20)) {
-                    Ok(v) => Some(v),
-                    Err(_) => Some(json!({ "error": "http timeout" })),
-                };
-                if let Ok(mut g) = registry.lock() {
-                    if let Some(tx) = g.worker_tx(id) {
-                        g.push(&tx, WorkerMsg::AsyncResult { id, value });
-                    }
-                }
-            }
-            HostMsg::Exec {
-                plugin,
-                id,
-                cmd,
-                args,
-            } => {
-                {
-                    if let Ok(mut g) = registry.lock() {
-                        g.req_owner.insert(id, plugin);
-                    }
-                }
-                let value = std::process::Command::new(&cmd)
-                    .args(&args)
-                    .output()
-                    .map(|out| {
-                        json!({
-                            "code": out.status.code(),
-                            "stdout": String::from_utf8_lossy(&out.stdout),
-                            "stderr": String::from_utf8_lossy(&out.stderr),
-                        })
-                    })
-                    .unwrap_or_else(|e| json!({ "error": e.to_string() }));
-                if let Ok(mut g) = registry.lock() {
-                    if let Some(tx) = g.worker_tx(id) {
-                        g.push(&tx, WorkerMsg::AsyncResult {
+            } => match Arc::clone(&slots).try_acquire_owned() {
+                Ok(permit) => {
+                    let client = registry
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .client
+                        .clone();
+                    tauri::async_runtime::spawn_blocking(move || {
+                        let _permit = permit;
+                        let value = do_http(&client, &url, &headers);
+                        let _ = reply.send(WorkerMsg::AsyncResult {
                             id,
                             value: Some(value),
                         });
-                    }
+                    });
                 }
-            }
+                Err(_) => {
+                    let _ = reply.send(WorkerMsg::AsyncResult {
+                        id,
+                        value: Some(json!({"error": "too many plugin operations"})),
+                    });
+                }
+            },
+            HostMsg::Exec {
+                reply,
+                id,
+                cmd,
+                args,
+            } => match Arc::clone(&slots).try_acquire_owned() {
+                Ok(permit) => {
+                    tauri::async_runtime::spawn(async move {
+                        let _permit = permit;
+                        let value = plugin_support::execute(&cmd, &args).await;
+                        let _ = reply.send(WorkerMsg::AsyncResult {
+                            id,
+                            value: Some(value),
+                        });
+                    });
+                }
+                Err(_) => {
+                    let _ = reply.send(WorkerMsg::AsyncResult {
+                        id,
+                        value: Some(json!({"error": "too many plugin operations"})),
+                    });
+                }
+            },
             HostMsg::Search {
-                plugin,
+                reply,
                 id,
                 query,
                 provider,
             } => {
                 if let Ok(mut g) = registry.lock() {
-                    g.req_owner.insert(id, plugin);
-                    let _ = g.app_handle().emit(
+                    g.req_owner
+                        .insert(id, (reply, Instant::now() + REQUEST_TIMEOUT));
+                    if (g.emit)(
                         "wave-plugin-search",
-                        json!({
-                            "reqId": id,
-                            "query": query,
-                            "provider": provider,
-                        }),
-                    );
+                        json!({"reqId": id, "query": query, "provider": provider}),
+                    )
+                    .is_err()
+                    {
+                        g.req_owner.remove(&id);
+                    }
+                }
+            }
+            HostMsg::DataGet {
+                kind,
+                req_id,
+                reply,
+            } => {
+                if let Ok(mut g) = registry.lock() {
+                    g.data_pending
+                        .insert(req_id, (reply, Instant::now() + PLUGIN_DATA_TIMEOUT));
+                    if (g.emit)("wave-plugin-data", json!({"reqId": req_id, "kind": kind})).is_err()
+                    {
+                        g.data_pending.remove(&req_id);
+                    }
                 }
             }
         }
     }
 }
 
+fn config_lookup(g: &Registry, plugin: &str, args: &serde_json::Value) -> serde_json::Value {
+    let key = args.get("key").and_then(|v| v.as_str()).unwrap_or("");
+    let default = args
+        .get("default")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    g.configs
+        .get(plugin)
+        .and_then(|map| map.get(key))
+        .cloned()
+        .unwrap_or(default)
+}
+
+fn plugin_filename(url: &str) -> Result<String, String> {
+    let no_query = url.split(['?', '#']).next().unwrap_or(url);
+    let raw = no_query.rsplit('/').next().unwrap_or_default();
+    if raw.is_empty() || raw.contains("..") {
+        return Err("cannot derive a safe plugin filename from URL".into());
+    }
+    let sanitized: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        .collect();
+    if sanitized.is_empty() {
+        return Err("cannot derive a safe plugin filename from URL".into());
+    }
+    let mut name = sanitized;
+    if !name.ends_with(".lua") {
+        name.push_str(".lua");
+    }
+    Ok(name)
+}
+
 fn store_pending(lua: &Lua, id: u64, cb: Value) -> mlua::Result<()> {
+    if !matches!(cb, Value::Function(_)) {
+        return Err(callback_error("callback expected"));
+    }
     let globals = lua.globals();
     let t: Table = match globals.get::<Option<Table>>("wave_pending")? {
         Some(t) => t,
@@ -358,6 +435,9 @@ fn store_pending(lua: &Lua, id: u64, cb: Value) -> mlua::Result<()> {
             t
         }
     };
+    if t.clone().pairs::<Value, Value>().count() >= 64 {
+        return Err(callback_error("too many pending callbacks"));
+    }
     t.raw_set(id, cb)
 }
 
@@ -389,7 +469,9 @@ fn call_handler(
     arg: Option<Value>,
     tx: &Sender<HostMsg>,
     plugin: &str,
+    budget: &AtomicU64,
 ) -> mlua::Result<()> {
+    budget.store(0, Ordering::Relaxed);
     if let Value::Function(f) = function {
         let result = match arg {
             Some(a) => f.call::<Value>(a),
@@ -412,6 +494,7 @@ fn dispatch_event(
     payload: Option<&serde_json::Value>,
     tx: &Sender<HostMsg>,
     plugin: &str,
+    budget: &AtomicU64,
 ) {
     let Ok(Some(arr)) = events.get::<Option<Table>>(name) else {
         return;
@@ -423,7 +506,7 @@ fn dispatch_event(
             Some(Ok(v)) => Some(v.clone()),
             _ => None,
         };
-        let _ = call_handler(function, arg, tx, plugin);
+        let _ = call_handler(function, arg, tx, plugin, budget);
     }
 }
 
@@ -441,18 +524,37 @@ fn extract_meta(lua: &Lua, fallback: &str) -> (String, String) {
     (name, version)
 }
 
+#[derive(Clone)]
 pub struct PluginHost {
     dir: PathBuf,
     registry: Arc<Mutex<Registry>>,
     host_tx: Sender<HostMsg>,
+    lifecycle: Arc<Mutex<()>>,
 }
 
 impl PluginHost {
     pub fn new(app: AppHandle, dir: PathBuf) -> PluginHost {
+        Self::with_events(
+            dir,
+            Arc::new(move |name, value| app.emit(name, value).map_err(|e| e.to_string())),
+        )
+    }
+
+    fn with_events(dir: PathBuf, emit: EventSink) -> PluginHost {
         let states_path = dir.join("plugin-states.json");
         let states = std::fs::read_to_string(&states_path)
             .ok()
             .and_then(|s| serde_json::from_str::<HashMap<String, bool>>(&s).ok())
+            .unwrap_or_default();
+
+        let configs_path = dir.join("plugin-configs.json");
+        let configs: HashMap<String, serde_json::Value> = std::fs::read_to_string(&configs_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .map(|v| match v {
+                serde_json::Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            })
             .unwrap_or_default();
 
         let client = reqwest::blocking::Client::builder()
@@ -461,14 +563,18 @@ impl PluginHost {
             .unwrap_or_else(|_| reqwest::blocking::Client::new());
 
         let registry = Arc::new(Mutex::new(Registry {
-            app,
+            emit,
             plugins: HashMap::new(),
             order: Vec::new(),
             states,
             states_path,
+            configs,
+            configs_path,
             req_owner: HashMap::new(),
+            data_pending: HashMap::new(),
             logs: HashMap::new(),
             client,
+            latest_state: None,
         }));
 
         let (host_tx, host_rx) = channel::<HostMsg>();
@@ -483,9 +589,10 @@ impl PluginHost {
             dir,
             registry,
             host_tx,
+            lifecycle: Arc::new(Mutex::new(())),
         };
         host.ensure_dir();
-        host.reload();
+        // Frontend calls plugin_ready after its event listeners are installed.
         host
     }
 
@@ -496,10 +603,7 @@ impl PluginHost {
         if let Ok(read) = std::fs::read_dir(&self.dir) {
             let has_lua = read.filter_map(|e| e.ok()).any(|e| {
                 e.file_type().map(|t| t.is_file()).unwrap_or(false)
-                    && e.path()
-                        .extension()
-                        .map(|x| x == "lua")
-                        .unwrap_or(false)
+                    && e.path().extension().map(|x| x == "lua").unwrap_or(false)
             });
             if !has_lua {
                 let example = self.dir.join("hello_wave.lua");
@@ -509,20 +613,58 @@ impl PluginHost {
     }
 
     fn load_one(&self, path: PathBuf, id: String) {
-        let Some(source) = std::fs::read_to_string(&path).ok().filter(|s| !s.is_empty())
-        else {
+        self.stop_one(&id);
+        let enabled = self
+            .registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .states
+            .get(&id)
+            .copied()
+            .unwrap_or(false);
+        let source = std::fs::File::open(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|file| read_limited(file, MAX_SOURCE))
+            .and_then(|bytes| validate_source(&bytes).map(str::to_owned));
+        if !enabled || source.is_err() {
+            let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
+            if !reg.order.contains(&id) {
+                reg.order.push(id.clone());
+            }
+            reg.plugins.insert(
+                id.clone(),
+                PluginEntry {
+                    id: id.clone(),
+                    name: id,
+                    version: String::new(),
+                    enabled,
+                    loaded: false,
+                    error: source.err(),
+                    tx: None,
+                    thread: None,
+                    cancelled: Arc::new(AtomicBool::new(false)),
+                },
+            );
             return;
-        };
+        }
+        let source = source.expect("validated source");
         let tx = self.host_tx.clone();
         let (worker_tx, worker_rx) = channel::<WorkerMsg>();
-        let (meta_tx, meta_rx) = channel::<(String, String)>();
-        let req_counter = Arc::new(AtomicU64::new(1));
+        let (meta_tx, meta_rx) = channel::<Result<(String, String), String>>();
+        let worker_reply = worker_tx.clone();
+        let registry = Arc::clone(&self.registry);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let worker_cancelled = Arc::clone(&cancelled);
 
         let id_c = id.clone();
         let thread = std::thread::Builder::new()
             .name(format!("wave-plugin:{id}"))
             .spawn(move || {
-                let lua = Lua::new();
+                let budget = Arc::new(AtomicU64::new(0));
+                let lua = match limited_lua(Arc::clone(&worker_cancelled), Arc::clone(&budget)) {
+                    Ok(lua) => lua,
+                    Err(error) => { let _ = meta_tx.send(Err(error.to_string())); return; }
+                };
                 let events = match lua.create_table() {
                     Ok(t) => t,
                     Err(e) => {
@@ -677,9 +819,54 @@ impl PluginHost {
                         })?,
                     )?;
 
+                    let config_registry = Arc::clone(&registry);
+                    let config_id = id_c.clone();
+                    wave.set("get_config", lua.create_function(move |lua, (key, default): (String, Option<Value>)| {
+                        let default = default.map(|value| lua.from_value::<serde_json::Value>(value)).transpose()?.unwrap_or(serde_json::Value::Null);
+                        let reg = config_registry.lock().unwrap_or_else(|e| e.into_inner());
+                        json_to_lua(lua, &config_lookup(&reg, &config_id, &json!({"key":key,"default":default})))
+                    })?)?;
+                    let config_registry = Arc::clone(&registry);
+                    let config_id = id_c.clone();
+                    wave.set("set_config", lua.create_function(move |lua, (key, value): (String, Value)| {
+                        let value: serde_json::Value = lua.from_value(value)?;
+                        let mut reg = config_registry.lock().unwrap_or_else(|e| e.into_inner());
+                        let mut next = reg.configs.clone();
+                        let config = next.entry(config_id.clone()).or_insert_with(|| json!({}));
+                        config.as_object_mut().ok_or_else(|| mlua::Error::RuntimeError("invalid plugin config".into()))?.insert(key, value);
+                        let bytes = serde_json::to_vec_pretty(&next).map_err(mlua::Error::external)?;
+                        if bytes.len() as u64 > MAX_SOURCE { return Err(mlua::Error::RuntimeError("plugin config is too large".into())); }
+                        write_atomic(&reg.configs_path, &bytes, true).map_err(mlua::Error::external)?;
+                        reg.configs = next;
+                        Ok(())
+                    })?)?;
+
+                    let mk_data_get = |kind: &str| {
+                        let tx_c = tx.clone();
+                        let k = kind.to_string();
+                        lua.create_function(
+                            move |lua, _: ()| -> mlua::Result<Value> {
+                                let (reply_tx, reply_rx) = channel::<Option<serde_json::Value>>();
+                                let req_id = next_request_id();
+                                let _ = tx_c.send(HostMsg::DataGet {
+                                    kind: k.clone(),
+                                    req_id,
+                                    reply: reply_tx,
+                                });
+                                match reply_rx.recv_timeout(PLUGIN_DATA_TIMEOUT) {
+                                    Ok(Some(v)) => json_to_lua(lua, &v),
+                                    _ => Ok(Value::Nil),
+                                }
+                            },
+                        )
+                    };
+                    for kind in ["playlists", "liked", "history"] {
+                        let f = mk_data_get(kind)?;
+                        wave.set(format!("get_{kind}"), f)?;
+                    }
+
                     let tx_c = tx.clone();
-                    let req_c = Arc::clone(&req_counter);
-                    let id_p1 = id_c.clone();
+                    let reply1 = worker_reply.clone();
                     wave.set(
                         "http_get",
                         lua.create_function(move |lua, args: mlua::Variadic<Value>| {
@@ -694,7 +881,7 @@ impl PluginHost {
                                 Value::Table(t) => {
                                     for (k, v) in t.clone().pairs::<String, String>().flatten() {
                                         {
-                                        
+
                                             headers.insert(k, v);
                                         }
                                     }
@@ -705,10 +892,10 @@ impl PluginHost {
                             if !matches!(cb, Value::Function(_)) {
                                 return Err(callback_error("http_get: callback expected"));
                             }
-                            let id = req_c.fetch_add(1, Ordering::Relaxed);
+                            let id = next_request_id();
                             store_pending(lua, id, cb)?;
                             let _ = tx_c.send(HostMsg::Http {
-                                plugin: id_p1.clone(),
+                                reply: reply1.clone(),
                                 id,
                                 url,
                                 headers,
@@ -718,8 +905,7 @@ impl PluginHost {
                     )?;
 
                     let tx_c = tx.clone();
-                    let req_c = Arc::clone(&req_counter);
-                    let id_p2 = id_c.clone();
+                    let reply2 = worker_reply.clone();
                     wave.set(
                         "search",
                         lua.create_function(move |lua, args: mlua::Variadic<Value>| {
@@ -737,10 +923,10 @@ impl PluginHost {
                                 }
                                 other => other,
                             };
-                            let id = req_c.fetch_add(1, Ordering::Relaxed);
+                            let id = next_request_id();
                             store_pending(lua, id, cb)?;
                             let _ = tx_c.send(HostMsg::Search {
-                                plugin: id_p2.clone(),
+                                reply: reply2.clone(),
                                 id,
                                 query,
                                 provider,
@@ -750,8 +936,7 @@ impl PluginHost {
                     )?;
 
                     let tx_c = tx.clone();
-                    let req_c = Arc::clone(&req_counter);
-                    let id_p3 = id_c.clone();
+                    let reply3 = worker_reply.clone();
                     wave.set(
                         "exec",
                         lua.create_function(move |lua, args: mlua::Variadic<Value>| {
@@ -772,10 +957,33 @@ impl PluginHost {
                                 }
                                 other => other,
                             };
-                            let id = req_c.fetch_add(1, Ordering::Relaxed);
+                            let allowed: Vec<String> =
+                                match lua.globals().get::<Table>("wave_plugin") {
+                                    Ok(t) => match t.get::<Option<Vec<String>>>("allowed_commands")? {
+                                        Some(list) => list,
+                                        None => {
+                                            return Err(mlua::Error::RuntimeError(
+                                                "exec disabled: add allowed_commands = {...} to wave_plugin table"
+                                                    .into(),
+                                            ))
+                                        }
+                                    },
+                                    Err(_) => {
+                                        return Err(mlua::Error::RuntimeError(
+                                            "exec disabled: wave_plugin table with allowed_commands is required"
+                                                .into(),
+                                        ))
+                                    }
+                                };
+                            if !allowed.contains(&cmd) {
+                                return Err(mlua::Error::RuntimeError(format!(
+                                    "exec: '{cmd}' is not in allowed_commands"
+                                )));
+                            }
+                            let id = next_request_id();
                             store_pending(lua, id, cb)?;
                             let _ = tx_c.send(HostMsg::Exec {
-                                plugin: id_p3.clone(),
+                                reply: reply3.clone(),
                                 id,
                                 cmd,
                                 args: exec_args,
@@ -789,6 +997,7 @@ impl PluginHost {
                 };
 
                 if let Err(e) = set_api(&lua).and_then(|_| {
+                    budget.store(0, Ordering::Relaxed);
                     lua.load(&source)
                         .set_name(format!("{id_c}.lua"))
                         .exec()
@@ -797,13 +1006,13 @@ impl PluginHost {
                         plugin: id_c.clone(),
                         line: format!("load error: {e}"),
                     });
-                    let _ = meta_tx.send((id_c.clone(), String::new()));
+                    let _ = meta_tx.send(Err(e.to_string()));
                     return;
                 }
                 let (name, version) = extract_meta(&lua, &id_c);
-                let _ = meta_tx.send((name, version));
+                let _ = meta_tx.send(Ok((name, version)));
 
-                loop {
+                while !worker_cancelled.load(Ordering::Relaxed) {
                     match worker_rx.recv() {
                         Ok(WorkerMsg::Shutdown) => {
                             let _ = tx.send(HostMsg::Log {
@@ -816,15 +1025,15 @@ impl PluginHost {
                             if let Ok(mut s) = state.lock() {
                                 *s = Some(value.clone());
                             }
-                            dispatch_event(&lua, &events, "state", Some(&value), &tx, &id_c);
+                            dispatch_event(&lua, &events, "state", Some(&value), &tx, &id_c, &budget);
                         }
                         Ok(WorkerMsg::Event { name, payload }) => {
-                            dispatch_event(&lua, &events, &name, payload.as_ref(), &tx, &id_c);
+                            dispatch_event(&lua, &events, &name, payload.as_ref(), &tx, &id_c, &budget);
                         }
                         Ok(WorkerMsg::AsyncResult { id, value }) => {
                             if let Ok(function) = take_pending(&lua, id) {
                                 let arg = value.as_ref().and_then(|v| json_to_lua(&lua, v).ok());
-                                let _ = call_handler(function, arg, &tx, &id_c);
+                                let _ = call_handler(function, arg, &tx, &id_c, &budget);
                             }
                         }
                         Err(_) => break,
@@ -833,22 +1042,26 @@ impl PluginHost {
             })
             .ok();
 
-        let (name, version) = meta_rx
-            .recv_timeout(Duration::from_secs(5))
-            .unwrap_or_else(|_| (id.clone(), String::new()));
-
-        let mut reg = match self.registry.lock() {
-            Ok(g) => g,
-            Err(e) => e.into_inner(),
+        let loaded_meta = meta_rx
+            .recv_timeout(Duration::from_secs(6))
+            .unwrap_or_else(|_| Err("plugin load timed out".into()));
+        let (name, version, error) = match loaded_meta {
+            Ok((name, version)) => (name, version, None),
+            Err(error) => {
+                cancelled.store(true, Ordering::Relaxed);
+                (id.clone(), String::new(), Some(error))
+            }
         };
+        let loaded = error.is_none() && thread.is_some();
+        let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
         if !reg.order.contains(&id) {
             reg.order.push(id.clone());
         }
-        let enabled = reg.states.get(&id).copied().unwrap_or(true);
-        let error = thread
-            .as_ref()
-            .is_none()
-            .then(|| "failed to start thread".to_string());
+        if loaded {
+            if let Some(value) = reg.latest_state.clone() {
+                let _ = worker_tx.send(WorkerMsg::State(value));
+            }
+        }
         reg.plugins.insert(
             id.clone(),
             PluginEntry {
@@ -856,40 +1069,55 @@ impl PluginHost {
                 name,
                 version,
                 enabled,
-                loaded: thread.is_some(),
+                loaded,
                 error,
                 tx: Some(worker_tx),
                 thread,
+                cancelled,
             },
         );
     }
 
-    fn shutdown_all(&self) {
-        let mut reg = match self.registry.lock() {
-            Ok(g) => g,
-            Err(e) => e.into_inner(),
-        };
-        for entry in reg.plugins.values_mut() {
+    fn stop_one(&self, id: &str) {
+        let entry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .plugins
+            .remove(id);
+        if let Some(mut entry) = entry {
+            entry.cancelled.store(true, Ordering::Relaxed);
             if let Some(tx) = entry.tx.take() {
                 let _ = tx.send(WorkerMsg::Shutdown);
             }
+            // Never wait while holding the registry mutex: a worker may be reading config.
             if let Some(thread) = entry.thread.take() {
                 let _ = thread.join();
             }
         }
-        reg.plugins.clear();
-        reg.order.clear();
+    }
+
+    fn shutdown_all(&self) {
+        let ids = {
+            let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
+            reg.req_owner.clear();
+            reg.data_pending.clear();
+            reg.order.clear();
+            reg.plugins.keys().cloned().collect::<Vec<_>>()
+        };
+        for id in ids {
+            self.stop_one(&id);
+        }
     }
 
     pub fn reload(&self) {
+        let _lifecycle = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
         self.shutdown_all();
         if let Ok(read) = std::fs::read_dir(&self.dir) {
             let mut files: Vec<PathBuf> = read
                 .filter_map(|e| e.ok())
                 .map(|e| e.path())
-                .filter(|p| {
-                    p.extension().map(|x| x == "lua").unwrap_or(false) && p.is_file()
-                })
+                .filter(|p| p.extension().map(|x| x == "lua").unwrap_or(false) && p.is_file())
                 .collect();
             files.sort();
             for file in files {
@@ -932,45 +1160,24 @@ impl PluginHost {
         out
     }
 
-    pub fn set_enabled(&self, id: &str, enabled: bool) {
+    pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), String> {
+        let _lifecycle = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
         {
-            let mut reg = match self.registry.lock() {
-                Ok(g) => g,
-                Err(e) => e.into_inner(),
-            };
-            reg.states.insert(id.to_string(), enabled);
-            let _ = std::fs::write(
+            let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
+            if !reg.plugins.contains_key(id) {
+                return Err("unknown plugin".into());
+            }
+            let mut states = reg.states.clone();
+            states.insert(id.to_string(), enabled);
+            write_atomic(
                 &reg.states_path,
-                serde_json::to_string_pretty(&reg.states).unwrap_or_else(|_| "{}".into()),
-            );
-            if !enabled {
-                if let Some(entry) = reg.plugins.get_mut(id) {
-                    entry.enabled = false;
-                    entry.loaded = false;
-                    entry.error = Some("disabled".into());
-                    if let Some(tx) = entry.tx.take() {
-                        let _ = tx.send(WorkerMsg::Shutdown);
-                    }
-                    if let Some(thread) = entry.thread.take() {
-                        let _ = thread.join();
-                    }
-                }
-            }
+                &serde_json::to_vec_pretty(&states).map_err(|e| e.to_string())?,
+                true,
+            )?;
+            reg.states = states;
         }
-        if enabled {
-            if let Ok(read) = std::fs::read_dir(&self.dir) {
-                if let Some(file) = read
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.path())
-                    .find(|p| {
-                        p.extension().map(|x| x == "lua").unwrap_or(false)
-                            && p.file_stem().map(|s| s == id).unwrap_or(false)
-                    })
-                {
-                    self.load_one(file, id.to_string());
-                }
-            }
-        }
+        self.load_one(self.dir.join(format!("{id}.lua")), id.to_string());
+        Ok(())
     }
 
     pub fn push_event(&self, name: &str, value: Option<serde_json::Value>) {
@@ -992,10 +1199,11 @@ impl PluginHost {
     }
 
     pub fn push_state(&self, value: serde_json::Value) {
-        let reg = match self.registry.lock() {
+        let mut reg = match self.registry.lock() {
             Ok(g) => g,
             Err(e) => e.into_inner(),
         };
+        reg.latest_state = Some(value.clone());
         for entry in reg.plugins.values() {
             if !entry.enabled || !entry.loaded {
                 continue;
@@ -1020,12 +1228,72 @@ impl PluginHost {
         }
     }
 
+    pub fn data_result(&self, req_id: u64, value: serde_json::Value) {
+        if let Ok(mut g) = self.registry.lock() {
+            if let Some((reply, _)) = g.data_pending.remove(&req_id) {
+                let _ = reply.send(Some(value));
+            }
+        }
+    }
+
+    pub fn install(&self, url: &str) -> Result<String, String> {
+        let parsed = reqwest::Url::parse(url).map_err(|e| e.to_string())?;
+        if parsed.scheme() != "https" {
+            return Err("plugin URL must use HTTPS".into());
+        }
+        let name = plugin_filename(url)?;
+        let client = self
+            .registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .client
+            .clone();
+        let resp = client
+            .get(url)
+            .timeout(REQUEST_TIMEOUT)
+            .send()
+            .map_err(|e| e.to_string())?
+            .error_for_status()
+            .map_err(|e| e.to_string())?;
+        let body = read_limited(resp, MAX_SOURCE)?;
+        validate_source(&body)?;
+        let _lifecycle = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
+        let path = self.dir.join(&name);
+        // New downloads are inactive until explicitly enabled. Existing plugins are preserved.
+        let id = name.trim_end_matches(".lua").to_string();
+        {
+            let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
+            let mut states = reg.states.clone();
+            states.insert(id.clone(), false);
+            if path.exists() {
+                return Err("plugin already exists; choose a different filename".into());
+            }
+            write_atomic(
+                &reg.states_path,
+                &serde_json::to_vec_pretty(&states).map_err(|e| e.to_string())?,
+                true,
+            )?;
+            reg.states = states;
+        }
+        write_atomic(&path, &body, false)?;
+        self.load_one(path, id);
+        Ok(name)
+    }
+
     pub fn open_dir(&self, app: &AppHandle) {
         let _ = app;
         let _ = std::fs::create_dir_all(&self.dir);
         #[cfg(not(target_os = "android"))]
         {
             let _ = tauri_plugin_opener::open_path(&self.dir, None::<&str>);
+        }
+    }
+}
+
+impl Drop for PluginHost {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.lifecycle) == 1 {
+            self.shutdown_all();
         }
     }
 }
@@ -1049,14 +1317,140 @@ fn str_from_value(value: Value) -> mlua::Result<Option<String>> {
 mod tests {
     use super::*;
 
+    fn host_with_scripts(
+        scripts: &[(&str, &str)],
+    ) -> (
+        tempfile::TempDir,
+        PluginHost,
+        Receiver<(String, serde_json::Value)>,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, source) in scripts {
+            std::fs::write(dir.path().join(format!("{name}.lua")), source).unwrap();
+        }
+        let (tx, rx) = channel();
+        let host = PluginHost::with_events(
+            dir.path().to_owned(),
+            Arc::new(move |name, value| {
+                tx.send((name.to_string(), value))
+                    .map_err(|e| e.to_string())
+            }),
+        );
+        host.reload();
+        (dir, host, rx)
+    }
+
+    #[test]
+    fn disabled_plugins_never_execute_on_reload() {
+        let (_dir, host, events) =
+            host_with_scripts(&[("inactive", "wave.notify('test', 'executed')")]);
+        assert!(!host.list()[0].loaded);
+        assert!(events.try_recv().is_err());
+        host.set_enabled("inactive", true).unwrap();
+        assert_eq!(
+            events.recv_timeout(Duration::from_secs(1)).unwrap().0,
+            "wave-plugin-notify"
+        );
+        host.set_enabled("inactive", false).unwrap();
+        host.reload();
+        assert!(!host.list()[0].enabled);
+        assert!(!host.list()[0].loaded);
+        assert!(events.recv_timeout(Duration::from_millis(50)).is_err());
+    }
+
+    #[test]
+    fn runtime_load_errors_are_reported_as_failures() {
+        let (_dir, host, _) = host_with_scripts(&[("broken", "error('intentional load failure')")]);
+        host.set_enabled("broken", true).unwrap();
+        let entry = &host.list()[0];
+        assert!(!entry.loaded);
+        assert!(entry
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("intentional load failure"));
+    }
+
+    #[test]
+    fn real_config_api_persists_across_worker_restarts() {
+        let (dir, host, events) = host_with_scripts(&[(
+            "config",
+            r#"
+            local count = wave.get_config("count", 0)
+            wave.set_config("count", count + 1)
+            wave.notify("count", tostring(wave.get_config("count", 0)))
+        "#,
+        )]);
+        host.set_enabled("config", true).unwrap();
+        assert_eq!(
+            events.recv_timeout(Duration::from_secs(1)).unwrap().1["body"],
+            "1"
+        );
+        host.reload();
+        assert_eq!(
+            events.recv_timeout(Duration::from_secs(1)).unwrap().1["body"],
+            "2"
+        );
+        let persisted: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("plugin-configs.json")).unwrap())
+                .unwrap();
+        assert_eq!(persisted["config"]["count"], 2);
+    }
+
+    #[test]
+    fn two_plugins_receive_their_own_search_replies_in_reverse_order() {
+        let (_dir, host, events) = host_with_scripts(&[
+            (
+                "a",
+                r#"wave.search("a", function(r) wave.notify("a", r.query) end)"#,
+            ),
+            (
+                "b",
+                r#"wave.search("b", function(r) wave.notify("b", r.query) end)"#,
+            ),
+        ]);
+        host.set_enabled("a", true).unwrap();
+        host.set_enabled("b", true).unwrap();
+        let a = events.recv_timeout(Duration::from_secs(1)).unwrap().1;
+        let b = events.recv_timeout(Duration::from_secs(1)).unwrap().1;
+        assert_ne!(a["reqId"], b["reqId"]);
+        host.search_result(b["reqId"].as_u64().unwrap(), json!({"query": b["query"]}));
+        host.search_result(a["reqId"].as_u64().unwrap(), json!({"query": a["query"]}));
+        for _ in 0..2 {
+            let (name, reply) = events.recv_timeout(Duration::from_secs(1)).unwrap();
+            assert_eq!(name, "wave-plugin-notify");
+            assert_eq!(reply["title"], reply["body"]);
+        }
+    }
+
+    #[test]
+    fn stale_search_response_is_not_delivered_to_reloaded_worker() {
+        let (_dir, host, events) = host_with_scripts(&[(
+            "a",
+            r#"wave.search("a", function(r) wave.notify("result", r.query) end)"#,
+        )]);
+        host.set_enabled("a", true).unwrap();
+        let old = events.recv_timeout(Duration::from_secs(1)).unwrap().1["reqId"]
+            .as_u64()
+            .unwrap();
+        host.reload();
+        let new = events.recv_timeout(Duration::from_secs(1)).unwrap().1["reqId"]
+            .as_u64()
+            .unwrap();
+        host.search_result(old, json!({"query":"stale"}));
+        host.search_result(new, json!({"query":"current"}));
+        assert_eq!(
+            events.recv_timeout(Duration::from_secs(1)).unwrap().1["body"],
+            "current"
+        );
+        assert!(events.recv_timeout(Duration::from_millis(50)).is_err());
+    }
+
     fn fake_wave(lua: &Lua) -> mlua::Result<()> {
         let wave = lua.create_table()?;
         let events = lua.create_table()?;
         lua.globals().set("wave_events", events.clone())?;
-        wave.set(
-            "log",
-            lua.create_function(|_lua, _msg: String| Ok(()))?,
-        )?;
+        wave.set("log", lua.create_function(|_lua, _msg: String| Ok(()))?)?;
         wave.set(
             "notify",
             lua.create_function(|_lua, (_t, _b): (String, String)| Ok(()))?,
@@ -1064,11 +1458,13 @@ mod tests {
         let mk = |name: &str| {
             let events = events.clone();
             let n = name.to_string();
-            lua.create_function(move |lua, handler: Value| register_handler(lua, &events, &n, handler))
+            lua.create_function(move |lua, handler: Value| {
+                register_handler(lua, &events, &n, handler)
+            })
         };
         for name in [
-            "track", "play", "pause", "state", "queue", "volume", "shuffle", "repeat",
-            "ended", "skip",
+            "track", "play", "pause", "state", "queue", "volume", "shuffle", "repeat", "ended",
+            "skip",
         ] {
             wave.set(format!("on_{name}"), mk(name)?)?;
         }
@@ -1093,8 +1489,32 @@ mod tests {
             "get_state",
             lua.create_function(|lua, _: ()| Ok(Value::Table(lua.create_table()?)))?,
         )?;
-        for m in ["play", "pause", "stop", "toggle", "next", "prev", "seek", "jump", "set_volume", "set_shuffle", "set_repeat"] {
+        for m in [
+            "play",
+            "pause",
+            "stop",
+            "toggle",
+            "next",
+            "prev",
+            "seek",
+            "jump",
+            "set_volume",
+            "set_shuffle",
+            "set_repeat",
+        ] {
             wave.set(m, lua.create_function(|_lua, _: mlua::MultiValue| Ok(()))?)?;
+        }
+        for m in [
+            "get_config",
+            "set_config",
+            "get_playlists",
+            "get_liked",
+            "get_history",
+        ] {
+            wave.set(
+                m,
+                lua.create_function(|_lua, _: mlua::MultiValue| Ok(Value::Nil))?,
+            )?;
         }
         lua.globals().set("wave", wave)?;
         Ok(())

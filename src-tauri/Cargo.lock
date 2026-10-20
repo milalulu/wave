@@ -6184,6 +6184,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
+ "tempfile",
  "tokio",
  "zbus 4.4.0",
  "zip 2.4.2",

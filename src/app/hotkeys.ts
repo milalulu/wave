@@ -20,7 +20,7 @@ export function bindGlobalHotkeys(services: AppServices): () => void {
   ];
 
   for (const [shortcut, action] of shortcuts) {
-    register(shortcut, () => action()).catch(() => {
+    register(shortcut, (event) => { if (event.state === "Pressed") action(); }).catch(() => {
       
     });
   }

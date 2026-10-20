@@ -30,6 +30,9 @@ const AlbumDetailView = lazy(() =>
 const ArtistDetailView = lazy(() =>
   import("./ui/ArtistDetailView").then((m) => ({ default: m.ArtistDetailView })),
 );
+const ArtistRadioView = lazy(() =>
+  import("./ui/ArtistRadioView").then((m) => ({ default: m.ArtistRadioView })),
+);
 const PlaylistView = lazy(() =>
   import("./ui/PlaylistView").then((m) => ({ default: m.PlaylistView })),
 );
@@ -207,6 +210,7 @@ function App() {
       {view === "wave" && <WaveView />}
       {view === "album" && <AlbumDetailView />}
       {view === "artist" && <ArtistDetailView />}
+      {view === "artistRadio" && <ArtistRadioView />}
       {view === "playlist" && <PlaylistView />}
       {view === "downloads" && <DownloadsView />}
       {view === "wrapped" && <WrappedView />}

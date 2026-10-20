@@ -355,6 +355,8 @@ export interface Translations {
     pluginsDisabled: string;
     pluginsLoadError: string;
     pluginsLog: string;
+    pluginsInstall: string;
+    pluginsInstallUrl: string;
   };
   shortcuts: {
     title: string;
@@ -411,6 +413,18 @@ export interface Translations {
     languages: string;
     languagesDesc: string;
     languagesNone: string;
+  };
+  artistRadio: {
+    title: string;
+    loading: string;
+    empty: string;
+    tracks: string;
+    refresh: string;
+    retry: string;
+    save: string;
+    saveAsPlaylist: string;
+    switchStation: string;
+    stationReady: (n: number) => string;
   };
   toasts: {
     queueRestored: string;
@@ -897,6 +911,8 @@ export const translations: Record<Locale, Translations> = {
       pluginsDisabled: "Disabled",
       pluginsLoadError: "Failed to load",
       pluginsLog: "Log",
+      pluginsInstall: "Install",
+      pluginsInstallUrl: "Plugin .lua URL (https://…)",
     },
     shortcuts: {
       title: "Keyboard Shortcuts",
@@ -953,6 +969,18 @@ export const translations: Record<Locale, Translations> = {
       languages: "Preferred Languages",
       languagesDesc: "Boost tracks in selected languages in recommendations",
       languagesNone: "All languages",
+    },
+    artistRadio: {
+      title: "Artist Radio",
+      loading: "Building station…",
+      empty: "No tracks for this station yet",
+      tracks: "Station tracks",
+      refresh: "Refresh",
+      retry: "Retry",
+      save: "Save",
+      saveAsPlaylist: "Save station as playlist",
+      switchStation: "Open radio of this artist",
+      stationReady: (n: number) => `${n} tracks in station`,
     },
     toasts: {
       queueRestored: "Queue restored — press play",
@@ -1437,6 +1465,8 @@ export const translations: Record<Locale, Translations> = {
       pluginsDisabled: "Отключено",
       pluginsLoadError: "Не удалось загрузить",
       pluginsLog: "Лог",
+      pluginsInstall: "Установить",
+      pluginsInstallUrl: "URL плагина .lua (https://…)",
     },
     shortcuts: {
       title: "Горячие клавиши",
@@ -1493,6 +1523,18 @@ export const translations: Record<Locale, Translations> = {
       languages: "Предпочтительные языки",
       languagesDesc: "Усиливать треки на выбранных языках в рекомендациях",
       languagesNone: "Все языки",
+    },
+    artistRadio: {
+      title: "Радио по артисту",
+      loading: "Строим станцию…",
+      empty: "Для этой станции пока нет треков",
+      tracks: "Треки станции",
+      refresh: "Обновить",
+      retry: "Повторить",
+      save: "Сохранить",
+      saveAsPlaylist: "Сохранить станцию как плейлист",
+      switchStation: "Открыть радио этого артиста",
+      stationReady: (n: number) => `Треков на станции: ${n}`,
     },
     toasts: {
       queueRestored: "Очередь восстановлена — нажмите play",

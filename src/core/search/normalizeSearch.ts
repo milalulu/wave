@@ -2,7 +2,7 @@ import type { Album, Artist, SearchResults, Track } from "../types";
 
 const FULL_PLAYBACK = new Set(["youtube", "soundcloud"]);
 
-const NOISE_RE = /\[([^\]]*)\]|\(([^\)]*)\)|\{([^\}]*)\}/g;
+const NOISE_RE = /\[([^\]]*)\]|\(([^)]*)\)|\{([^}]*)\}/g;
 const EXTRA_NOISE = [
   /official\s+(video|audio|music\s+video|lyric\s+video|visualizer|performance)/i,
   /official/i,
@@ -16,7 +16,7 @@ const EXTRA_NOISE = [
 ];
 const SEPARATOR_RE = /\s*[-–—:]\s*/;
 
-let normalizeCache = new Map<string, string>();
+const normalizeCache = new Map<string, string>();
 
 function cacheGet(key: string): string | undefined {
   return normalizeCache.get(key);
@@ -66,7 +66,7 @@ export function normalizeArtist(raw: string): string {
   const cached = cacheGet(`a:${raw}`);
   if (cached !== undefined) return cached;
 
-  let s = raw
+  const s = raw
     .replace(/\s*[-–—]\s*(topic|vevo|official|music|entertainment|topic\s+records?|topic\s+music|official\s+topic)\s*$/i, "")
     .replace(/\s+(topic|vevo)\s*$/i, "")
     .replace(/\s*\(topic\)\s*$/i, "")

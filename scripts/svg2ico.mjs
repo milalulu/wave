@@ -10,7 +10,7 @@ const padding = 60;
 const innerSize = size - padding * 2;
 const scale = innerSize / Math.max(origW, origH);
 const offsetX = padding + (innerSize - origW * scale) / 2;
-const offsetY = padding + (innerH = innerSize - origH * scale) / 2;
+const offsetY = padding + (innerSize - origH * scale) / 2;
 
 const squareSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <rect width="${size}" height="${size}" fill="transparent"/>

@@ -3,7 +3,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark, WaveIcon, ChartIcon } from "./icons";
 
-export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "playlist" | "settings" | "downloads" | "wrapped";
+export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped";
 
 function QueueIcon2(p: { size?: number }) {
   return (

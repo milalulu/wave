@@ -7,6 +7,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat["recommended-latest"],
+  { files: ["**/*.mjs"], languageOptions: { globals: {
+    AbortController: "readonly", setTimeout: "readonly", clearTimeout: "readonly",
+    fetch: "readonly", console: "readonly", process: "readonly",
+  } } },
   {
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],

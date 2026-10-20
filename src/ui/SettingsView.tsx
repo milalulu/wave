@@ -204,6 +204,9 @@ export function SettingsView() {
   const [discordClientId, setDiscordClientId] = useState(() => localStorage.getItem("wave-discord-client-id") ?? "");
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [pluginsBusy, setPluginsBusy] = useState(false);
+  const [installUrl, setInstallUrl] = useState("");
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
   const refreshPlugins = useCallback(async () => {
     try {
       setPlugins((await invoke<PluginInfo[]>("plugin_list")) ?? []);
@@ -211,6 +214,26 @@ export function SettingsView() {
       notify(e instanceof Error ? e.message : String(e));
     }
   }, [notify]);
+  const installInFlight = useRef(false);
+  const installPlugin = async () => {
+    const url = installUrl.trim();
+    if (!url || installInFlight.current) return;
+    installInFlight.current = true;
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      await invoke<string>("plugin_install", { url });
+      setInstallUrl("");
+      await refreshPlugins();
+      notify(t("settings").pluginsInstall);
+    } catch (error) {
+      setInstallError(error instanceof Error ? error.message : String(error));
+    } finally {
+      installInFlight.current = false;
+      setInstalling(false);
+    }
+  };
+
   useEffect(() => {
     void refreshPlugins();
   }, [refreshPlugins]);
@@ -1151,6 +1174,18 @@ export function SettingsView() {
               <RefreshCwIcon size={16} /> {t("settings").pluginsReload}
             </button>
           </div>
+          {installError && <div className="error-message" role="alert">{installError}</div>}
+          <form className="settings-install-row" onSubmit={(event) => {
+            event.preventDefault();
+            void installPlugin();
+          }}>
+            <input type="url" required value={installUrl} disabled={installing}
+              placeholder={t("settings").pluginsInstallUrl}
+              onChange={(event) => setInstallUrl(event.target.value)} />
+            <button className="btn" type="submit" disabled={installing || !installUrl.trim()}>
+              {installing ? "…" : t("settings").pluginsInstall}
+            </button>
+          </form>
           {plugins.length === 0 ? (
             <p className="muted">{t("settings").pluginsEmpty}</p>
           ) : (
