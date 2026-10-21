@@ -1,6 +1,6 @@
 use crate::plugin_support::{
-    self, limited_lua, next_request_id, read_limited, validate_source, write_atomic, MAX_BODY,
-    MAX_SOURCE, REQUEST_TIMEOUT,
+    self, join_worker, limited_lua, next_request_id, read_limited, run_limited, validate_source,
+    write_atomic, MAX_BODY, MAX_SOURCE, REQUEST_TIMEOUT,
 };
 use mlua::{Lua, LuaSerdeExt, Table, Value};
 use serde::Serialize;
@@ -473,10 +473,10 @@ fn call_handler(
 ) -> mlua::Result<()> {
     budget.store(0, Ordering::Relaxed);
     if let Value::Function(f) = function {
-        let result = match arg {
+        let result = run_limited(|| match arg {
             Some(a) => f.call::<Value>(a),
             None => f.call::<Value>(()),
-        };
+        });
         if let Err(e) = result {
             let _ = tx.send(HostMsg::Log {
                 plugin: plugin.to_string(),
@@ -530,6 +530,7 @@ pub struct PluginHost {
     registry: Arc<Mutex<Registry>>,
     host_tx: Sender<HostMsg>,
     lifecycle: Arc<Mutex<()>>,
+    retiring: Arc<Mutex<HashMap<String, std::thread::JoinHandle<()>>>>,
 }
 
 impl PluginHost {
@@ -590,6 +591,7 @@ impl PluginHost {
             registry,
             host_tx,
             lifecycle: Arc::new(Mutex::new(())),
+            retiring: Arc::new(Mutex::new(HashMap::new())),
         };
         host.ensure_dir();
         // Frontend calls plugin_ready after its event listeners are installed.
@@ -622,10 +624,27 @@ impl PluginHost {
             .get(&id)
             .copied()
             .unwrap_or(false);
-        let source = std::fs::File::open(&path)
-            .map_err(|e| e.to_string())
-            .and_then(|file| read_limited(file, MAX_SOURCE))
-            .and_then(|bytes| validate_source(&bytes).map(str::to_owned));
+        let previous_stopping = {
+            let mut retiring = self.retiring.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(worker) = retiring.remove(&id) {
+                if let Some(worker) = join_worker(worker, Duration::from_millis(100)) {
+                    retiring.insert(id.clone(), worker);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        let source = if previous_stopping {
+            Err("previous plugin worker is still stopping; retry reload".to_string())
+        } else {
+            std::fs::File::open(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|file| read_limited(file, MAX_SOURCE))
+                .and_then(|bytes| validate_source(&bytes).map(str::to_owned))
+        };
         if !enabled || source.is_err() {
             let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
             if !reg.order.contains(&id) {
@@ -998,9 +1017,9 @@ impl PluginHost {
 
                 if let Err(e) = set_api(&lua).and_then(|_| {
                     budget.store(0, Ordering::Relaxed);
-                    lua.load(&source)
+                    run_limited(|| lua.load(&source)
                         .set_name(format!("{id_c}.lua"))
-                        .exec()
+                        .exec())
                 }) {
                     let _ = tx.send(HostMsg::Log {
                         plugin: id_c.clone(),
@@ -1092,7 +1111,12 @@ impl PluginHost {
             }
             // Never wait while holding the registry mutex: a worker may be reading config.
             if let Some(thread) = entry.thread.take() {
-                let _ = thread.join();
+                if let Some(thread) = join_worker(thread, Duration::from_millis(100)) {
+                    self.retiring
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(id.to_string(), thread);
+                }
             }
         }
     }
@@ -1338,6 +1362,38 @@ mod tests {
         );
         host.reload();
         (dir, host, rx)
+    }
+
+    #[test]
+    fn a_still_stopping_worker_cannot_be_replaced() {
+        let (_dir, host, _events) = host_with_scripts(&[("slow", "wave_plugin = {name='Slow'}")]);
+        let (tx, rx) = channel();
+        let worker = std::thread::spawn(move || {
+            let _ = rx.recv();
+        });
+        host.retiring.lock().unwrap().insert("slow".into(), worker);
+        host.set_enabled("slow", true).unwrap();
+        let info = host.list().into_iter().find(|p| p.id == "slow").unwrap();
+        assert!(!info.loaded);
+        assert!(info.error.unwrap().contains("still stopping"));
+        tx.send(()).unwrap();
+        host.reload();
+        assert!(host.list().iter().any(|p| p.id == "slow" && p.loaded));
+        host.shutdown_all();
+    }
+
+    #[test]
+    fn protected_infinite_loop_is_reported_as_a_load_failure() {
+        let (_dir, host, _events) = host_with_scripts(&[(
+            "loop",
+            "while true do pcall(function() while true do end end) end",
+        )]);
+        host.set_enabled("loop", true).unwrap();
+        let info = host.list().into_iter().find(|p| p.id == "loop").unwrap();
+        assert!(!info.loaded);
+        assert!(info.error.unwrap().contains("instruction budget"));
+        host.set_enabled("loop", false).unwrap();
+        host.shutdown_all();
     }
 
     #[test]

@@ -165,52 +165,47 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/gen/android/app/keystore.p12
-            printf 'password=%s\nkeyAlias=upload\nstoreFile=keystore.p12\n' \
-              "$ANDROID_KEYSTORE_PASSWORD" > src-tauri/gen/android/keystore.properties
-          fi
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEYSTORE_PASSWORD" || {
+            echo "Android releases require ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD."
+            exit 1
+          }
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/gen/android/app/keystore.p12
+          python3 - <<'PYKEY'
+          import os
+          from pathlib import Path
+          # Escape Java properties syntax, including passwords containing backslashes/newlines.
+          encoded = os.environ['ANDROID_KEYSTORE_PASSWORD'].encode('utf-16-be').hex()
+          password = ''.join('\\u' + encoded[i:i+4] for i in range(0, len(encoded), 4))
+          Path('src-tauri/gen/android/keystore.properties').write_text(
+              f'password={password}\nkeyAlias=upload\nstoreFile=keystore.p12\n')
+          PYKEY
 
-      - name: Build and upload APK
-        uses: tauri-apps/tauri-action@v1
+      - name: Build release APKs
+        run: pnpm tauri android build --apk --target aarch64 armv7
+
+      - name: Verify release APKs before upload
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          mobile: android
-          tagName: ${{ github.ref_name }}
-          releaseName: "Wave ${{ github.ref_name }}"
-          releaseBody: "Подробности: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md"
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: false
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
-          args: --apk --target aarch64 armv7
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: bash scripts/verify-android-release.sh src-tauri/gen/android/app/build/outputs/apk src-tauri/gen/android/app/keystore.p12 upload
 
-      - name: Verify APK signatures
-        shell: bash
-        run: |
-          set -e
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null | tail -1)
-          [ -n "$APKSIGNER" ] || { echo "apksigner not found under $SDK"; exit 1; }
-          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -print0 |
-            while IFS= read -r -d '' apk; do
-              echo "== verifying $(basename "$apk")"
-              "$APKSIGNER" verify --verbose --print-certs "$apk"
-            done
+      - name: Remove signing material
+        if: always()
+        run: rm -f src-tauri/gen/android/app/keystore.p12 src-tauri/gen/android/keystore.properties
 
-      # Гарантированно публикуем APK в релиз со стабильными именами.
-      # Секреты не нужны: без keystore.properties сборка подписывается debug-ключом
-      # (см. signingConfig в build.gradle.kts) и APK можно скачивать и ставить.
       - name: Upload APKs with stable names
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: bash
         run: |
           set -e
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --draft --title "Wave $RELEASE_TAG" --generate-notes || gh release view "$RELEASE_TAG"
+          fi
           cd src-tauri/gen/android/app/build/outputs/apk
-          find . -name '*.apk' | while read -r apk; do
+          find . -path '*/release/*.apk' -print0 | while IFS= read -r -d '' apk; do
             case "$apk" in
               *arm64*) name="wave-android-arm64.apk" ;;
               *armeabi*|*armv7*) name="wave-android-armv7.apk" ;;
@@ -218,7 +213,7 @@ jobs:
               *) name="wave-android-$(basename "$apk")" ;;
             esac
             cp "$apk" "$name"
-            gh release upload "${{ github.ref_name }}" "$name" --clobber
+            gh release upload "$RELEASE_TAG" "$name" --clobber
             echo "uploaded $name"
           done
 

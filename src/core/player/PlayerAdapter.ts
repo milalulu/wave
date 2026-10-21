@@ -2,7 +2,8 @@ import type { PlayerState } from "../types";
 
 export interface AudioAdapter {
   
-  load(src: string): Promise<void>;
+  /** Refresh is bound to this source and rechecks policy/expiry on output changes. */
+  load(src: string, refreshSource?: () => Promise<string>): Promise<void>;
   
   preload(src: string): void;
   

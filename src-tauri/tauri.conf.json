@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://asset.localhost asset: blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost blob: https:; font-src 'self' data:; connect-src 'self' asset: http://asset.localhost blob: https:; object-src 'none'",
+      "csp": "default-src 'self' http://asset.localhost asset: blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src http://127.0.0.1:8299 'self' asset: http://asset.localhost blob: https:; font-src 'self' data:; connect-src http://127.0.0.1:8299 'self' asset: http://asset.localhost blob: https:; object-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

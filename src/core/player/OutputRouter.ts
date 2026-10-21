@@ -5,6 +5,10 @@ import type { PlayerState } from "../types";
 export class OutputRouter implements AudioAdapter {
   private active: AudioAdapter;
   private source: string | null = null;
+  private refreshSource?: () => Promise<string>;
+  private disposed = false;
+  private transitioning: AudioAdapter[] = [];
+  private destroyed = new WeakSet<AudioAdapter>();
   private state: PlayerState = "idle";
   private volume = 1;
   private queue: Promise<unknown> = Promise.resolve();
@@ -29,51 +33,85 @@ export class OutputRouter implements AudioAdapter {
     ];
   }
   private serial<T>(fn: () => Promise<T>): Promise<T> {
-    const work = this.queue.then(fn);
+    const work = this.queue.then(() => {
+      this.assertAlive();
+      return fn();
+    });
     this.queue = work.catch(() => {});
     return work;
+  }
+  private assertAlive(): void {
+    if (this.disposed) throw new Error("Audio output has been destroyed");
+  }
+  private disposeOutput(output: AudioAdapter): void {
+    if (this.destroyed.has(output)) return;
+    this.destroyed.add(output);
+    output.destroy();
   }
   switchTo(next: AudioAdapter, resume = true): Promise<void> {
     return this.serial(async () => {
       if (next === this.active) return;
-      const previous = this.active,
-        playing = resume && this.state === "playing",
-        position = previous.getPosition();
-      if (this.source) {
-        await next.load(this.source);
-        next.seek(position);
-      }
-      next.setVolume(this.volume);
-      this.detach.forEach((stop) => stop());
-      previous.pause();
-      this.active = next;
-      this.attach();
+      const previous = this.active;
+      this.transitioning = [previous, next];
+      let handedOff = false;
+      let playing = false;
       try {
-        if (playing && this.source) await next.play();
-        else {
+        // This callback belongs to the loaded track, not to the current queue
+        // selection, which may already have changed during a slow handoff.
+        const source = this.refreshSource ? await this.refreshSource() : this.source;
+        this.assertAlive();
+        if (source) {
+          await next.load(source);
+          this.assertAlive();
+          // Local playback continues while the receiver loads.
+          next.seek(previous.getPosition());
+        }
+        next.setVolume(this.volume);
+        playing = resume && this.state === "playing";
+        this.detach.forEach((stop) => stop());
+        previous.pause();
+        this.active = next;
+        handedOff = true;
+        this.attach();
+        if (playing && source) {
+          await next.play();
+          this.assertAlive();
+        } else {
           this.state = "paused";
           this.states.forEach((cb) => cb("paused"));
         }
+        this.source = source;
         this.times.forEach((cb) => cb(next.getPosition(), next.getDuration()));
-        if (previous !== this.local) previous.destroy();
+        if (previous !== this.local) this.disposeOutput(previous);
       } catch (e) {
-        this.detach.forEach((stop) => stop());
-        this.active = previous;
-        this.attach();
-        if (next !== this.local) next.destroy();
-        if (playing) await previous.play();
+        if (this.disposed) {
+          this.disposeOutput(previous);
+        } else if (handedOff) {
+          this.detach.forEach((stop) => stop());
+          this.active = previous;
+          this.attach();
+        }
+        if (next !== this.local) this.disposeOutput(next);
+        if (!this.disposed && handedOff && playing) await previous.play();
         throw e;
+      } finally {
+        this.transitioning = [];
       }
     });
   }
-  load(src: string): Promise<void> {
+  load(src: string, refreshSource?: () => Promise<string>): Promise<void> {
     return this.serial(async () => {
       await this.active.load(src);
+      this.assertAlive();
       this.source = src;
+      this.refreshSource = refreshSource;
     });
   }
   play(): Promise<void> {
-    return this.serial(() => this.active.play());
+    return this.serial(async () => {
+      await this.active.play();
+      this.assertAlive();
+    });
   }
   private command(fn: () => void): void {
     void this.serial(async () => fn()).catch((e) =>
@@ -81,38 +119,45 @@ export class OutputRouter implements AudioAdapter {
     );
   }
   pause(): void {
-    this.command(() => this.active.pause());
+    if (this.disposed) return;
+    const current = this.active;
+    // Stop audible playback immediately, even while the next output is loading.
+    this.state = "paused";
+    current.pause();
+    this.states.forEach((cb) => cb("paused"));
+    this.command(() => { if (this.active !== current) this.active.pause(); });
   }
   seek(seconds: number): void {
     this.command(() => this.active.seek(seconds));
   }
   preload(src: string): void {
-    this.active.preload(src);
+    if (!this.disposed) this.active.preload(src);
   }
   setVolume(v: number): void {
+    if (this.disposed) return;
     this.volume = v;
     this.active.setVolume(v);
   }
   setPlaybackRate(v: number): void {
-    this.local.setPlaybackRate(v);
+    if (!this.disposed) this.local.setPlaybackRate(v);
   }
   setEqualizer(v: number[]): void {
-    this.local.setEqualizer(v);
+    if (!this.disposed) this.local.setEqualizer(v);
   }
   setCrossfadeMs(v: number): void {
-    this.local.setCrossfadeMs(v);
+    if (!this.disposed) this.local.setCrossfadeMs(v);
   }
   setLeveling(a: boolean, b: number): void {
-    this.local.setLeveling(a, b);
+    if (!this.disposed) this.local.setLeveling(a, b);
   }
   setBassBoost(v: number): void {
-    this.local.setBassBoost(v);
+    if (!this.disposed) this.local.setBassBoost(v);
   }
   setReverb(v: number): void {
-    this.local.setReverb(v);
+    if (!this.disposed) this.local.setReverb(v);
   }
   setStereoWidth(v: number): void {
-    this.local.setStereoWidth(v);
+    if (!this.disposed) this.local.setStereoWidth(v);
   }
   getPosition(): number {
     return this.active.getPosition();
@@ -148,8 +193,17 @@ export class OutputRouter implements AudioAdapter {
     };
   }
   destroy(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.detach.forEach((stop) => stop());
-    this.active.destroy();
-    if (this.active !== this.local) this.local.destroy();
+    this.disposeOutput(this.active);
+    this.disposeOutput(this.local);
+    this.transitioning.forEach((output) => this.disposeOutput(output));
+    this.states.clear();
+    this.times.clear();
+    this.ends.clear();
+    this.errors.clear();
+    this.refreshSource = undefined;
+    this.source = null;
   }
 }

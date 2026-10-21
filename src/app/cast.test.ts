@@ -80,3 +80,22 @@ it("reports connection loss once and stops polling after destruction", async () 
   expect(invoke).toHaveBeenCalledTimes(calls);
   expect(invoke).toHaveBeenCalledWith("cast_disconnect", { id: 9 });
 });
+
+it("a late load cannot restart polling after destruction", async () => {
+  let complete!: () => void;
+  vi.mocked(invoke).mockImplementation((command) => command === "cast_load"
+    ? new Promise<void>((resolve) => { complete = resolve; })
+    : Promise.resolve(undefined));
+  const adapter = new NativeCastAdapter(10, vi.fn());
+  const loading = adapter.load("one");
+  const result = expect(loading).rejects.toThrow("cancelled");
+  await Promise.resolve();
+  adapter.destroy();
+  adapter.destroy();
+  complete();
+  await result;
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(invoke).not.toHaveBeenCalledWith("cast_status", expect.anything());
+  expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === "cast_disconnect")).toHaveLength(1);
+  await expect(adapter.load("two")).rejects.toThrow("ended");
+});

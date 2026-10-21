@@ -19,7 +19,7 @@
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/github/v/release/milalulu/wave?label=download&style=for-the-badge&logo=windows&logoColor=white&color=00e5ff" /></a>
   <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
-  <img src="https://img.shields.io/badge/tests-374%20passing-22c55e?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-388%20passing-22c55e?style=for-the-badge" />
 </p>
 
 ---
@@ -218,7 +218,7 @@ src-tauri/
 └── gen/android/          # натив: PlaybackService, виджет, Auto, будильник, шеринг
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 374 теста в 49 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
+**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 388 тестов в 50 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
 
 ---
 
@@ -239,7 +239,7 @@ src-tauri/
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
-pnpm test                # 374 теста
+pnpm test                # 388 тестов
 pnpm tauri dev           # разработка
 pnpm tauri build         # релиз
 ```
@@ -274,7 +274,10 @@ Lua-файл. Загруженный плагин по умолчанию вык
 `wave.get_playlists`, `wave.get_liked`, `wave.get_history` читают библиотеку.
 Сетевые операции не блокируют обработчик событий. Запросы имеют уникальные ID,
 таймауты и ограничение параллелизма. Lua ограничен по памяти и числу инструкций;
-нативные `io`/`os` отключены. Это ограничения выполнения, а не изоляция недоверенного кода.
+нативные `io`/`os` и корутины отключены. Асинхронные операции доступны через
+обратные вызовы `wave`. Лимит инструкций нельзя перехватить через `pcall`/`xpcall`.
+Остановка ждёт поток не более 100 мс; если он ещё работает, повторный запуск этого
+плагина откладывается до завершения потока. Это ограничения выполнения, а не изоляция недоверенного кода.
 После перезагрузки ответы предыдущего экземпляра отбрасываются.
 
 Архитектура: отбор станции — `core/radio`; сбор кандидатов — `app/artistRadio`;
@@ -310,6 +313,25 @@ multicast lock только на время поиска. Приложение �
 
 ### Запуск треков и проверки сборки
 
+Пауза, очистка очереди и закрытие плеера отменяют ожидающие запуски. При смене
+аудиовыхода URL повторно проходит общий resolver, а позиция берётся после загрузки
+приёмника. YouTube и SoundCloud вынесены из `lib.rs` в собственные модули;
+навигация и защита от поздних ответов альбомов/исполнителей — в `navigationSlice`.
+
+В журнале диагностики строки `Playback` содержат время получения ссылки (`resolve`),
+проверки (`validate`), загрузки (`load`) и запуска адаптера (`play`), общий итог и
+исход `playing`/`failed`/`cancelled`. Имена треков, ID и подписанные URL в эти записи
+не попадают; журнал ограничен 50 строками. Это время до завершения команды запуска,
+а не акустическое измерение первого звука. Для сравнения прогоняйте один источник
+после холодного старта и повторно, затем со слабой сетью; фиксируйте медиану и p95.
+Измерения на реальных провайдерах и устройствах пока не выполнены.
+
+Android запускает только медиамаршрут `/audio` на `127.0.0.1:8299`; HTTP-команды
+управления остаются десктопной возможностью. CSP разрешает этот точный адрес.
+Release WebView допускает незашифрованное соединение только с loopback согласно
+[Android Network Security Configuration](https://developer.android.com/privacy-and-security/security-config).
+Для `tauri android dev` отдельный debug-ресурс сохраняет доступ к серверу разработки.
+
 Идеи PR #1/#2 адаптированы к текущему коду: кэш учитывает эффективное качество и
 срок подписанной ссылки, одновременные запросы объединяются, офлайн-режим и блокировки
 проверяются до кэша. Прогрев первых трёх результатов выполняется последовательно
@@ -318,10 +340,27 @@ multicast lock только на время поиска. Приложение �
 для WebKit; Chromium пробует поток через Range-прокси.
 
 Проверки: TypeScript/Vitest, ESLint, Rust fmt/clippy/tests, frontend/Linux-сборки;
-локально также собран Android debug APK для arm64. Android CI явно устанавливает
+локально собраны Android arm64 debug и unsigned release APK (release — 31,57 МиБ). Android CI явно устанавливает
 API 36, Build Tools 35 и NDK 27.0.12077973. Скрипт `scripts/android-smoke.sh`
 проверяет запуск и сохранение одного PID в течение 30 секунд, сохраняет logcat и снимок.
 Этот smoke-тест и воспроизведение на физических устройствах локально не запускались.
+
+Android release собирается без отладочных символов. Без `keystore.properties`
+локальный release APK остаётся **неподписанным**. Для публикации workflow требует
+`ANDROID_KEYSTORE_BASE64` и `ANDROID_KEYSTORE_PASSWORD`, alias `upload`.
+Перед загрузкой `scripts/verify-android-release.sh` проверяет подпись каждого APK
+по сертификату заданного ключа, application ID и отсутствие `debuggable`; пустой
+набор APK, другой ключ или debug-сертификат завершают публикацию ошибкой.
+Эти отказы и успешная проверка ожидаемого сертификата воспроизведены локально
+на APK с временными тестовыми ключами; ключ публикации не создавался.
+Релизный ключ должен совпадать с ключом предыдущей установленной версии для обновления.
+
+Остаются проверки на целевых устройствах: фон/блокировка экрана/наушники на Android,
+потеря сети и Cast-приёмника, совместимость потоков, установка и обновление APK с
+настоящим релизным ключом, а также запуск обновлённого CI на GitHub. Cast сохраняет
+статус beta. Lua по-прежнему предназначен для доверенных плагинов; отдельного
+пользовательского подтверждения разрешений команд пока нет.
+
 
 ---
 

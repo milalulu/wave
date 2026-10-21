@@ -1,9 +1,10 @@
 import { create } from "zustand";
+import { createNavigationSlice, type NavigationSlice } from "./navigationSlice";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createArtistRadioSlice, type ArtistRadioSlice } from "./artistRadioSlice";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AlbumDetail, ArtistDetail, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
+import type { Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
 import type { LyricsResult } from "../core/lyrics/LyricsService";
 import type { SmartPlaylistType } from "../core/library/SmartPlaylistGenerator";
 import { generateSmartPlaylists } from "../core/library/SmartPlaylistGenerator";
@@ -77,7 +78,7 @@ const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator
 
 export type { DownloadItem } from "./downloadsSlice";
 
-export interface AppState extends DownloadsSlice, ArtistRadioSlice {
+export interface AppState extends DownloadsSlice, ArtistRadioSlice, NavigationSlice {
   services: AppServices | null;
   ready: boolean;
   onboardingCompleted: boolean;
@@ -95,16 +96,6 @@ export interface AppState extends DownloadsSlice, ArtistRadioSlice {
   pushLog: (message: string) => void;
   clearLogs: () => void;
   reloadServices: () => Promise<void>;
-  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped";
-  setView: (v: AppState["view"]) => void;
-  
-  navStack: AppState["view"][];
-  goBack: () => void;
-  albumDetail: AlbumDetail | null;
-  artistDetail: ArtistDetail | null;
-  loadAlbum: (providerId: string, albumId: string) => Promise<void>;
-  loadArtist: (providerId: string, artistId: string) => Promise<void>;
-  clearDetail: () => void;
   playlists: Playlist[];
   selectedPlaylistId: string | null;
   setSelectedPlaylist: (id: string | null) => void;
@@ -240,15 +231,6 @@ const emptySnapshot: PlayerSnapshot = {
   history: [],
 };
 
-const TAB_VIEWS: ReadonlySet<AppState["view"]> = new Set([
-  "home",
-  "search",
-  "wave",
-  "library",
-  "settings",
-]);
-const isTabView = (v: AppState["view"]): boolean => TAB_VIEWS.has(v);
-
 export const useApp = create<AppState>()((set, get, api) => ({
   services: null,
   ready: false,
@@ -286,61 +268,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   clearLogs: () => {
     set({ logs: [] });
   },
-  view: "home",
-  navStack: ["home"],
-  setView: (v) =>
-    set((s) => {
-      if (s.view === v) return s;
-      const navStack = isTabView(v)
-        ? [v]
-        : s.navStack[s.navStack.length - 1] === v
-          ? s.navStack
-          : [...s.navStack, v];
-      return { view: v, navStack };
-    }),
-  goBack: () =>
-    set((s) => {
-      if (s.navStack.length <= 1) return s;
-      const navStack = s.navStack.slice(0, -1);
-      const view = navStack[navStack.length - 1];
-      return {
-        view,
-        navStack,
-        ...(s.view === "album" ? { albumDetail: null } : {}),
-        ...(s.view === "artist" ? { artistDetail: null } : {}),
-      };
-    }),
-  albumDetail: null,
-  artistDetail: null,
-  loadAlbum: async (providerId, albumId) => {
-    const { services } = get();
-    if (!services) return;
-    const provider = services.providers.find((p) => p.id === providerId);
-    if (!provider) return;
-    try {
-      const detail = await provider.getAlbum(albumId);
-      set({ albumDetail: detail });
-      services.prewarmer?.prewarm(detail.tracks);
-      get().setView("album");
-    } catch (e) {
-      get().notify(e instanceof Error ? e.message : String(e));
-    }
-  },
-  loadArtist: async (providerId, artistId) => {
-    const { services } = get();
-    if (!services) return;
-    const provider = services.providers.find((p) => p.id === providerId);
-    if (!provider) return;
-    try {
-      const detail = await provider.getArtist(artistId);
-      set({ artistDetail: detail });
-      services.prewarmer?.prewarm(detail.topTracks);
-      get().setView("artist");
-    } catch (e) {
-      get().notify(e instanceof Error ? e.message : String(e));
-    }
-  },
-  clearDetail: () => set({ albumDetail: null, artistDetail: null }),
+  ...createNavigationSlice(set, get, api),
 
   playlists: [],
   selectedPlaylistId: null,
@@ -1247,6 +1175,10 @@ async function doInit(
   services.engine.on("shuffle", bind);
   services.engine.on("repeat", bind);
   services.engine.on("error", (message) => get().notify(message));
+  services.engine.on("startup", ({ provider, outcome, totalMs, phases }) => {
+    const stages = Object.entries(phases).map(([name, ms]) => `${name}=${Math.round(ms)}ms`).join(" ");
+    get().pushLog(`Playback ${provider}: ${outcome}, ${Math.round(totalMs)}ms (${stages})`);
+  });
 
   // Прогресс загрузок из Rust (yt-dlp).
   void listen<{ jobId: string; percent: number }>("download-progress", (event) => {

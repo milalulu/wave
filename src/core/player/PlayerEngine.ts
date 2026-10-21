@@ -1,3 +1,4 @@
+import { StartupMeasurement, type StartupTiming } from "./StartupMeasurement";
 import { EventEmitter } from "../util/EventEmitter";
 import type { PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
@@ -5,6 +6,7 @@ import { Queue } from "../queue/Queue";
 import { validateStreamUrl } from "../util/validateUrl";
 
 export interface PlayerEvents {
+  startup: StartupTiming;
   state: PlayerState;
   track: Track | null;
   time: { position: number; duration: number };
@@ -66,6 +68,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private retries = 0;
   private maxRetries: number;
   private playSeq = 0;
+  private disposed = false;
   private preloadCache = new Map<string, string | Promise<string | undefined>>();
   private prefetchedIds = new Set<string>();
   private prefetchInFlight = false;
@@ -281,6 +284,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   pause(): void {
+    this.playSeq += 1;
+    this.setState("paused");
     this.adapter.pause();
   }
 
@@ -327,6 +332,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private stopAtEnd(): void {
+    this.playSeq += 1;
+    this.clearStallTimer();
     this.adapter.pause();
     this.hasSource = false;
     this.queue.clear();
@@ -481,6 +488,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   clearQueue(): void {
+    this.playSeq += 1;
+    this.clearStallTimer();
     this.queue.clear();
     this.hasSource = false;
     this.adapter.pause();
@@ -496,10 +505,13 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   destroy(): void {
+    this.disposed = true;
+    this.playSeq += 1;
     this.clearStallTimer();
     this.detach.forEach((d) => d());
     this.detach = [];
     this.adapter.destroy();
+    this.clear();
   }
 
   private async playCurrent(): Promise<void> {
@@ -509,6 +521,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.fallbackUsed = false;
     }
     this.playSeq += 1;
+    this.hasSource = false;
     this.retries = 0;
     this.consecutiveFails = 0;
     void this.maybeRefillQueue();
@@ -564,10 +577,12 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private async startTrack(seq: number): Promise<void> {
     const track = this.queue.current();
-    if (!track || seq !== this.playSeq) return;
+    if (this.disposed || !track || seq !== this.playSeq) return;
     this.setState("loading");
     this.startStallTimer();
     this.emit("track", track);
+    const timing = new StartupMeasurement(track.provider);
+    let outcome: StartupTiming["outcome"] = "cancelled";
     try {
       const cached = this.preloadCache.get(track.id);
       if (cached) {
@@ -576,13 +591,15 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       this.clearStallTimer();
       // The application resolver rechecks policy, quality and signed-URL expiry.
       // A prefetched URL must never bypass those checks when playback begins.
-      const uri = this.resolveUri ? await this.resolveUri(track)
-        : cached ? await cached : track.uri;
+      const uri = await timing.measure("resolve", async () => this.resolveUri
+        ? this.resolveUri(track) : cached ? await cached : track.uri);
       if (!uri) throw new Error("no stream URL");
       if (seq !== this.playSeq) return;
 
-      await validateStreamUrl(uri);
-      await this.adapter.load(uri);
+      await timing.measure("validate", () => validateStreamUrl(uri));
+      if (seq !== this.playSeq) return;
+      await timing.measure("load", () => this.adapter.load(uri,
+        this.resolveUri ? () => this.resolveUri!(track) : undefined));
       if (seq !== this.playSeq) return;
       this.hasSource = true;
       this.startStallTimer();
@@ -599,9 +616,13 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         this.restorePosTrackId = null;
         this.restorePos = 0;
       }
-      await this.playWithGuard();
+      await timing.measure("play", () => this.playWithGuard());
+      if (seq === this.playSeq) outcome = "playing";
     } catch (err) {
+      if (seq === this.playSeq) outcome = "failed";
       this.onLoadError(err instanceof Error ? err.message : String(err), seq);
+    } finally {
+      this.emit("startup", timing.finish(outcome));
     }
     this.emitQueue();
   }

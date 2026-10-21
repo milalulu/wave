@@ -44,3 +44,8 @@ percent-encoding = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "4", default-features = false, features = ["tokio"] }
+
+# Release APKs/installers must not embed native debug information. Keep unwind
+# support: the Lua host uses it to enforce non-catchable instruction limits.
+[profile.release]
+strip = "debuginfo"

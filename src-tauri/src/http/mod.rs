@@ -1,4 +1,6 @@
 pub mod bridge;
+pub mod media;
+#[cfg(not(target_os = "android"))]
 pub mod server;
 
 use std::net::IpAddr;

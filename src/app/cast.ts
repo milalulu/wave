@@ -95,11 +95,14 @@ export class NativeCastAdapter
     return work;
   }
   async load(src: string): Promise<void> {
-    this.revision++;
+    if (this.disposed || this.lostReported) throw new Error("Cast session has ended");
+    const revision = ++this.revision;
     clearTimeout(this.timer);
     this.finished = false;
     await this.commands;
+    if (this.disposed || revision !== this.revision) throw new Error("Cast load cancelled");
     await invoke("cast_load", { id: this.id, src });
+    if (this.disposed || revision !== this.revision) throw new Error("Cast load cancelled");
     this.src = src;
     this.position = 0;
     this.setState("paused");
@@ -130,6 +133,7 @@ export class NativeCastAdapter
     this.lost(String(error));
   }
   private poll(): void {
+    if (this.disposed || this.lostReported) return;
     const revision = this.revision;
     this.timer = setTimeout(() => {
       void invoke<RemoteStatus>("cast_status", { id: this.id })
@@ -156,6 +160,7 @@ export class NativeCastAdapter
     }, 1000);
   }
   destroy(): void {
+    if (this.disposed) return;
     this.disposed = true;
     this.revision++;
     clearTimeout(this.timer);

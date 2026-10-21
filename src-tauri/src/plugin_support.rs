@@ -1,6 +1,7 @@
 //! Transport-independent limits and persistence for the Lua host.
-use mlua::{HookTriggers, Lua, VmState};
+use mlua::{HookTriggers, Lua, LuaOptions, StdLib, VmState};
 use std::io::{Read, Write};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -17,7 +18,12 @@ pub fn next_request_id() -> u64 {
 }
 
 pub fn limited_lua(cancelled: Arc<AtomicBool>, budget: Arc<AtomicU64>) -> mlua::Result<Lua> {
-    let lua = Lua::new();
+    // Host callbacks provide asynchronous work. Coroutines could independently
+    // catch hook errors, so only expose libraries for synchronous handlers.
+    let lua = Lua::new_with(
+        StdLib::TABLE | StdLib::STRING | StdLib::MATH | StdLib::UTF8,
+        LuaOptions::new().catch_rust_panics(false),
+    )?;
     lua.set_memory_limit(32 * 1024 * 1024)?;
     // Plugins use the host's bounded APIs for I/O. Lua's native APIs can block
     // outside instruction hooks and would prevent orderly shutdown.
@@ -30,15 +36,43 @@ pub fn limited_lua(cancelled: Arc<AtomicBool>, budget: Arc<AtomicU64>) -> mlua::
         HookTriggers::new().every_nth_instruction(10_000),
         move |_, _| {
             if cancelled.load(Ordering::Relaxed) || budget.fetch_add(1, Ordering::Relaxed) >= 500 {
-                Err(mlua::Error::RuntimeError(
-                    "plugin stopped or instruction budget exceeded".into(),
-                ))
+                // A normal Lua error can be swallowed by an infinite pcall loop.
+                // Unwind to run_limited without invoking the process panic hook.
+                resume_unwind(Box::new(PluginInterrupted))
             } else {
                 Ok(VmState::Continue)
             }
         },
     );
     Ok(lua)
+}
+
+struct PluginInterrupted;
+
+pub fn run_limited<T>(operation: impl FnOnce() -> mlua::Result<T>) -> mlua::Result<T> {
+    match catch_unwind(AssertUnwindSafe(operation)) {
+        Ok(result) => result,
+        Err(reason) if reason.is::<PluginInterrupted>() => Err(mlua::Error::RuntimeError(
+            "plugin stopped or instruction budget exceeded".into(),
+        )),
+        Err(reason) => resume_unwind(reason),
+    }
+}
+
+/// Retain an unfinished worker; never start its replacement until it exits.
+pub fn join_worker(
+    worker: std::thread::JoinHandle<()>,
+    timeout: Duration,
+) -> Option<std::thread::JoinHandle<()>> {
+    let deadline = std::time::Instant::now() + timeout;
+    while !worker.is_finished() {
+        if std::time::Instant::now() >= deadline {
+            return Some(worker);
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let _ = worker.join();
+    None
 }
 
 pub fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>, String> {
@@ -144,11 +178,38 @@ mod tests {
             Arc::new(AtomicU64::new(0)),
         )
         .unwrap();
-        assert!(lua.load("while true do end").exec().is_err());
+        assert!(run_limited(|| lua.load("while true do end").exec()).is_err());
         assert!(lua
             .load("assert(os == nil and io == nil and require == nil)")
             .exec()
             .is_ok());
+    }
+
+    #[test]
+    fn protected_calls_cannot_swallow_instruction_limits() {
+        for source in [
+            "while true do pcall(function() while true do end end) end",
+            "while true do xpcall(function() while true do end end, function() return 'ignored' end) end",
+        ] {
+            let budget = Arc::new(AtomicU64::new(0));
+            let lua = limited_lua(Arc::new(AtomicBool::new(false)), Arc::clone(&budget)).unwrap();
+            assert!(run_limited(|| lua.load(source).exec()).is_err());
+            budget.store(0, Ordering::Relaxed);
+            assert!(run_limited(|| lua.load("assert(coroutine == nil); assert(pcall(function() error('ordinary') end) == false)").exec()).is_ok());
+        }
+    }
+
+    #[test]
+    fn shutdown_retains_a_blocked_worker_without_waiting_for_it() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _ = rx.recv();
+        });
+        let start = std::time::Instant::now();
+        let worker = join_worker(worker, Duration::from_millis(10)).unwrap();
+        assert!(start.elapsed() < Duration::from_secs(1));
+        tx.send(()).unwrap();
+        assert!(join_worker(worker, Duration::from_secs(1)).is_none());
     }
 
     #[test]
@@ -160,10 +221,9 @@ mod tests {
             .exec()
             .is_err());
         cancel.store(true, Ordering::Relaxed);
-        assert!(lua
-            .load("local n = 0; for i=1,100000 do n=n+i end")
-            .exec()
-            .is_err());
+        assert!(
+            run_limited(|| lua.load("local n = 0; for i=1,100000 do n=n+i end").exec()).is_err()
+        );
     }
     #[test]
     fn install_validation_never_executes_code_or_overwrites_existing_files() {

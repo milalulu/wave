@@ -245,3 +245,36 @@ describe("no-op actions without services", () => {
     await expect(previous()).resolves.toBeUndefined();
   });
 });
+
+describe("detail request ordering", () => {
+  function prepare() {
+    let finish!: (value: unknown) => void;
+    const album = new Promise((resolve) => { finish = resolve; });
+    const prewarm = vi.fn();
+    useApp.setState({ services: { providers: [{ id: "test", getAlbum: () => album,
+      getArtist: async () => ({ artist: { id: "new" }, topTracks: [] }) }],
+      prewarmer: { prewarm } } as never, view: "home", navStack: ["home"],
+      albumDetail: null, artistDetail: null });
+    return { finish, prewarm };
+  }
+  it("a late album cannot overwrite a newer artist selection", async () => {
+    const { finish, prewarm } = prepare();
+    const loading = useApp.getState().loadAlbum("test", "old");
+    await useApp.getState().loadArtist("test", "new");
+    finish({ album: { id: "old" }, tracks: [] });
+    await loading;
+    expect(useApp.getState().view).toBe("artist");
+    expect(useApp.getState().albumDetail).toBeNull();
+    expect(prewarm).toHaveBeenCalledOnce();
+  });
+  it("navigation away invalidates a pending detail request", async () => {
+    const { finish, prewarm } = prepare();
+    const loading = useApp.getState().loadAlbum("test", "old");
+    useApp.getState().setView("settings");
+    finish({ album: { id: "old" }, tracks: [] });
+    await loading;
+    expect(useApp.getState().view).toBe("settings");
+    expect(useApp.getState().albumDetail).toBeNull();
+    expect(prewarm).not.toHaveBeenCalled();
+  });
+});

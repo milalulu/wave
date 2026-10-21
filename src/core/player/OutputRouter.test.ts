@@ -59,3 +59,92 @@ describe("output changes", () => {
     expect(remote.state).toBe("idle");
   });
 });
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+it("transfers the position reached during a slow receiver load", async () => {
+  const local = new MockAudioAdapter(), remote = new MockAudioAdapter();
+  const router = new OutputRouter(local), loading = deferred();
+  await router.load("song");
+  await router.play();
+  local.tick(20);
+  remote.load = vi.fn(async () => { await loading.promise; });
+  const handoff = router.switchTo(remote);
+  await vi.waitFor(() => expect(remote.load).toHaveBeenCalled());
+  local.tick(27);
+  loading.resolve();
+  await handoff;
+  expect(remote.position).toBe(27);
+  router.destroy();
+});
+
+it("refreshes the loaded source on every handoff and preserves playback if policy rejects it", async () => {
+  const local = new MockAudioAdapter(), remote = new MockAudioAdapter();
+  const router = new OutputRouter(local);
+  const refresh = vi.fn().mockResolvedValueOnce("fresh").mockRejectedValueOnce(new Error("offline"));
+  await router.load("expired", refresh);
+  await router.play();
+  await router.switchTo(remote);
+  expect(remote.src).toBe("fresh");
+  await expect(router.switchTo(local)).rejects.toThrow("offline");
+  expect(remote.state).toBe("playing");
+  router.destroy();
+});
+
+it("destruction cancels an active handoff and queued loads/play without resurrecting outputs", async () => {
+  const local = new MockAudioAdapter(), remote = new MockAudioAdapter();
+  const router = new OutputRouter(local), loading = deferred();
+  await router.load("one");
+  await router.play();
+  remote.load = vi.fn(() => loading.promise);
+  remote.play = vi.fn();
+  const localLoad = vi.spyOn(local, "load"), destroy = vi.spyOn(remote, "destroy");
+  const handoff = router.switchTo(remote);
+  const pending = Promise.allSettled([handoff, router.load("two"), router.play()]);
+  await vi.waitFor(() => expect(remote.load).toHaveBeenCalled());
+  router.destroy();
+  router.destroy();
+  loading.resolve();
+  expect((await pending).map((r) => r.status)).toEqual(["rejected", "rejected", "rejected"]);
+  expect(remote.play).not.toHaveBeenCalled();
+  expect(localLoad).not.toHaveBeenCalled();
+  expect(destroy).toHaveBeenCalledOnce();
+  expect(local.state).toBe("idle");
+});
+
+it("does not restore playback when destroyed while remote play is pending", async () => {
+  const local = new MockAudioAdapter(), remote = new MockAudioAdapter();
+  const router = new OutputRouter(local), playing = deferred();
+  await router.load("one");
+  await router.play();
+  remote.play = vi.fn(() => playing.promise);
+  const localPlay = vi.spyOn(local, "play");
+  const handoff = router.switchTo(remote);
+  const result = expect(handoff).rejects.toThrow("destroyed");
+  await vi.waitFor(() => expect(remote.play).toHaveBeenCalled());
+  router.destroy();
+  playing.resolve();
+  await result;
+  expect(localPlay).not.toHaveBeenCalled();
+});
+
+it("pause takes effect during receiver loading and prevents automatic resume", async () => {
+  const local = new MockAudioAdapter(), remote = new MockAudioAdapter();
+  const router = new OutputRouter(local), loading = deferred();
+  await router.load("one");
+  await router.play();
+  remote.load = vi.fn(() => loading.promise);
+  remote.play = vi.fn();
+  const handoff = router.switchTo(remote);
+  await vi.waitFor(() => expect(remote.load).toHaveBeenCalled());
+  router.pause();
+  expect(local.state).toBe("paused");
+  loading.resolve();
+  await handoff;
+  expect(remote.play).not.toHaveBeenCalled();
+  router.destroy();
+});
