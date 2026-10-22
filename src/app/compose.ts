@@ -1,5 +1,8 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { RecordingCatalog } from "../core/recordings/RecordingCatalog";
+import { RecordingStorage } from "../core/recordings/RecordingStorage";
+import { playbackSource } from "../core/types";
 import { pickStorage } from "./storage";
 import type { Storage } from "../core/database/Storage";
 import { HistoryService } from "../core/library/HistoryService";
@@ -98,6 +101,7 @@ export interface AppServices {
   output?: OutputRouter;
   local: LocalProvider;
   storage: Storage;
+  recordings?: RecordingCatalog;
   library: LibraryService;
   history: HistoryService;
   wave: WaveEngine;
@@ -168,11 +172,16 @@ export async function composeServices(): Promise<AppServices> {
 
   // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
+  const baseStorage = (await pickStorage()).storage;
+  const recordings = new RecordingCatalog(baseStorage);
+  await recordings.init();
+  const storage = new RecordingStorage(baseStorage, recordings);
   const resolveUri = createStreamResolver(providers);
-  const prewarmer = new StreamPrewarmer(resolveUri);
+  const prewarmer = new StreamPrewarmer((track) => resolveUri(recordings.resolve(track)));
   const output = new OutputRouter(new WebAudioAdapter(loadCrossfadeMs()));
   const engine: PlayerEngine = new PlayerEngine(output, {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
+    prepareTrack: (track) => recordings.resolve(track),
     resolveUri,
     invalidateStream: (trackId) => {
       streamCache.invalidate(trackId);
@@ -187,7 +196,7 @@ export async function composeServices(): Promise<AppServices> {
       try {
         const variants = await findTrackVariants(providers, track);
         const full = variants.find((v) => FULL_PLAYBACK_PROVIDERS.has(v.providerId));
-        return full?.track ?? null;
+        return full ? recordings.withSource(track, full.track) : null;
       } catch {
         return null;
       }
@@ -225,7 +234,6 @@ export async function composeServices(): Promise<AppServices> {
     },
   });
 
-  const storage = (await pickStorage()).storage;
   const library = new LibraryService(storage);
   const history = new HistoryService(storage);
    wave = new WaveEngine(storage, providers, new SmartWaveSource());
@@ -252,7 +260,7 @@ export async function composeServices(): Promise<AppServices> {
       }
     }
   });
-  return { engine, providers, prewarmer, output, local, storage, library, history, wave, lyrics, scrobbler };
+  return { engine, providers, prewarmer, output, local, storage, recordings, library, history, wave, lyrics, scrobbler };
 }
 
 export async function reconfigureServices(services: AppServices): Promise<AppServices> {
@@ -309,6 +317,7 @@ export async function searchAll(
 }
 
 export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {
+  seed = playbackSource(seed);
   const { detectMoods, getSpotifyGenres, getMoodProfile } = await import("../core/recommendations/moodTaxonomy");
   const seedGenres = seed.genre ? [seed.genre] : [];
   const moods = detectMoods(seedGenres, seed.title, seed.artist);

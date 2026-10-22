@@ -1,7 +1,13 @@
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../types";
 import type { QueueState, Storage } from "./Storage";
 
+import type { RecordingGroup } from "../recordings/RecordingCatalog";
+
 export class MemoryStorage implements Storage {
+  private recordings: RecordingGroup[] = [];
+  async loadRecordingGroups(): Promise<RecordingGroup[]> { return structuredClone(this.recordings); }
+  async saveRecordingGroups(groups: RecordingGroup[]): Promise<void> { this.recordings = structuredClone(groups); }
+
   private liked = new Map<string, Track>();
   private albums = new Map<string, Album>();
   private artists = new Map<string, Artist>();

@@ -1,5 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { Track } from "../core/types";
+import { playbackSource, type Track } from "../core/types";
+
+import { sameRecording } from "../core/recordings/matching";
 
 const DL_KEY = "wave-downloads";
 const OFF_KEY = "wave-offline";
@@ -112,12 +114,6 @@ export function downloadedTrackToTrack(df: DownloadedFile): Track {
   };
 }
 
-const norm = (s: string): string =>
-  s
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-
 // URL страницы (watch/track page), а не прямой медиафайл: качать напрямую нельзя,
 // сначала нужен resolveUri провайдера (важно для Android без yt-dlp).
 const INDIRECT_PATTERNS = [
@@ -138,28 +134,15 @@ export function needsStreamResolve(url: string): boolean {
 }
 
 export function localUriFor(track: Track): string | null {
+  track = playbackSource(track);
   const files = downloadedFiles();
 
   const byId = files.find((f) => f.trackId === track.id);
   if (byId?.file) return convertFileSrc(byId.file);
 
-  const title = norm(track.title);
-  const artist = norm(track.artist ?? "");
-
-  const exact = files.filter((f) => {
-    const ft = norm(f.title ?? "");
-    const fa = norm(f.artist ?? "");
-    if (ft && ft === title) return !artist || !fa || fa === artist;
-    return false;
-  });
-  if (exact[0]?.file) return convertFileSrc(exact[0].file);
-
-  const loose = files.find((f) => {
-    const ft = norm(f.title ?? "");
-    const fa = norm(f.artist ?? "");
-    if (!ft || !fa) return false;
-    if (fa !== artist) return false;
-    return ft.includes(title) || title.includes(ft);
-  });
-  return loose?.file ? convertFileSrc(loose.file) : null;
+  const match = files.find((f) => sameRecording(track, {
+    id: f.trackId ?? "", provider: f.provider ?? "local", uri: f.file,
+    title: f.title ?? "", artist: f.artist, duration: f.duration,
+  }));
+  return match?.file ? convertFileSrc(match.file) : null;
 }

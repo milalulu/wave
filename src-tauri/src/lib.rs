@@ -423,6 +423,12 @@ pub fn run() {
             sql: "CREATE INDEX IF NOT EXISTS idx_liked_tracks_id ON liked_tracks(id); CREATE INDEX IF NOT EXISTS idx_saved_albums_id ON saved_albums(id); CREATE INDEX IF NOT EXISTS idx_saved_artists_id ON saved_artists(id);",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "recording identities and preferred playback sources",
+            sql: "CREATE TABLE IF NOT EXISTS recording_preferences (id TEXT PRIMARY KEY, groups_json TEXT NOT NULL);",
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

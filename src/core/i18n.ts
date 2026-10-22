@@ -62,6 +62,9 @@ export interface Translations {
     mini: string;
     variants: string;
     variantsEmpty: string;
+    sourceRemembered: string;
+    sourcePreferenceHint: string;
+    currentSource: string;
     similar: string;
     sleepTimerExpired: string;
     sleepTimerAfterTrack: string;
@@ -600,7 +603,10 @@ export const translations: Record<Locale, Translations> = {
       downloadDirRequired: "Choose a download folder first",
       radio: "Radio",
       mini: "Mini player",
-      variants: "Variants",
+      variants: "Sources",
+      sourceRemembered: "Source saved for this recording",
+      sourcePreferenceHint: "Your choice is saved for this recording on this device.",
+      currentSource: "Current source",
       variantsEmpty: "No variants on other platforms",
       similar: "Similar",
       sleepTimerExpired: "Sleep timer: paused",
@@ -1154,7 +1160,10 @@ export const translations: Record<Locale, Translations> = {
       downloadDirRequired: "Сначала выберите папку для загрузок",
       radio: "Радио",
       mini: "Мини-плеер",
-      variants: "Варианты",
+      variants: "Источники",
+      sourceRemembered: "Источник сохранён для этой записи",
+      sourcePreferenceHint: "Выбор сохраняется для этой записи на этом устройстве.",
+      currentSource: "Текущий источник",
       variantsEmpty: "На других площадках не найдено",
       similar: "Похожие",
       sleepTimerExpired: "Таймер сна: пауза",

@@ -192,7 +192,9 @@ export async function pullRemoteData(userId: string) {
     const remotePlayback = await fetchPlaybackState(userId).catch(() => null);
 
     const state = useApp.getState();
-    const newLikedIds = new Set([...state.likedIds, ...likes.map((l) => l.trackId)]);
+    const recordings = state.services?.recordings;
+    const newLikedIds = new Set([...state.likedIds, ...likes.map((l) => l.trackId)]
+      .map((id) => recordings?.id(id) ?? id));
 
     const remotePlaylistMap = new Map(playlists.map((p) => [p.id, p]));
     const mergedPlaylists = state.playlists.map((pl) => {
@@ -230,7 +232,14 @@ export async function pullRemoteData(userId: string) {
       }
     }
 
-    useApp.setState({ likedIds: newLikedIds, playlists: mergedPlaylists });
+    useApp.setState({
+      likedIds: newLikedIds,
+      playlists: recordings ? mergedPlaylists.map((pl) => ({
+        ...pl,
+        trackIds: pl.trackIds.map((id) => recordings.id(id)),
+        tracks: pl.tracks?.map((track) => recordings.resolve(track)),
+      })) : mergedPlaylists,
+    });
 
     if (settings) {
       state.setCrossfadeMs(settings.crossfadeMs);

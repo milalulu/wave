@@ -68,3 +68,16 @@ it("rejects results from a provider replaced during resolution", async () => {
   await expect(pending).rejects.toThrow("configuration changed");
   expect(streamCache.get(track.id, "best")).toBeNull();
 });
+
+it("resolves and caches the actual source without passing a library ID to its provider", async () => {
+  const source = { ...track, id: "youtube:alternate", uri: "alternate" };
+  const resolveUri = vi.fn(async () => "https://example.org/alternate.mp3");
+  const resolve = createStreamResolver([{ id: "youtube", resolveUri } as unknown as MusicProvider]);
+  const recording = { ...track, id: "itunes:original", provider: "itunes", playbackSource: source };
+  await resolve(recording);
+  expect(resolveUri).toHaveBeenCalledWith(source);
+  expect(streamCache.get(source.id, "best")).toBe("https://example.org/alternate.mp3");
+  expect(streamCache.get(recording.id, "best")).toBeNull();
+  await resolve(source);
+  expect(resolveUri).toHaveBeenCalledTimes(1);
+});

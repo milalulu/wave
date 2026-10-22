@@ -6,7 +6,11 @@ export interface QueueState {
   position: number;
 }
 
+import type { RecordingGroup } from "../recordings/RecordingCatalog";
+
 export interface Storage {
+  loadRecordingGroups(): Promise<RecordingGroup[]>;
+  saveRecordingGroups(groups: RecordingGroup[]): Promise<void>;
   init(): Promise<void>;
   isLiked(trackId: string): Promise<boolean>;
   isAlbumSaved(albumId: string): Promise<boolean>;

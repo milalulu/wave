@@ -63,8 +63,8 @@ describe("isVariantOf", () => {
     expect(isVariantOf({ title: "bohemian rhapsody", artist: "QUEEN" } as Track, track)).toBe(true);
   });
 
-  it("matches fuzzy title containment", () => {
-    expect(isVariantOf({ title: "Bohemian Rhapsody (Remastered)", artist: "Queen" } as Track, track)).toBe(true);
+  it("rejects a different remaster", () => {
+    expect(isVariantOf({ title: "Bohemian Rhapsody (Remastered)", artist: "Queen" } as Track, track)).toBe(false);
   });
 
   it("rejects different artist", () => {
@@ -131,4 +131,12 @@ describe("findTrackVariants", () => {
     expect(await findTrackVariants([pItunes], noTitle)).toEqual([]);
     expect(pItunes.search).not.toHaveBeenCalled();
   });
+});
+
+it("requires a candidate to match the recording as well as the selected source", async () => {
+  const original = { ...track, duration: 200 };
+  const selected = { ...original, id: "selected", provider: "youtube", duration: 202 };
+  const drifted = { ...original, id: "drifted", provider: "soundcloud", duration: 206 };
+  expect(isVariantOf(selected, drifted)).toBe(true);
+  expect(await findTrackVariants([provider("soundcloud", [drifted])], { ...original, playbackSource: selected })).toEqual([]);
 });

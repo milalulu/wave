@@ -1,3 +1,4 @@
+import { playbackSource } from "../core/types";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { RepeatMode, Track } from "../core/types";
@@ -288,10 +289,11 @@ export class ApiBridge {
     if (!track) throw new Error("no track to download");
     const dir = typeof payload.dir === "string" ? payload.dir : "";
     if (!dir) throw new Error("dir required");
-    const ext = track.meta?.audioUrl?.toString().includes(".m4a") ? "m4a" : "mp3";
+    const source = playbackSource(this.services.recordings?.resolve(track) ?? track);
+    const ext = source.meta?.audioUrl?.toString().includes(".m4a") ? "m4a" : "mp3";
     const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
     const filename = `${safe(track.artist ?? "")} - ${safe(track.title ?? "")}.${ext}`;
-    const url = track.meta?.url ?? track.meta?.audioUrl?.toString() ?? track.uri ?? "";
+    const url = source.meta?.url ?? source.meta?.audioUrl?.toString() ?? source.uri ?? "";
     if (!url) throw new Error("no source url");
     await invoke("yt_download", { url, outputPath: `${dir}/${filename}` });
     return { ok: true, file: `${dir}/${filename}`, trackId: track.id };

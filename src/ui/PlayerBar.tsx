@@ -1,3 +1,4 @@
+import { playbackSource } from "../core/types";
 import { CastButton } from "./CastButton";
 import { isTauri } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -59,6 +60,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const toggleLike = useApp((s) => s.toggleLike);
   const startRadio = useApp((s) => s.startRadio);
   const variants = useApp((s) => s.variants);
+  const variantSaving = useApp((s) => s.variantSaving);
   const variantsLoading = useApp((s) => s.variantsLoading);
   const playVariant = useApp((s) => s.playVariant);
   const addSimilar = useApp((s) => s.addSimilar);
@@ -181,6 +183,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
               {variantsOpen && (
                 <div className="variants-menu" onClick={(e) => e.stopPropagation()}>
                   <div className="sleep-menu-title">{t("player").variants}</div>
+                  <div className="variants-empty">{t("player").sourcePreferenceHint}</div>
                   {!variantsLoading && variants.length === 0 && (
                     <div className="variants-empty">{t("player").variantsEmpty}</div>
                   )}
@@ -188,12 +191,15 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
                     <button
                       key={v.track.id}
                       className="variants-item"
+                      disabled={variantSaving}
+                      aria-pressed={v.track.id === playbackSource(track).id}
+                      title={v.track.id === playbackSource(track).id ? t("player").currentSource : undefined}
                       onClick={() => {
                         setVariantsOpen(false);
-                        playVariant(v);
+                        void playVariant(v);
                       }}
                     >
-                      <span className="variants-provider">{providerLabel(v.providerId)}</span>
+                      <span className="variants-provider">{providerLabel(v.providerId)}{v.track.id === playbackSource(track).id ? " ✓" : ""}</span>
                       <span className="variants-track">
                         <span className="variants-title">{v.track.title}</span>
                         {v.track.artist && (

@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Track } from "../core/types";
+import { playbackSource, type Track } from "../core/types";
 import { t } from "../core/i18n";
 import { registerDownload, unregisterDownload, needsStreamResolve } from "./offline";
 import type { AppState } from "./stores";
@@ -115,18 +115,19 @@ export const createDownloadsSlice: StateCreator<AppState, [], [], DownloadsSlice
       }));
     };
     try {
+      const source = playbackSource(s.services.recordings?.resolve(next.track) ?? next.track);
       let url =
-        String(next.track.meta?.url ?? "") ||
-        String(next.track.meta?.audioUrl ?? "") ||
-        (next.track.uri ?? "");
+        String(source.meta?.url ?? "") ||
+        String(source.meta?.audioUrl ?? "") ||
+        (source.uri ?? "");
       if (!url) throw new Error("no source url");
       // Страница вместо прямого файла: сначала резолвим стрим у провайдера,
       // иначе на Android без yt-dlp скачать нельзя, а yt-dlp может отсутствовать везде.
       if (needsStreamResolve(url)) {
-        const provider = s.services?.providers.find((p) => p.id === next.track.provider);
+        const provider = s.services?.providers.find((p) => p.id === source.provider);
         if (provider) {
           try {
-            const direct = await provider.resolveUri(next.track);
+            const direct = await provider.resolveUri(source);
             if (direct) url = direct;
           } catch {}
         }
@@ -156,11 +157,11 @@ export const createDownloadsSlice: StateCreator<AppState, [], [], DownloadsSlice
         outputPath,
         next.track.artist,
         next.track.title,
-        next.track.id,
-        next.track.provider,
+        source.id,
+        source.provider,
         coverUrl,
         coverFile,
-        next.track.duration,
+        source.duration,
         next.track.album,
       );
       finish({ status: "done", percent: 100, filePath: outputPath });

@@ -161,3 +161,31 @@ describe("shouldOfferContinue", () => {
     expect(notified).toEqual([]);
   });
 });
+
+it("counts a recording once and maps known remote aliases without changing playlist positions", async () => {
+  const { MemoryStorage } = await import("../core/database/MemoryStorage");
+  const { RecordingCatalog } = await import("../core/recordings/RecordingCatalog");
+  const { RecordingStorage } = await import("../core/recordings/RecordingStorage");
+  const { LibraryService } = await import("../core/library/LibraryService");
+  const base = new MemoryStorage();
+  const recordings = new RecordingCatalog(base);
+  await recordings.init();
+  const original = { id: "a", provider: "first", uri: "u://a", title: "Song", artist: "Artist" };
+  const alternate = { ...original, id: "b", provider: "second" };
+  await base.addLikedTrack(alternate);
+  await recordings.select(original, alternate);
+  const services = { recordings, library: new LibraryService(new RecordingStorage(base, recordings)) };
+  const previous = useApp.getState().services;
+  useApp.setState({ services: services as unknown as import("./compose").AppServices });
+  try {
+    await useApp.getState().refreshLibrary();
+    expect([...useApp.getState().likedIds]).toEqual([original.id]);
+    fetchRemoteLikesMock.mockResolvedValue([{ trackId: alternate.id }]);
+    fetchRemotePlaylistsMock.mockResolvedValue([{ ...remotePlaylist("p", "Playlist", 1), trackIds: [alternate.id, "x", original.id] }]);
+    await pullRemoteData("u1");
+    expect([...useApp.getState().likedIds]).toEqual([original.id]);
+    expect(useApp.getState().playlists[0].trackIds).toEqual([original.id, "x", original.id]);
+  } finally {
+    useApp.setState({ services: previous });
+  }
+});

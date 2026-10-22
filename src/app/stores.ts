@@ -36,7 +36,8 @@ import { getCachedCover } from "../core/cover/CoverCache";
 import { clearCoverCache } from "../core/cover/CoverCache";
 import { clearSearchCache } from "./searchCache";
 import { clearVariantsCache } from "./trackVariants";
-import { findTrackVariants, type TrackVariant } from "./trackVariants";
+import { createVariantsSlice, type VariantsSlice } from "./variantsSlice";
+import { playbackSource } from "../core/types";
 import { offlineEnabled, setOfflineEnabled } from "./offline";
 import { createDownloadsSlice, type DownloadsSlice } from "./downloadsSlice";
 import {
@@ -78,7 +79,7 @@ const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator
 
 export type { DownloadItem } from "./downloadsSlice";
 
-export interface AppState extends DownloadsSlice, ArtistRadioSlice, NavigationSlice {
+export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlice, NavigationSlice {
   services: AppServices | null;
   ready: boolean;
   onboardingCompleted: boolean;
@@ -151,10 +152,6 @@ export interface AppState extends DownloadsSlice, ArtistRadioSlice, NavigationSl
   previewLoading: boolean;
   startSmartPlaylist: (type: SmartPlaylistType) => Promise<void>;
   openLocalDirectory: () => Promise<void>;
-  variants: TrackVariant[];
-  variantsLoading: boolean;
-  loadVariants: (track: Track | null) => Promise<void>;
-  playVariant: (variant: TrackVariant) => void;
   addSimilar: () => Promise<void>;
   toggleBlockTrack: (track: Track) => void;
   toggleBlockArtist: (artist: string) => void;
@@ -333,6 +330,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     if (!services) return;
     const pl = await services.storage.getPlaylist(playlistId);
     if (!pl) return;
+    track = services.recordings?.resolve(track) ?? track;
     if (!pl.trackIds.includes(track.id)) {
       pl.trackIds.push(track.id);
       pl.tracks = [...(pl.tracks ?? []), track];
@@ -501,6 +499,8 @@ export const useApp = create<AppState>()((set, get, api) => ({
     if (!services) return;
     const rebuilt = await reconfigureServices(services);
     set({ services: rebuilt });
+    clearVariantsCache();
+    void get().loadVariants(rebuilt.engine.snapshot.current);
   },
 
   refreshLibrary: async () => {
@@ -842,31 +842,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
       get().notify(e instanceof Error ? e.message : String(e));
     }
   },
-  variants: [],
-  variantsLoading: false,
-  loadVariants: async (track) => {
-    const { services } = get();
-    if (!track || !services) {
-      set({ variants: [], variantsLoading: false });
-      return;
-    }
-    set({ variants: [], variantsLoading: true });
-    try {
-      const found = await findTrackVariants(services.providers, track);
-      if (get().snapshot.current?.id === track.id) {
-        set({ variants: found, variantsLoading: false });
-      } else {
-        set({ variantsLoading: false });
-      }
-    } catch {
-      set({ variants: [], variantsLoading: false });
-    }
-  },
-  playVariant: (variant) => {
-    const { services } = get();
-    if (!services) return;
-    services.engine.playVariant(variant.track);
-  },
+  ...createVariantsSlice(set, get, api),
 
   addSimilar: async () => {
     const { services, snapshot } = get();
@@ -1196,15 +1172,16 @@ async function doInit(
     const s = get();
     const cur = s.snapshot.current;
     if (!cur) return null;
-    const list = s.variants;
+    const source = playbackSource(cur);
+    const list = s.variants.filter((v) => v.track.id !== source.id);
     if (list.length === 0) return null;
     const candidate =
-      list.find((v) => v.providerId !== cur.provider && v.track.uri && !v.track.meta?.noPlay) ??
-      list.find((v) => v.providerId !== cur.provider) ??
+      list.find((v) => v.providerId !== source.provider && v.track.uri && !v.track.meta?.noPlay) ??
+      list.find((v) => v.providerId !== source.provider) ??
       list[0];
     if (!candidate) return null;
     s.notify(t("toasts").fallbackSwitched(providerLabel(candidate.providerId)));
-    return candidate.track;
+    return services.recordings?.withSource(cur, candidate.track) ?? candidate.track;
   });
 
   // «Моя волна» не включает заблокированные треки/артистов.

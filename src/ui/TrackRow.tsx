@@ -1,3 +1,4 @@
+import { playbackSource } from "../core/types";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DragEvent } from "react";
@@ -28,9 +29,8 @@ interface TrackRowProps {
 
 export const TrackRow = memo(function TrackRow({ track, onPlayTrack, index, playCount, nowPlaying, onDragStart, onDrop, onDragOver, onDragEnd }: TrackRowProps) {
   const { t } = useI18n();
-  const isCurrentTrack = useApp((s) => nowPlaying !== undefined ? nowPlaying : s.snapshot.current?.id === track.id);
-  const likedIds = useApp((s) => s.likedIds);
-  const isLiked = likedIds.has(track.id);
+  const isCurrentTrack = useApp((s) => nowPlaying !== undefined ? nowPlaying : s.snapshot.current?.id === (s.services?.recordings?.id(track.id) ?? track.id));
+  const isLiked = useApp((s) => s.likedIds.has(s.services?.recordings?.id(track.id) ?? track.id));
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [editingTags, setEditingTags] = useState(false);
@@ -45,7 +45,8 @@ export const TrackRow = memo(function TrackRow({ track, onPlayTrack, index, play
   const inPlaylist = selectedPlaylistId !== null;
   const trackBlocked = useMemo(() => isTrackBlocked(track.id), [track.id]);
   const artistBlocked = useMemo(() => track.artist ? isArtistBlocked(track.artist) : false, [track.artist]);
-  const downloaded = useMemo(() => isTrackDownloaded(track.id), [track.id]);
+  const sourceId = playbackSource(track).id;
+  const downloaded = useMemo(() => isTrackDownloaded(sourceId), [sourceId]);
   const playlists = useApp((s) => s.playlists);
   const toggleLike = useApp((s) => s.toggleLike);
   const play = useApp((s) => s.play);
@@ -176,7 +177,7 @@ export const TrackRow = memo(function TrackRow({ track, onPlayTrack, index, play
         <span className="track-title">
           {track.title}
           <span className={`provider-badge provider-${track.provider}`}>
-            {providerLabel(track.provider)}
+            {providerLabel(playbackSource(track).provider)}
           </span>
         </span>
         <span className="track-artist">{track.artist}</span>

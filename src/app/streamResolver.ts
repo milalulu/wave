@@ -1,3 +1,4 @@
+import { playbackSource } from "../core/types";
 import type { Track } from "../core/types";
 import type { MusicProvider } from "../core/providers/MusicProvider";
 import { streamCache } from "../core/player/streamCache";
@@ -11,6 +12,7 @@ export function createStreamResolver(
 ): (track: Track) => Promise<string> {
   const pending = new Map<string, Promise<string>>();
   return async (track) => {
+    track = playbackSource(track);
     if (isBlockedProvider(track.provider))
       throw new Error(`provider blocked: ${track.provider}`);
     const local = localUriFor(track);

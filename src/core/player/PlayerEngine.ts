@@ -1,3 +1,4 @@
+import { playbackSource } from "../types";
 import { StartupMeasurement, type StartupTiming } from "./StartupMeasurement";
 import { EventEmitter } from "../util/EventEmitter";
 import type { PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
@@ -29,6 +30,7 @@ const PREFETCH_BATCH = 5;
 const PREFETCH_CONCURRENCY = 2;
 
 interface PlayerEngineOptions {
+  prepareTrack?: (track: Track) => Track;
   rng?: () => number;
   
   resolveUri?: (track: Track) => Promise<string>;
@@ -57,6 +59,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private repeat: RepeatMode = "off";
   private duration = 0;
   private detach: (() => void)[] = [];
+  private prepareTrack: (track: Track) => Track;
   private resolveUri?: (track: Track) => Promise<string>;
   private invalidateStream?: (trackId: string) => void;
    private onQueueEnd?: () => Promise<Track[]> | Track[];
@@ -94,6 +97,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
     super();
     this.adapter = adapter;
+    this.prepareTrack = options.prepareTrack ?? ((track) => track);
     this.resolveUri = options.resolveUri;
     this.invalidateStream = options.invalidateStream;
      this.onQueueEnd = options.onQueueEnd;
@@ -172,7 +176,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   
   async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
     if (tracks.length === 0) return;
-    this.queue.replace(tracks, startIndex);
+    this.queue.replace(tracks.map(this.prepareTrack), startIndex);
     
     this.preloadCache.clear();
     this.preloadedId = null;
@@ -190,7 +194,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   async restoreQueue(queue: Track[], index: number, position = 0): Promise<void> {
     if (queue.length === 0) return;
     const clamped = Math.min(Math.max(index, 0), queue.length - 1);
-    this.queue.replace(queue, clamped);
+    this.queue.replace(queue.map(this.prepareTrack), clamped);
     this.preloadCache.clear();
     this.preloadedId = null;
     this.fallbackUsed = false;
@@ -198,19 +202,25 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.upgradedTrackId = null;
     const track = this.queue.current();
     if (!track) return;
+    const seq = ++this.playSeq;
+    this.hasSource = false;
+    this.clearStallTimer();
+    this.adapter.pause();
     this.setState("paused");
-    this.duration = track.duration ?? 0;
-    const uri = this.directUri(track);
+    this.duration = playbackSource(track).duration ?? track.duration ?? 0;
+    // The resolver must recheck the selected source, offline policy and expiring URLs.
+    const uri = this.resolveUri ? "" : this.directUri(track);
     if (uri) {
-      this.adapter.load(uri).catch(() => {
-        
-        this.hasSource = false;
-      });
-      this.hasSource = true;
+      try {
+        await this.adapter.load(uri);
+        if (seq !== this.playSeq) return;
+        this.hasSource = true;
+      } catch {
+        if (seq !== this.playSeq) return;
+      }
     }
-    
-    
-    
+    this.restorePos = 0;
+    this.restorePosTrackId = null;
     if (position > 0) {
       this.restorePos = position;
       this.restorePosTrackId = track.id;
@@ -225,7 +235,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private directUri(track: Track): string {
-    const u = track.uri;
+    const u = playbackSource(track).uri;
     if (!u) return "";
     if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("asset://"))) return "";
     
@@ -248,7 +258,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   async playNext(track: Track): Promise<boolean> {
     const hasCurrent = this.queue.current() !== null;
-    const added = this.queue.insertNext(track);
+    const added = this.queue.insertNext(this.prepareTrack(track));
     this.emitQueue();
     if (!hasCurrent) {
       await this.playCurrent();
@@ -257,10 +267,21 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   
-  playVariant(track: Track): void {
+  playVariant(track: Track, preservePosition = false): void {
+    if (preservePosition) {
+      this.restorePos = this.adapter.getPosition();
+      this.restorePosTrackId = track.id;
+    }
     if (!this.queue.replaceCurrent(track)) return;
     this.emitQueue();
-    void this.playCurrent();
+    if (preservePosition && this.state === "paused") {
+      this.playSeq += 1;
+      this.clearStallTimer();
+      this.hasSource = false;
+      this.emit("track", track);
+      return;
+    }
+    void this.playCurrent(false);
   }
 
   async play(): Promise<void> {
@@ -316,7 +337,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       try {
         const more = await this.onQueueEnd();
         if (more.length > 0) {
-          for (const t of more) this.queue.append(t);
+          for (const t of more) this.queue.append(this.prepareTrack(t));
           const orderPos = this.queue.positionOf(oldLength);
           if (orderPos >= 0) this.queue.jumpToOrderPos(orderPos);
           await this.playCurrent();
@@ -454,7 +475,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   addToQueue(track: Track, play = false): boolean {
-    const added = this.queue.append(track);
+    const added = this.queue.append(this.prepareTrack(track));
     if (play) {
       const trackIndex = this.queue.length - 1;
       const pos = this.queue.positionOf(trackIndex);
@@ -472,7 +493,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   insertAtQueueIndex(trackIndex: number, track: Track): void {
-    this.queue.insertAt(trackIndex, track);
+    this.queue.insertAt(trackIndex, this.prepareTrack(track));
     this.emitQueue();
     void this.prefetchBatch();
   }
@@ -514,9 +535,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.clear();
   }
 
-  private async playCurrent(): Promise<void> {
-    const track = this.queue.current();
-    if (!track) return;
+  private async playCurrent(usePreference = true): Promise<void> {
+    const selected = this.queue.current();
+    if (!selected) return;
+    const track = usePreference ? this.prepareTrack(selected) : selected;
+    if (track !== selected) this.queue.replaceCurrent(track);
     if (track.id !== this.fallbackTrackId) {
       this.fallbackUsed = false;
     }
@@ -539,7 +562,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (isMediaError || isStreamError) {
       const track = this.queue.current();
       if (track && this.invalidateStream) {
-        this.invalidateStream(track.id);
+        this.invalidateStream(playbackSource(track).id);
       }
     }
 
@@ -565,7 +588,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const fb = this.fallback();
       if (fb && this.queue.replaceCurrent(fb)) {
         this.emitQueue();
-        void this.playCurrent();
+        void this.playCurrent(false);
         return;
       }
     }
@@ -581,7 +604,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.setState("loading");
     this.startStallTimer();
     this.emit("track", track);
-    const timing = new StartupMeasurement(track.provider);
+    const timing = new StartupMeasurement(playbackSource(track).provider);
     let outcome: StartupTiming["outcome"] = "cancelled";
     try {
       const cached = this.preloadCache.get(track.id);
@@ -592,7 +615,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       // The application resolver rechecks policy, quality and signed-URL expiry.
       // A prefetched URL must never bypass those checks when playback begins.
       const uri = await timing.measure("resolve", async () => this.resolveUri
-        ? this.resolveUri(track) : cached ? await cached : track.uri);
+        ? this.resolveUri(track) : cached ? await cached : playbackSource(track).uri);
       if (!uri) throw new Error("no stream URL");
       if (seq !== this.playSeq) return;
 
@@ -603,7 +626,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (seq !== this.playSeq) return;
       this.hasSource = true;
       this.startStallTimer();
-      this.duration = track.duration ?? 0;
+      this.duration = playbackSource(track).duration ?? track.duration ?? 0;
       void this.applyAudioSettings();
       
       
@@ -672,7 +695,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       if (this.state !== "playing" && this.state !== "loading") return;
       if (this.queue.replaceCurrent(full)) {
         this.emitQueue();
-        await this.playCurrent();
+        await this.playCurrent(false);
       }
     } catch {
       
@@ -682,7 +705,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   
   private async preloadNext(): Promise<void> {
     if (!this.resolveUri) return;
-    const next = this.queue.peekNext();
+    const queued = this.queue.peekNext();
+    const next = queued ? this.prepareTrack(queued) : null;
     if (!next || this.preloadedId === next.id || this.preloadCache.has(next.id)) return;
     if (next.uri) {
       this.preloadedId = next.id;
@@ -700,7 +724,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private async prefetchBatch(): Promise<void> {
     if (!this.resolveUri || this.prefetchInFlight) return;
-    const upcoming = this.queue.peekAhead(PREFETCH_BATCH);
+    const upcoming = this.queue.peekAhead(PREFETCH_BATCH).map(this.prepareTrack);
     if (upcoming.length === 0) return;
     const toFetch = upcoming.filter((t) => !this.prefetchedIds.has(t.id) && !this.preloadCache.has(t.id));
     if (toFetch.length === 0) return;
@@ -767,7 +791,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const more = await this.onQueueEnd!();
       if (seq !== this.playSeq) return;
       if (more.length > 0) {
-        for (const t of more) this.queue.append(t);
+        for (const t of more) this.queue.append(this.prepareTrack(t));
         this.emitQueue();
         void this.preloadNext();
       }

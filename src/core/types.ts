@@ -2,7 +2,7 @@ export type RepeatMode = "off" | "all" | "one";
 
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "ended" | "error";
 
-export interface Track {
+export interface TrackSource {
   id: string;
   provider: string;
   uri: string;
@@ -15,6 +15,15 @@ export interface Track {
   genre?: string;
   year?: number;
   meta?: Record<string, unknown>;
+}
+
+/** Library identity and metadata stay stable when a playback source changes. */
+export interface Track extends TrackSource {
+  playbackSource?: TrackSource;
+}
+
+export function playbackSource(track: Track): TrackSource {
+  return track.playbackSource ?? track;
 }
 
 export interface Artist {

@@ -2,6 +2,8 @@ import Database from "@tauri-apps/plugin-sql";
 import type { Album, Artist, HistoryEntry, Playlist, Track } from "../core/types";
 import type { QueueState, Storage } from "../core/database/Storage";
 
+import type { RecordingGroup } from "../core/recordings/RecordingCatalog";
+
 const DB_NAME = "sqlite:wave.db";
 
 export class SqliteStorage implements Storage {
@@ -17,6 +19,20 @@ export class SqliteStorage implements Storage {
 
   private async requireDb(): Promise<Database> {
     return this.dbPromise;
+  }
+
+  async loadRecordingGroups(): Promise<RecordingGroup[]> {
+    const rows = await (await this.requireDb()).select<{ groups_json: string }[]>(
+      "SELECT groups_json FROM recording_preferences WHERE id = 'current'",
+    );
+    return rows.length ? JSON.parse(rows[0].groups_json) as RecordingGroup[] : [];
+  }
+
+  async saveRecordingGroups(groups: RecordingGroup[]): Promise<void> {
+    await (await this.requireDb()).execute(
+      "INSERT OR REPLACE INTO recording_preferences (id, groups_json) VALUES ('current', $1)",
+      [JSON.stringify(groups)],
+    );
   }
 
   async isLiked(trackId: string): Promise<boolean> {

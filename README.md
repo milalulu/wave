@@ -19,7 +19,7 @@
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/github/v/release/milalulu/wave?label=download&style=for-the-badge&logo=windows&logoColor=white&color=00e5ff" /></a>
   <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
-  <img src="https://img.shields.io/badge/tests-388%20passing-22c55e?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-417%20passing-22c55e?style=for-the-badge" />
 </p>
 
 ---
@@ -149,7 +149,7 @@
 - Настоящий **gapless** в буферном режиме, кроссфейд, **автогейн громкости**
 - Эквалайзер (10 полос + пресеты), bass boost, reverb, скорость
 - Горячие клавиши, медиаклавиши, MPRIS, мини-плеер, трей
-- Авто-фолбэк на другой источник, апгрейд превью до полной версии, **варианты трека** с других площадок
+- Авто-фолбэк на другой источник, апгрейд превью до полной версии, **сохраняемый выбор источника** для одной записи без потери лайка и места в плейлисте
 
 </details>
 
@@ -218,7 +218,7 @@ src-tauri/
 └── gen/android/          # натив: PlaybackService, виджет, Auto, будильник, шеринг
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 388 тестов в 50 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
+**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 417 тестов в 54 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
 
 ---
 
@@ -239,7 +239,7 @@ src-tauri/
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
-pnpm test                # 388 тестов
+pnpm test                # 417 тестов
 pnpm tauri dev           # разработка
 pnpm tauri build         # релиз
 ```
@@ -253,6 +253,25 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-u
 ```
 
 ---
+
+## Композиция и источник воспроизведения
+
+Меню **«Источники»** в плеере сохраняет выбранный вариант для этой записи.
+Можно вернуться к исходному источнику. ID и название композиции остаются прежними;
+лайки известных вариантов объединяются при чтении, порядок и повторы в плейлистах
+сохраняются. История хранит источник, который действительно использовался.
+При ручном переключении сохраняются позиция и пауза. Автоматический запасной
+источник не меняет предпочтение пользователя.
+
+Связь создаётся только после явного выбора. Проверяются исполнитель, название
+и совместимая длительность; метки live/remix/remaster/acoustic/edit сохраняются
+при сравнении. Это сопоставление метаданных, а не аудиоотпечатков: без корректных
+метаданных нельзя доказать, что две записи идентичны.
+
+В нативном приложении предпочтения хранятся локально в SQLite (миграция 9).
+Старые лайки, история и плейлисты не переписываются при выборе источника.
+Синхронизация каталога предпочтений между устройствами пока не реализована;
+браузерный режим с MemoryStorage хранит его только до перезагрузки страницы.
 
 ## Радио по артисту и Lua-плагины
 

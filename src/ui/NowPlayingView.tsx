@@ -1,3 +1,4 @@
+import { playbackSource } from "../core/types";
 import { useEffect, useMemo, useState } from "react";
 import type { ViewKey } from "./Sidebar";
 import { useApp } from "../app/stores";
@@ -136,7 +137,7 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
               )}
               <span className="hero-meta-item">
                 <span className={`provider-badge provider-${track.provider}`}>
-                  {providerLabel(track.provider)}
+                  {providerLabel(playbackSource(track).provider)}
                 </span>
               </span>
             </div>
