@@ -19,7 +19,7 @@
   <a href="https://github.com/milalulu/wave/releases/latest"><img src="https://img.shields.io/github/v/release/milalulu/wave?label=download&style=for-the-badge&logo=windows&logoColor=white&color=00e5ff" /></a>
   <a href="https://github.com/milalulu/wave/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" /></a>
   <a href="https://github.com/milalulu/wave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/milalulu/wave/ci.yml?branch=master&label=CI&style=for-the-badge&logo=githubactions&logoColor=white" /></a>
-  <img src="https://img.shields.io/badge/tests-417%20passing-22c55e?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-425%20passing-22c55e?style=for-the-badge" />
 </p>
 
 ---
@@ -218,7 +218,7 @@ src-tauri/
 └── gen/android/          # натив: PlaybackService, виджет, Auto, будильник, шеринг
 ```
 
-**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 417 тестов в 54 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
+**Принцип:** бизнес-логика в `core/` (чистый TS; проверки frontend — 425 тестов в 55 файлах, `vitest run`). Tauri-специфика — только в `app/` и `src-tauri/`. Нативный Android-код — в `gen/android`, коммитится как часть репозитория.
 
 ---
 
@@ -239,7 +239,7 @@ src-tauri/
 git clone https://github.com/milalulu/wave
 cd wave
 pnpm install
-pnpm test                # 417 тестов
+pnpm test                # 425 тестов
 pnpm tauri dev           # разработка
 pnpm tauri build         # релиз
 ```

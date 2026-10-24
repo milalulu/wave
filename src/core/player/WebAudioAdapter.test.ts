@@ -196,7 +196,7 @@ class FakeAudioElement {
   preload = "none";
   paused = true;
   ended = false;
-  error: { code: number } | null = null;
+  error: { code: number; message?: string } | null = null;
   onplay: (() => void) | null = null;
   onpause: (() => void) | null = null;
   onwaiting: (() => void) | null = null;
@@ -826,6 +826,73 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     await adapter.load("f.mp3");
     await adapter.play();
     expect(fetchMock.mock.calls.length).toBe(fetchesAfterReload);
+    adapter.destroy();
+  });
+});
+
+
+describe("WebKit media disk-cache recovery", () => {
+  beforeEach(() => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("AppleWebKit/605.1 Safari/605.1");
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:memory-media");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  function rejectDiskMedia(el: FakeAudioElement) {
+    return vi.spyOn(el, "play").mockImplementationOnce(async () => {
+      el.error = { code: 4, message: 'Could not create temp file "/var/tmp/WebKit-Media-XXXXXX".' };
+      el.onerror?.();
+      throw new Error("The operation is not supported.");
+    });
+  }
+
+  it("recovers the actual cache error via a blob without retrying the provider or losing EQ", async () => {
+    const adapter = new WebAudioAdapter();
+    const error = vi.fn();
+    adapter.onError(error);
+    const url = `${PROXY_BASE}/audio?url=remote`;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2]), { headers: { "Content-Type": "audio/mp4" } })));
+    await adapter.load(url);
+    const el = instances()[0];
+    const play = rejectDiskMedia(el);
+    await adapter.play();
+    expect(fetch).toHaveBeenCalledWith(url, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(el.src).toBe("blob:memory-media");
+    expect(el.paused).toBe(false);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(error).not.toHaveBeenCalled();
+    expect(instances()).toHaveLength(2);
+    expect(lastCtx().elementSources).toHaveLength(2);
+    adapter.destroy();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:memory-media");
+  });
+
+  it.each(["pause", "destroy", "load"] as const)("%s cancels recovery and prevents late playback", async (action) => {
+    const adapter = new WebAudioAdapter();
+    let finish!: (value: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { finish = r; })));
+    await adapter.load(`${PROXY_BASE}/audio?url=old`);
+    const el = instances()[0], play = rejectDiskMedia(el);
+    const pending = adapter.play();
+    const rejected = expect(pending).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(0);
+    if (action === "load") await adapter.load("new.mp3");
+    else adapter[action]();
+    finish(new Response(new Uint8Array([1, 2])));
+    await rejected;
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    if (action !== "destroy") adapter.destroy();
+  });
+
+  it("does not reinterpret other playback failures as a disk-cache problem", async () => {
+    const adapter = new WebAudioAdapter();
+    vi.stubGlobal("fetch", vi.fn());
+    await adapter.load("song.mp3");
+    vi.spyOn(instances()[0], "play").mockRejectedValueOnce(new Error("not supported"));
+    await expect(adapter.play()).rejects.toThrow("not supported");
+    expect(fetch).not.toHaveBeenCalled();
     adapter.destroy();
   });
 });

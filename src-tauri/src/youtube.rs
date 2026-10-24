@@ -940,7 +940,7 @@ pub(crate) async fn yt_search_innertube(
             continue;
         };
         for item in items {
-            let Some(video) = item["videoRenderer"].as_object() else {
+            let Some(video) = item.get("videoRenderer").filter(|v| v.is_object()) else {
                 continue;
             };
             let id = video["videoId"].as_str().unwrap_or("");
@@ -1025,6 +1025,13 @@ pub(crate) async fn yt_search_innertube_full(
         return Err(format!("innertube search full HTTP {}", status));
     }
 
+    parse_innertube_search_full(&body, limit)
+}
+
+fn parse_innertube_search_full(
+    body: &serde_json::Value,
+    limit: u32,
+) -> Result<serde_json::Value, String> {
     let sections = body["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]
         ["sectionListRenderer"]["contents"]
         .as_array()
@@ -1040,7 +1047,7 @@ pub(crate) async fn yt_search_innertube_full(
             continue;
         };
         for item in items {
-            if let Some(video) = item.get("videoRenderer").and_then(|v| v.as_object()) {
+            if let Some(video) = item.get("videoRenderer").filter(|v| v.is_object()) {
                 let id = video["videoId"].as_str().unwrap_or("");
                 if id.is_empty() {
                     continue;
@@ -1067,7 +1074,7 @@ pub(crate) async fn yt_search_innertube_full(
                     "duration": duration,
                     "thumbnail": thumbnail,
                 }));
-            } else if let Some(channel) = item.get("channelRenderer").and_then(|c| c.as_object()) {
+            } else if let Some(channel) = item.get("channelRenderer").filter(|v| v.is_object()) {
                 let id = channel["channelId"].as_str().unwrap_or("");
                 if id.is_empty() {
                     continue;
@@ -1088,8 +1095,7 @@ pub(crate) async fn yt_search_innertube_full(
                     "thumbnail": thumbnail,
                     "subscriberCount": subscriber_count,
                 }));
-            } else if let Some(playlist) = item.get("playlistRenderer").and_then(|p| p.as_object())
-            {
+            } else if let Some(playlist) = item.get("playlistRenderer").filter(|v| v.is_object()) {
                 let id = playlist["playlistId"].as_str().unwrap_or("");
                 if id.is_empty() {
                     continue;
@@ -1158,3 +1164,23 @@ fn innertube_parse_duration(text: &str) -> Option<i64> {
 }
 
 // ─── SoundCloud native resolver (без yt-dlp) ───────────────────────────────
+
+#[cfg(test)]
+mod search_response_tests {
+    #[test]
+    fn missing_optional_fields_do_not_panic() {
+        let body = serde_json::json!({"contents":{"twoColumnSearchResultsRenderer":{
+        "primaryContents":{"sectionListRenderer":{"contents":[{"itemSectionRenderer":{"contents":[
+            {"videoRenderer":{"videoId":"live", "title":{"runs":[{"text":"Live stream"}]}}},
+            {"channelRenderer":{"channelId":"artist"}},
+            {"playlistRenderer":{"playlistId":"album"}},
+            {"videoRenderer":{}}, {"videoRenderer":null}
+        ]}}]}}}}});
+        let parsed = super::parse_innertube_search_full(&body, 20).unwrap();
+        assert_eq!(parsed["tracks"].as_array().unwrap().len(), 1);
+        assert_eq!(parsed["tracks"][0]["id"], "live");
+        assert!(parsed["tracks"][0]["duration"].is_null());
+        assert_eq!(parsed["artists"][0]["id"], "artist");
+        assert_eq!(parsed["albums"][0]["id"], "album");
+    }
+}

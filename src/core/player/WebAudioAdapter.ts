@@ -1,3 +1,4 @@
+import { fetchMediaBlob, MEDIA_MEMORY_TIMEOUT_MS } from "./mediaMemoryFallback";
 import type { PlayerState } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
 import { DEFAULT_LEVELING_OPTIONS, Leveler, rmsOfSamples, rmsToDb } from "./leveling";
@@ -83,6 +84,10 @@ export class WebAudioAdapter implements AudioAdapter {
   private pendingElementSrc: string | null = null;
   
   private playRequested = false;
+  private elementPlayPending = false;
+  private memoryRecovery: Promise<void> | null = null;
+  private memoryController: AbortController | null = null;
+  private memoryObjectUrl: string | null = null;
 
   
   private bufCtx: AudioContext | null = null;
@@ -178,6 +183,17 @@ export class WebAudioAdapter implements AudioAdapter {
       this.endedCb?.();
     };
     el.onerror = (): void => {
+      if (isActive() && this.isMediaCacheFailure(el)) {
+        // play() observes the same error; let it await recovery rather than retrying
+        // the provider while a usable stream is already available.
+        if (!this.elementPlayPending && this.playRequested) {
+          const recovery = this.recoverMediaCache(el);
+          void recovery.catch((error: unknown) => {
+            if (this.playRequested && this.memoryRecovery === recovery) this.errorCb?.(String(error));
+          });
+        }
+        return;
+      }
       
       
       
@@ -219,6 +235,51 @@ export class WebAudioAdapter implements AudioAdapter {
     el.ondurationchange = (): void => {
       if (isActive()) this.emitTime();
     };
+  }
+
+  private isMediaCacheFailure(el: HTMLAudioElement): boolean {
+    return isWebKitEngine() && /could not create temp file.*WebKit-Media/i.test(el.error?.message ?? "")
+      && !(el.currentSrc || el.src).startsWith("blob:");
+  }
+
+  private cancelMemoryRecovery(release: boolean): void {
+    this.memoryController?.abort();
+    this.memoryController = null;
+    this.memoryRecovery = null;
+    if (release && this.memoryObjectUrl) {
+      URL.revokeObjectURL(this.memoryObjectUrl);
+      this.memoryObjectUrl = null;
+    }
+  }
+
+  private recoverMediaCache(el: HTMLAudioElement): Promise<void> {
+    if (this.memoryRecovery) return this.memoryRecovery;
+    const src = el.currentSrc || el.src;
+    const url = /^https?:/.test(src) && !isProxiedAudioUrl(src)
+      ? `${PROXY_BASE}/audio?url=${encodeURIComponent(src)}` : src;
+    const controller = new AbortController();
+    this.memoryController = controller;
+    const timer = globalThis.setTimeout(() => controller.abort(), MEDIA_MEMORY_TIMEOUT_MS);
+    const position = el.currentTime;
+    this.memoryRecovery = (async () => {
+      try {
+        const blob = await fetchMediaBlob(url, controller.signal);
+        controller.signal.throwIfAborted();
+        if (!this.playRequested || el !== this.activeElement()) return;
+        if (this.memoryObjectUrl) URL.revokeObjectURL(this.memoryObjectUrl);
+        this.memoryObjectUrl = URL.createObjectURL(blob);
+        // WebKit uses memory buffering for blob: media, avoiding its unwritable
+        // /var/tmp download cache while retaining streamed audio decoding and EQ.
+        this.pendingElementSrc = this.memoryObjectUrl;
+        el.src = this.memoryObjectUrl;
+        this.pendingSeek = position || this.pendingSeek;
+        el.load();
+        await el.play();
+      } finally {
+        globalThis.clearTimeout(timer);
+      }
+    })();
+    return this.memoryRecovery;
   }
 
   private emitTime(): void {
@@ -469,6 +530,7 @@ export class WebAudioAdapter implements AudioAdapter {
   
 
   async load(src: string): Promise<void> {
+    this.cancelMemoryRecovery(true);
     this.leveler.reset();
     this.levelSmoothDb = -Infinity;
     this.clearBufChain();
@@ -620,15 +682,21 @@ export class WebAudioAdapter implements AudioAdapter {
     this.resumeCtx();
     const pending = this.pendingUri;
     this.pendingUri = null;
-    if (pending !== null && this.ctx) {
-      await this.startCrossfade(pending);
-      return;
+    this.elementPlayPending = true;
+    try {
+      if (pending !== null && this.ctx) await this.startCrossfade(pending);
+      else await this.activeElement().play();
+    } catch (error) {
+      if (!this.playRequested || !this.isMediaCacheFailure(this.activeElement())) throw error;
+      await this.recoverMediaCache(this.activeElement());
+    } finally {
+      this.elementPlayPending = false;
     }
-    await this.activeElement().play();
   }
 
   pause(): void {
     this.playRequested = false;
+    this.cancelMemoryRecovery(false);
     this.stopLevelTimer();
     if (this.mode === "buffer") {
       this.bufPause();
@@ -1321,6 +1389,8 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   destroy(): void {
+    this.playRequested = false;
+    this.cancelMemoryRecovery(true);
     this.cancelFade();
     if (this.probeTimer !== undefined) {
       globalThis.clearTimeout(this.probeTimer);
