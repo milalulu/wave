@@ -48,6 +48,12 @@ jobs:
       - name: Run unit tests
         run: pnpm test --run
 
+      - name: Validate agent benchmark
+        run: pnpm agent:eval validate
+
+      - name: Test agent evaluation CLI
+        run: pnpm agent:eval:test
+
       - name: Build frontend
         run: pnpm build
 
