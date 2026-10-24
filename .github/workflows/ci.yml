@@ -54,6 +54,12 @@ jobs:
       - name: Test agent evaluation CLI
         run: pnpm agent:eval:test
 
+      - name: Test model benchmark runner without downloading weights
+        run: pnpm agent:benchmark:test
+
+      - name: Type check isolated model execution scenarios
+        run: pnpm exec tsc --noEmit -p evals/wave-agent/tsconfig.json
+
       - name: Build frontend
         env:
           TAURI_ENV_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'darwin' || 'linux' }}

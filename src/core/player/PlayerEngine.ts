@@ -76,7 +76,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private prefetchedIds = new Set<string>();
   private prefetchInFlight = false;
   private preloadedId: string | null = null;
-  private stallTimer: number | undefined;
+  private stallTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private consecutiveFails = 0;
   private static MAX_CONSECUTIVE_FAILS = 5;
   
@@ -663,7 +663,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private async playWithGuard(): Promise<void> {
     let settled = false;
-    let timer: number | undefined;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = globalThis.setTimeout(() => {
         settled = true;

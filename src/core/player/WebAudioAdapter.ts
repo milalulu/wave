@@ -62,7 +62,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufLevelGain: GainNode | null = null;
   private leveler = new Leveler();
   private levelingEnabled = false;
-  private levelTimer: number | undefined;
+  private levelTimer: ReturnType<typeof globalThis.setInterval> | undefined;
   private levelSmoothDb = -Infinity;
 
   private gains: number[] = [];
@@ -71,7 +71,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private preloadedUri: string | null = null;
   private pendingSeek = 0;
   private fading = false;
-  private fadeTimer: number | undefined;
+  private fadeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private masterVolume = 1;
   private playbackRate = 1;
 
@@ -79,8 +79,8 @@ export class WebAudioAdapter implements AudioAdapter {
   private mode: ElementMode = "element";
   private probed = false;
   private elementProxyRetried = false;
-  private probeTimer: number | undefined;
-  private readyProbeTimer: number | undefined;
+  private probeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  private readyProbeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private pendingElementSrc: string | null = null;
   
   private playRequested = false;
@@ -116,8 +116,8 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufVolume = 1;
   private bufRate = 1;
   private bufPendingSeek: number | null = null;
-  private timeTimer: number | undefined;
-  private bufChainTimer: number | undefined;
+  private timeTimer: ReturnType<typeof globalThis.setInterval> | undefined;
+  private bufChainTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private proxiedHosts = new Set<string>();
   
   private bufferCache = new Map<string, AudioBuffer>();

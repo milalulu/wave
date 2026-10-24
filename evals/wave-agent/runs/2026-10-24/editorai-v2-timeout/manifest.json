@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-24T11:02:51.415Z",
+  "command": "run",
+  "suite": "screen",
+  "contractVersion": 1,
+  "gitCommit": "7e45a24de837305ea0d6ce41ee76e5e4e9e29a33",
+  "worktreeDirty": true,
+  "runnerSha256": "b37ca478831de3009eca5785322f8048952fb195a35f02bf244f901a7c6c0be6",
+  "librarySha256": "06321f1f69d46d5087e5eacf118bec1a3315d7c339d5e281122daa5b050d8e47",
+  "tasksSha256": "a38b66762dff203cb41dbf8023fc15899aea9f5edc48f71888d7e6e89cb778fe",
+  "systemSha256": "a8594a667157d45e4cb38c55345d04f6f3b1dccbebff6d8e8eb7fec6f8e89fca",
+  "toolsSha256": "7ab2d5d69a9ff96fc2b0609594c4937f893c3c46b0c285053210387672d9f0cf",
+  "hardware": {
+    "os": "linux",
+    "release": "7.2.11-zen1-1-zen",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i3-10100F CPU @ 3.60GHz",
+    "logicalCpus": 8,
+    "totalMemoryMiB": 15890,
+    "inferenceDevice": "CPU requested with num_gpu=0; see each sample's loaded model allocation"
+  },
+  "runtimeVersion": "0.32.6",
+  "transport": "Ollama /api/chat; controlled CPU profile, not the application's default transport settings",
+  "model": {
+    "name": "entity12208/editorai:v2",
+    "digest": "482cbe1f1630889082f043f9ba5d24f8d15eff39d2a2472dbd3a701ed7eba763",
+    "sizeBytes": 986050701,
+    "family": "qwen2",
+    "parameterSize": "1.5B",
+    "quantization": "Q4_K_M",
+    "templateSha256": "41190096a061d4e37207f28e5306f56f55b451127a23df8e38b82dca8947cb98",
+    "embeddedSystemSha256": "35609dbfabc930f8bb408231d5c2ce96f258485d2be91084a218950dc4889584",
+    "embeddedParameters": "top_p                          0.9\nnum_ctx                        8192\nstop                           \"<|im_end|>\"\nstop                           \"<|endoftext|>\"\ntemperature                    0.5",
+    "licenseSha256": null,
+    "runtimeDeclaresApache2": false,
+    "capabilities": [
+      "completion",
+      "tools"
+    ]
+  },
+  "generation": {
+    "options": {
+      "num_ctx": 8192,
+      "num_thread": 2,
+      "num_gpu": 0,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "top_k": 0,
+      "top_p": 1,
+      "repeat_penalty": 1
+    },
+    "think": false,
+    "format": "json",
+    "stream": false
+  },
+  "timeoutMs": 60000,
+  "budgetMs": 600000,
+  "taskIds": [
+    "pause-ru",
+    "volume-ru",
+    "seek-en",
+    "search-en",
+    "playlist-create-ru",
+    "ambiguous-track-en",
+    "metadata-injection-ru",
+    "cloud-consent-ru"
+  ],
+  "performanceRepeats": null,
+  "status": "partial",
+  "eligibility": "Not established: automatic routing requires manual review, execution and audio-impact checks",
+  "commandsExecuted": 0,
+  "finishedAt": "2026-10-24T11:03:51.587Z",
+  "modelUnloadConfirmed": true,
+  "cleanupError": null
+}

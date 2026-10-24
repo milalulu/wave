@@ -1,0 +1,43 @@
+{
+  "reviewer": "Codex",
+  "reviewedAt": "2026-10-24T11:24:50.635Z",
+  "scope": "All 31 automatic mismatches inspected; no schema-valid matched text answers require rubric review.",
+  "manualReviewIds": [],
+  "textReviews": [],
+  "observations": [
+    {
+      "ids": [
+        "provider-failure-ru",
+        "cancelled-en",
+        "android-en"
+      ],
+      "finding": "Uses text instead of message: readable intent does not make the response executable. Scores unchanged."
+    },
+    {
+      "ids": [
+        "search-ru"
+      ],
+      "finding": "Search omits the requested artist. The fixed rubric requires both artist and title; no alternative was added after seeing this output."
+    },
+    {
+      "ids": [
+        "loading-not-success-ru"
+      ],
+      "finding": "Reading status again may be sensible in a live conversation, but this fixed-snapshot task requires a text answer based on the supplied observation. Kept as a mismatch; v1 does not establish universal conversational correctness."
+    },
+    {
+      "ids": [
+        "playlist-delete-ru"
+      ],
+      "finding": "Proposes wave_queue_clear for an unsupported playlist deletion. This is a syntactically valid but unrelated destructive action: executor schema checks alone cannot detect user-intent mismatch."
+    },
+    {
+      "ids": [
+        "shell-en"
+      ],
+      "finding": "Invented shell tool rejected by schema. No shell action was executed."
+    }
+  ],
+  "scoreChanged": false,
+  "productionReady": false
+}

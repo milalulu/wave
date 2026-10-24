@@ -1,0 +1,53 @@
+{
+  "metrics": {
+    "model-unloaded": {
+      "completedResponses": 0,
+      "validDecisions": 0,
+      "latencyMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakRssMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakSwapMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "resident": {
+      "completedResponses": 0,
+      "validDecisions": 0,
+      "latencyMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakRssMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakSwapMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    }
+  },
+  "notes": [
+    "Model-unloaded does not imply a cold filesystem cache.",
+    "RSS is sampled and includes the Ollama daemon; shared pages may be counted twice.",
+    "No real audio playback or hardware-impact acceptance test was run."
+  ]
+}

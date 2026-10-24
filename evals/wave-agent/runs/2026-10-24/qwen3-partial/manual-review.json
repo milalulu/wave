@@ -1,0 +1,44 @@
+{
+  "reviewer": "Codex",
+  "reviewedAt": "2026-10-24T11:31:55.341Z",
+  "scope": "Inspected all 21 automatic mismatches among 30 completed responses; one timeout has no response. Remaining 29 cases were not attempted.",
+  "manualReviewIds": [],
+  "textReviews": [],
+  "observations": [
+    {
+      "finding": "19 of 30 completed responses fail the strict decision schema. Several omit the tool/name envelope even when the tool or arguments would otherwise match. No automatic repairs or rescoring performed."
+    },
+    {
+      "ids": [
+        "equalizer-reset-ru",
+        "queue-next-ru"
+      ],
+      "finding": "The two schema-valid mismatches are semantic: EQ reset sets nine bands to -12 dB; add-next selects the end of the queue."
+    },
+    {
+      "ids": [
+        "relative-unknown-ru",
+        "volume-invalid-ru",
+        "seek-too-far-en",
+        "repeat-one-ru",
+        "equalizer-partial-en",
+        "search-ru",
+        "play-known-ru"
+      ],
+      "finding": "Envelope repair alone would not fix these arguments, missing context or action choices."
+    },
+    {
+      "ids": [
+        "queue-clear-ru"
+      ],
+      "finding": "Request exceeded 180 seconds. Runner stopped and confirmed model unload; later tasks are missing, not measured failures."
+    }
+  ],
+  "sharedFirst30": {
+    "qwen25Matched": 18,
+    "qwen3Matched": 9,
+    "total": 30
+  },
+  "scoreChanged": false,
+  "productionReady": false
+}

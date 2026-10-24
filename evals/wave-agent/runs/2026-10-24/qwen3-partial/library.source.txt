@@ -1,0 +1,167 @@
+import { createHash } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { readdir, readFile } from "node:fs/promises";
+import { cpus, totalmem, platform, release, arch } from "node:os";
+import { URL } from "node:url";
+import { performance } from "node:perf_hooks";
+import { AGENT_TOOLS } from "../src/core/agent/catalog.ts";
+import { AGENT_SYSTEM_PROMPT } from "../src/core/agent/prompt.ts";
+import { isAgentDecision } from "../src/core/agent/decision.ts";
+
+// Fixed before running any candidate. A screen is never reported as a full-suite pass.
+export const SCREEN_IDS = ["pause-ru", "volume-ru", "seek-en", "search-en", "playlist-create-ru",
+  "ambiguous-track-en", "metadata-injection-ru", "cloud-consent-ru"];
+export const DEFAULT_OPTIONS = { num_ctx: 8192, num_thread: 2, num_gpu: 0, num_predict: 1024,
+  temperature: 0, seed: 42, top_k: 0, top_p: 1, repeat_penalty: 1 };
+export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+export const systemPrompt = `${AGENT_SYSTEM_PROMPT}\nAvailable tools:\n${JSON.stringify(AGENT_TOOLS)}`;
+
+export function modelMessages(task) {
+  // This explicit projection is the boundary between the evaluator and the model.
+  return [{ role: "system", content: systemPrompt },
+    { role: "user", content: JSON.stringify({ type: "user_request", text: task.prompt, context: task.context }) }];
+}
+export function localHost(value) {
+  const url = new URL(value);
+  if (url.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(url.hostname)
+    || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("Only a loopback Ollama URL without a path or credentials is allowed");
+  return url.origin;
+}
+export async function requestJson(host, path, body, { signal, timeoutMs = 60000, limit = 262144 } = {}) {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), timeoutMs);
+  const abort = () => timeout.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+  try {
+    const response = await fetch(`${localHost(host)}${path}`, { method: body === undefined ? "GET" : "POST",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body), redirect: "error", signal: timeout.signal });
+    if (!response.ok) throw new Error(`HTTP_${response.status}`);
+    const reader = response.body.getReader();
+    const chunks = []; let size = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > limit) throw new Error("response_too_large");
+        chunks.push(value);
+      }
+    } finally { await reader.cancel().catch(() => {}); }
+    const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (value.error) throw new Error("server_error");
+    return value;
+  } catch (error) {
+    // eslint-disable-next-line preserve-caught-error -- Do not retain remote response fragments in errors exported by this transport.
+    if (timeout.signal.aborted) throw new Error(signal?.aborted ? "cancelled" : "timeout");
+    if (/^(HTTP_\d+|response_too_large|server_error)$/.test(error.message)) throw error;
+    // eslint-disable-next-line preserve-caught-error -- Only stable, sanitized codes leave the transport boundary.
+    throw new Error("transport_error");
+  } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+}
+
+export function parseDecision(response) {
+  const raw = response.message?.content;
+  let decision = null;
+  let error = null;
+  if (response.done !== true || response.done_reason !== "stop") error = "incomplete_response";
+  else if (typeof raw !== "string" || raw.length > 16000 || response.message?.tool_calls?.length) error = "unsupported_response";
+  else {
+    try { decision = JSON.parse(raw); } catch { error = "invalid_json"; }
+    if (!error && !isAgentDecision(decision)) error = "invalid_decision";
+  }
+  // Preserve wrong schema for inspection, but never score a truncated/refused response as valid.
+  return { raw: typeof raw === "string" ? raw : null, decision: error ? null : decision, parseError: error };
+}
+export function summary(values) {
+  const sorted = values.filter((n) => typeof n === "number" && Number.isFinite(n)).sort((a, b) => a - b);
+  const at = (p) => sorted.length ? sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)] : null;
+  return { samples: sorted.length, p50: at(.5), p95: at(.95), max: sorted.at(-1) ?? null };
+}
+export function hardware() {
+  return { os: platform(), release: release(), architecture: arch(), cpu: cpus()[0]?.model ?? null,
+    logicalCpus: cpus().length, totalMemoryMiB: Math.round(totalmem() / 1048576),
+    inferenceDevice: "CPU requested with num_gpu=0; see each sample's loaded model allocation" };
+}
+
+/** Linux aggregate resident set of Ollama processes and descendants, not a disk/model-size estimate.
+ * Shared pages can be counted twice; this is sampled RSS, not PSS or an exact allocation peak. */
+export async function ollamaMemory(proc = "/proc") {
+  if (platform() !== "linux" && proc === "/proc") return null;
+  try {
+    const names = (await readdir(proc)).filter((name) => /^\d+$/.test(name));
+    const rows = (await Promise.all(names.map(async (name) => {
+      try {
+        const status = await readFile(`${proc}/${name}/status`, "utf8");
+        return { pid: Number(name), ppid: Number(status.match(/^PPid:\s+(\d+)/m)?.[1]),
+          name: status.match(/^Name:\s+(.+)/m)?.[1], rssKiB: Number(status.match(/^VmRSS:\s+(\d+)/m)?.[1] ?? 0),
+          swapKiB: Number(status.match(/^VmSwap:\s+(\d+)/m)?.[1] ?? 0) };
+      } catch { return null; }
+    }))).filter(Boolean);
+    const selected = new Set(rows.filter((r) => r.name === "ollama" || r.name?.startsWith("ollama_llama")).map((r) => r.pid));
+    let previous;
+    do {
+      previous = selected.size;
+      rows.forEach((r) => { if (selected.has(r.ppid)) selected.add(r.pid); });
+    } while (selected.size !== previous);
+    const included = rows.filter((r) => selected.has(r.pid));
+    return included.length ? { processCount: included.length,
+      rssMiB: included.reduce((sum, r) => sum + r.rssKiB, 0) / 1024,
+      swapMiB: included.reduce((sum, r) => sum + r.swapKiB, 0) / 1024 } : null;
+  } catch { return null; }
+}
+
+/** Available even when the tool runs in a PID namespace that hides the Ollama processes.
+ * The service cgroup includes reclaimable file cache and every request handled by that service. */
+export async function serviceResources(path = "/sys/fs/cgroup/system.slice/ollama.service") {
+  try {
+    const [current, swap, stat, cpu] = await Promise.all(["memory.current", "memory.swap.current", "memory.stat", "cpu.stat"].map((file) => readFile(`${path}/${file}`, "utf8")));
+    const fields = (text) => Object.fromEntries(text.trim().split("\n").map((line) => line.split(/\s+/)));
+    const memory = fields(stat); const usage = fields(cpu);
+    return { totalMiB: Number(current) / 1048576, swapMiB: Number(swap) / 1048576,
+      anonymousMiB: Number(memory.anon) / 1048576, mappedFileMiB: Number(memory.file_mapped) / 1048576,
+      fileCacheMiB: Number(memory.file) / 1048576, cpuUsageUsec: Number(usage.usage_usec) };
+  } catch { return null; }
+}
+
+export async function measureCompletion(host, model, task, options, signal, timeoutMs) {
+  let memorySamples = 0; let peak = null; let peakSwap = null; let stopped = false;
+  let cgroupSamples = 0; let cgroupPeak = null; let anonymousPeak = null; let mappedPeak = null;
+  const serviceBefore = await serviceResources();
+  const memoryBefore = await ollamaMemory();
+  const sample = async () => {
+    const [memory, service] = await Promise.all([ollamaMemory(), serviceResources()]);
+    if (memory) { memorySamples++; peak = Math.max(peak ?? 0, memory.rssMiB); peakSwap = Math.max(peakSwap ?? 0, memory.swapMiB); }
+    if (service) { cgroupSamples++; cgroupPeak = Math.max(cgroupPeak ?? 0, service.totalMiB);
+      anonymousPeak = Math.max(anonymousPeak ?? 0, service.anonymousMiB); mappedPeak = Math.max(mappedPeak ?? 0, service.mappedFileMiB); }
+  };
+  // No overlapping scans. This timer only runs while a request is active.
+  let timer;
+  let sampling = Promise.resolve();
+  const poll = () => { sampling = sample().finally(() => { if (!stopped) timer = setTimeout(poll, 500); }); };
+  poll();
+  const start = performance.now();
+  let response; let error;
+  try { response = await requestJson(host, "/api/chat", { model, messages: modelMessages(task), stream: false,
+    format: "json", think: false, keep_alive: "5m", options }, { signal, timeoutMs, limit: 65536 }); }
+  catch (e) { error = e.message; }
+  const latencyMs = Math.round(performance.now() - start);
+  stopped = true; clearTimeout(timer); await sampling; await sample();
+  const serviceAfter = await serviceResources();
+  const parsed = response ? parseDecision(response) : { raw: null, decision: null, parseError: null };
+  let allocation = null;
+  try {
+    const ps = await requestJson(host, "/api/ps", undefined, { timeoutMs: 3000 });
+    const own = ps.models?.find((m) => m.name === model || m.model === model);
+    allocation = own ? { modelBytes: own.size, vramBytes: own.size_vram, contextLength: own.context_length,
+      otherModelsLoaded: ps.models.filter((m) => m !== own).length } : null;
+  } catch { /* Keep a successful answer even if the allocation probe fails. */ }
+  return { id: task.id, ...parsed, error: error ?? null, latencyMs,
+    memory: { method: "Linux /proc sampled aggregate RSS: Ollama processes and descendants; shared pages may be counted twice",
+      intervalMs: 500, samples: memorySamples, beforeMiB: memoryBefore?.rssMiB ?? null, peakMiB: peak, peakSwapMiB: peakSwap },
+    serviceResources: { method: "Ollama systemd cgroup v2; total includes reclaimable file cache and other service requests", samples: cgroupSamples,
+      before: serviceBefore, after: serviceAfter, peakTotalMiB: cgroupPeak, peakAnonymousMiB: anonymousPeak, peakMappedFileMiB: mappedPeak,
+      averageCpuCores: serviceBefore && serviceAfter && latencyMs > 0 ? (serviceAfter.cpuUsageUsec - serviceBefore.cpuUsageUsec) / (latencyMs * 1000) : null },
+    allocation, runtime: response ? Object.fromEntries(["done", "done_reason", "total_duration", "load_duration", "prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration"].map((key) => [key, response[key] ?? null])) : null };
+}

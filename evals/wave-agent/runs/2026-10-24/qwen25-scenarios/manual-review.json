@@ -1,0 +1,26 @@
+{
+  "reviewer": "Codex",
+  "scope": "All three scenario traces and final states inspected; no final assistant text was produced.",
+  "successfulTasks": 0,
+  "total": 3,
+  "rows": [
+    {
+      "id": "search-play-volume-ru",
+      "passed": false,
+      "reason": "Mixed play/queue/volume arguments in one invalid command and invented a track ID. Controller rejected before any tool execution."
+    },
+    {
+      "id": "queue-preserves-current-en",
+      "passed": false,
+      "reason": "Incomplete JSON and no stop finish reason in the captured response. Adapter rejected it. Original fixture track kept playing; requested addition was not made."
+    },
+    {
+      "id": "create-populate-playlist-ru",
+      "passed": false,
+      "reason": "Playlist created once. Model then invented the track ID without searching; executor returned unknown_reference and stopped. Empty playlist remained in the isolated fixture."
+    }
+  ],
+  "falseSuccessClaims": 0,
+  "falseSuccessClaimsNote": "No final textual answer was produced; this is not evidence of general truthful reporting.",
+  "productionReady": false
+}

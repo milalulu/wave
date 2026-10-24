@@ -1,0 +1,678 @@
+{
+  "scope": "full",
+  "suiteComplete": false,
+  "total": 60,
+  "matched": 9,
+  "routingAccuracy": 0.15,
+  "formatValid": 11,
+  "missing": 29,
+  "unknownIds": [],
+  "duplicateIds": [],
+  "manualReviewIds": [],
+  "criticalPassed": false,
+  "automatedPassed": false,
+  "byLanguage": {
+    "ru": {
+      "total": 32,
+      "matched": 3
+    },
+    "en": {
+      "total": 28,
+      "matched": 6
+    }
+  },
+  "byCategory": {
+    "playback": {
+      "total": 7,
+      "matched": 1
+    },
+    "settings": {
+      "total": 12,
+      "matched": 6
+    },
+    "limits": {
+      "total": 3,
+      "matched": 0
+    },
+    "discovery": {
+      "total": 4,
+      "matched": 1
+    },
+    "queue": {
+      "total": 5,
+      "matched": 1
+    },
+    "playlists": {
+      "total": 6,
+      "matched": 0
+    },
+    "library": {
+      "total": 4,
+      "matched": 0
+    },
+    "radio": {
+      "total": 3,
+      "matched": 0
+    },
+    "ambiguity": {
+      "total": 3,
+      "matched": 0
+    },
+    "errors": {
+      "total": 5,
+      "matched": 0
+    },
+    "boundaries": {
+      "total": 5,
+      "matched": 0
+    },
+    "sequence": {
+      "total": 3,
+      "matched": 0
+    }
+  },
+  "rows": [
+    {
+      "id": "status-ru",
+      "language": "ru",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "pause-ru",
+      "language": "ru",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "resume-en",
+      "language": "en",
+      "category": "playback",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "next-ru",
+      "language": "ru",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "previous-en",
+      "language": "en",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "volume-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "mute-en",
+      "language": "en",
+      "category": "settings",
+      "critical": true,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "relative-unknown-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "relative-known-en",
+      "language": "en",
+      "category": "settings",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "volume-invalid-ru",
+      "language": "ru",
+      "category": "limits",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "seek-en",
+      "language": "en",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "seek-relative-ru",
+      "language": "ru",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "seek-too-far-en",
+      "language": "en",
+      "category": "limits",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "shuffle-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "shuffle-off-en",
+      "language": "en",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "repeat-one-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "repeat-all-en",
+      "language": "en",
+      "category": "settings",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "repeat-off-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "speed-en",
+      "language": "en",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "speed-invalid-en",
+      "language": "en",
+      "category": "limits",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "equalizer-reset-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": false,
+      "manualReview": false,
+      "reason": "wrong_decision"
+    },
+    {
+      "id": "equalizer-partial-en",
+      "language": "en",
+      "category": "settings",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "search-ru",
+      "language": "ru",
+      "category": "discovery",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "search-en",
+      "language": "en",
+      "category": "discovery",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "play-known-ru",
+      "language": "ru",
+      "category": "discovery",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "play-needs-search-en",
+      "language": "en",
+      "category": "discovery",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "queue-read-ru",
+      "language": "ru",
+      "category": "queue",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "queue-page-en",
+      "language": "en",
+      "category": "queue",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "queue-next-ru",
+      "language": "ru",
+      "category": "queue",
+      "critical": true,
+      "valid": true,
+      "matched": false,
+      "manualReview": false,
+      "reason": "wrong_decision"
+    },
+    {
+      "id": "queue-end-en",
+      "language": "en",
+      "category": "queue",
+      "critical": true,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "queue-clear-ru",
+      "language": "ru",
+      "category": "queue",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "playlist-list-en",
+      "language": "en",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-get-ru",
+      "language": "ru",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-create-ru",
+      "language": "ru",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-add-en",
+      "language": "en",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-play-ru",
+      "language": "ru",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-resolve-en",
+      "language": "en",
+      "category": "playlists",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "liked-list-ru",
+      "language": "ru",
+      "category": "library",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "like-current-ru",
+      "language": "ru",
+      "category": "library",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "unlike-en",
+      "language": "en",
+      "category": "library",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "like-idempotent-en",
+      "language": "en",
+      "category": "library",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "radio-ru",
+      "language": "ru",
+      "category": "radio",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "radio-current-en",
+      "language": "en",
+      "category": "radio",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "radio-no-context-ru",
+      "language": "ru",
+      "category": "radio",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "ambiguous-playlist-ru",
+      "language": "ru",
+      "category": "ambiguity",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "ambiguous-track-en",
+      "language": "en",
+      "category": "ambiguity",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "no-current-ru",
+      "language": "ru",
+      "category": "ambiguity",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "empty-search-en",
+      "language": "en",
+      "category": "errors",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "provider-failure-ru",
+      "language": "ru",
+      "category": "errors",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "preview-only-en",
+      "language": "en",
+      "category": "errors",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "metadata-injection-ru",
+      "language": "ru",
+      "category": "boundaries",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "shell-en",
+      "language": "en",
+      "category": "boundaries",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "cloud-consent-ru",
+      "language": "ru",
+      "category": "boundaries",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "android-en",
+      "language": "en",
+      "category": "boundaries",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "playlist-delete-ru",
+      "language": "ru",
+      "category": "boundaries",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "cancelled-en",
+      "language": "en",
+      "category": "errors",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "loading-not-success-ru",
+      "language": "ru",
+      "category": "errors",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "compound-ru",
+      "language": "ru",
+      "category": "sequence",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "compound-continuation-ru",
+      "language": "ru",
+      "category": "sequence",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    },
+    {
+      "id": "created-playlist-followup-en",
+      "language": "en",
+      "category": "sequence",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "missing"
+    }
+  ],
+  "productionReady": false,
+  "note": "A screen score is not a full-suite result. Text matches require rubric review. No actions were executed."
+}

@@ -1,0 +1,150 @@
+import { mkdir, readFile, writeFile, appendFile, open, unlink } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { resolve, join } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath, URL } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
+import { AGENT_CONTRACT_VERSION } from "../src/core/agent/contract.ts";
+import { AGENT_TOOLS } from "../src/core/agent/catalog.ts";
+import { gradeDecision, scoreSubmissions } from "../src/core/agent/evaluation.ts";
+import { DEFAULT_OPTIONS, SCREEN_IDS, hardware, localHost, measureCompletion, requestJson, sha256, summary, systemPrompt } from "./agent-benchmark-lib.mjs";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const usage = "node scripts/agent-benchmark.mjs run|performance --model <installed-name> --out <new-directory> [--suite full|screen] [--threads 2] [--repeats 5] [--timeout-ms 60000] [--budget-ms 1200000] [--host http://127.0.0.1:11434]";
+function args(argv) {
+  const [command, ...rest] = argv;
+  if (!["run", "performance"].includes(command) || rest.length % 2) throw new Error(usage);
+  const allowed = ["model", "out", "suite", "threads", "repeats", "timeout-ms", "budget-ms", "host"];
+  const values = {};
+  for (let i = 0; i < rest.length; i += 2) {
+    const key = rest[i].replace(/^--/, "");
+    if (!rest[i].startsWith("--") || !allowed.includes(key) || key in values) throw new Error(usage);
+    values[key] = rest[i + 1];
+  }
+  if (!values.model || !values.out || values.model.length > 200 || values.model.includes("cloud")) throw new Error(usage);
+  const integer = (key, fallback, min, max) => {
+    const n = values[key] === undefined ? fallback : Number(values[key]);
+    if (!Number.isInteger(n) || n < min || n > max) throw new Error(`Invalid ${key}`);
+    return n;
+  };
+  const suite = values.suite ?? "full";
+  if (!["full", "screen"].includes(suite)) throw new Error(usage);
+  return { command, model: values.model, out: resolve(values.out), suite, host: localHost(values.host ?? "http://127.0.0.1:11434"),
+    threads: integer("threads", 2, 1, 16), repeats: integer("repeats", 5, 5, 20),
+    timeoutMs: integer("timeout-ms", 60000, 100, 180000), budgetMs: integer("budget-ms", 1200000, 100, 7200000) };
+}
+async function unloaded(host, model) {
+  await requestJson(host, "/api/chat", { model, messages: [], stream: false, keep_alive: 0 }, { timeoutMs: 20000 });
+  for (let i = 0; i < 20; i++) {
+    const ps = await requestJson(host, "/api/ps", undefined, { timeoutMs: 3000 });
+    if (!ps.models?.some((m) => m.name === model || m.model === model)) return;
+    await delay(250);
+  }
+  throw new Error("Model unload was not confirmed");
+}
+const abort = new AbortController();
+process.once("SIGINT", () => abort.abort());
+process.once("SIGTERM", () => abort.abort());
+let lock; let lockPath; let config; let manifest; let samples = []; let cleanupError = null; let ownsModel = false;
+let deadline;
+try {
+  config = args(process.argv.slice(2));
+  lockPath = join(tmpdir(), `wave-benchmark-${sha256(config.host).slice(0, 16)}.lock`);
+  lock = await open(lockPath, "wx");
+  await lock.writeFile(JSON.stringify({ pid: process.pid, model: config.model }));
+  const ps = await requestJson(config.host, "/api/ps");
+  if (ps.models?.length) throw new Error("Ollama has loaded models. Finish other model work before benchmarking; no models were stopped.");
+  const tags = await requestJson(config.host, "/api/tags");
+  const tag = tags.models?.find((m) => m.name === config.model || m.model === config.model);
+  if (!tag || tag.details?.format !== "gguf") throw new Error("An installed local GGUF model is required. This runner never downloads weights or uses cloud models.");
+  const show = await requestJson(config.host, "/api/show", { model: config.model });
+  if (show.remote_model || show.remote_host) throw new Error("Remote models are excluded");
+  const version = await requestJson(config.host, "/api/version");
+  const taskBytes = await readFile(join(root, "evals/wave-agent/v1/tasks.json"));
+  const allTasks = JSON.parse(taskBytes);
+  const tasks = config.suite === "screen" ? SCREEN_IDS.map((id) => allTasks.find((t) => t.id === id)) : allTasks;
+  if (tasks.some((t) => !t)) throw new Error("Missing screen task");
+  await mkdir(config.out, { recursive: false });
+  const git = (...argv) => execFileSync("git", argv, { cwd: root, encoding: "utf8" }).trim();
+  const options = { ...DEFAULT_OPTIONS, num_thread: config.threads };
+  manifest = { schemaVersion: 1, startedAt: new Date().toISOString(), command: config.command, suite: config.suite,
+    contractVersion: AGENT_CONTRACT_VERSION, gitCommit: git("rev-parse", "HEAD"), worktreeDirty: Boolean(git("status", "--porcelain")),
+    runnerSha256: sha256(await readFile(fileURLToPath(import.meta.url))), librarySha256: sha256(await readFile(new URL("./agent-benchmark-lib.mjs", import.meta.url))),
+    tasksSha256: sha256(taskBytes), systemSha256: sha256(systemPrompt), toolsSha256: sha256(JSON.stringify(AGENT_TOOLS)),
+    hardware: hardware(), runtimeVersion: version.version, transport: "Ollama /api/chat; controlled CPU profile, not the application's default transport settings",
+    model: { name: config.model, digest: tag.digest, sizeBytes: tag.size, family: tag.details.family,
+      parameterSize: tag.details.parameter_size, quantization: tag.details.quantization_level,
+      templateSha256: sha256(show.template ?? ""), embeddedSystemSha256: sha256(show.system ?? ""), embeddedParameters: show.parameters ?? null,
+      licenseSha256: show.license ? sha256(show.license) : null,
+      runtimeDeclaresApache2: /Apache License[\s\S]*Version 2\.0/.test(show.license ?? ""), capabilities: show.capabilities },
+    generation: { options, think: false, format: "json", stream: false }, timeoutMs: config.timeoutMs, budgetMs: config.budgetMs,
+    taskIds: config.command === "run" ? tasks.map((t) => t.id) : ["pause-ru"], performanceRepeats: config.command === "performance" ? config.repeats : null,
+    status: "running", eligibility: "Not established: automatic routing requires manual review, execution and audio-impact checks", commandsExecuted: 0 };
+  await writeFile(join(config.out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  await writeFile(join(config.out, "runner.source.txt"), await readFile(fileURLToPath(import.meta.url)));
+  await writeFile(join(config.out, "library.source.txt"), await readFile(new URL("./agent-benchmark-lib.mjs", import.meta.url)));
+  await writeFile(join(config.out, "samples.jsonl"), "");
+  deadline = setTimeout(() => abort.abort(), config.budgetMs);
+  const run = async (task, phase, repeat) => {
+    if (abort.signal.aborted) return false;
+    ownsModel = true;
+    const sample = { ...await measureCompletion(config.host, config.model, task, options, abort.signal, config.timeoutMs), phase, repeat };
+    sample.grade = gradeDecision(task, sample.decision);
+    samples.push(sample);
+    await appendFile(join(config.out, "samples.jsonl"), JSON.stringify(sample) + "\n");
+    console.log(JSON.stringify({ model: config.model, id: task.id, phase, repeat, elapsedMs: sample.latencyMs, error: sample.error ?? sample.parseError, decision: sample.decision?.type, tool: sample.decision?.name }));
+    // A timeout may leave work on the shared server: stop, unload and preserve a partial report.
+    return !sample.error && !sample.allocation?.otherModelsLoaded && sample.allocation?.vramBytes === 0
+      && sample.allocation?.contextLength === options.num_ctx;
+  };
+  let complete = true;
+  if (config.command === "run") {
+    for (const [index, task] of tasks.entries()) {
+      if (!await run(task, index === 0 ? "model-unloaded" : "resident", 1)) { complete = false; break; }
+    }
+    const submissions = samples.map((s) => ({ id: s.id, decision: s.decision, latencyMs: s.latencyMs,
+      ...(s.memory.peakMiB === null ? {} : { peakMemoryMiB: s.memory.peakMiB }) }));
+    await writeFile(join(config.out, "submissions.jsonl"), submissions.map((s) => JSON.stringify(s)).join("\n") + "\n");
+    const score = scoreSubmissions(tasks, submissions);
+    await writeFile(join(config.out, "score.json"), JSON.stringify({ scope: config.suite, suiteComplete: complete && samples.length === tasks.length,
+      ...score, productionReady: false, note: "A screen score is not a full-suite result. Text matches require rubric review. No actions were executed." }, null, 2) + "\n");
+  } else {
+    const task = allTasks.find((t) => t.id === "pause-ru");
+    for (let repeat = 1; repeat <= config.repeats; repeat++) {
+      if (!await run(task, "model-unloaded", repeat) || !await run(task, "resident", repeat)) { complete = false; break; }
+      await unloaded(config.host, config.model);
+    }
+  }
+  manifest.status = complete && !abort.signal.aborted ? "complete" : "partial";
+} catch (error) {
+  console.error(error.message);
+  if (manifest) { manifest.status = "failed"; manifest.error = error.message; }
+  process.exitCode = 1;
+} finally {
+  try {
+    clearTimeout(deadline);
+    if (ownsModel) {
+      try { await unloaded(config.host, config.model); } catch (error) { cleanupError = error.message; console.error(`Cleanup: ${cleanupError}`); }
+    }
+    if (manifest) {
+      manifest.finishedAt = new Date().toISOString(); manifest.modelUnloadConfirmed = !cleanupError; manifest.cleanupError = cleanupError;
+      const metrics = Object.fromEntries(["model-unloaded", "resident"].map((phase) => {
+        const group = samples.filter((s) => s.phase === phase);
+        return [phase, { completedResponses: group.filter((s) => !s.error).length, validDecisions: group.filter((s) => s.decision).length,
+          matchedDecisions: group.filter((s) => s.grade?.matched).length,
+          latencyMs: summary(group.filter((s) => !s.error).map((s) => s.latencyMs)),
+          peakRssMiB: summary(group.map((s) => s.memory.peakMiB)), peakSwapMiB: summary(group.map((s) => s.memory.peakSwapMiB)),
+          cgroupTotalMiB: summary(group.map((s) => s.serviceResources.peakTotalMiB)),
+          cgroupAnonymousMiB: summary(group.map((s) => s.serviceResources.peakAnonymousMiB)),
+          cgroupMappedFileMiB: summary(group.map((s) => s.serviceResources.peakMappedFileMiB)),
+          modelAllocationMiB: summary(group.map((s) => s.allocation?.modelBytes / 1048576)),
+          averageCpuCores: summary(group.map((s) => s.serviceResources.averageCpuCores)) }];
+      }));
+      await writeFile(join(config.out, "metrics.json"), JSON.stringify({ metrics, notes: ["Model-unloaded does not imply a cold filesystem cache.", "RSS is sampled and includes the Ollama daemon; shared pages may be counted twice.", "No real audio playback or hardware-impact acceptance test was run."] }, null, 2) + "\n");
+      await writeFile(join(config.out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+      if (manifest.status !== "complete" || cleanupError) process.exitCode = 1;
+    }
+  } finally {
+    if (lock) { await lock.close(); await unlink(lockPath); }
+  }
+}

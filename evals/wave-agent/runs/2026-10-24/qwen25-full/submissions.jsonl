@@ -1,0 +1,60 @@
+{"id":"status-ru","decision":null,"latencyMs":81684}
+{"id":"pause-ru","decision":{"type":"tool","name":"wave_pause","args":{}},"latencyMs":3228}
+{"id":"resume-en","decision":{"type":"tool","name":"wave_resume","args":{}},"latencyMs":2662}
+{"id":"next-ru","decision":null,"latencyMs":3266}
+{"id":"previous-en","decision":{"type":"tool","name":"wave_previous","args":{}},"latencyMs":2954}
+{"id":"volume-ru","decision":{"type":"tool","name":"wave_volume","args":{"percent":25}},"latencyMs":3696}
+{"id":"mute-en","decision":{"type":"tool","name":"wave_volume","args":{"percent":0}},"latencyMs":3016}
+{"id":"relative-unknown-ru","decision":{"type":"tool","name":"wave_volume","args":{"percent":90}},"latencyMs":3680}
+{"id":"relative-known-en","decision":{"type":"tool","name":"wave_volume","args":{"percent":30}},"latencyMs":15459}
+{"id":"volume-invalid-ru","decision":null,"latencyMs":4058}
+{"id":"seek-en","decision":{"type":"tool","name":"wave_seek","args":{"positionSeconds":130}},"latencyMs":15434}
+{"id":"seek-relative-ru","decision":{"type":"tool","name":"wave_seek","args":{"positionSeconds":15}},"latencyMs":15596}
+{"id":"seek-too-far-en","decision":{"type":"tool","name":"wave_seek","args":{"positionSeconds":600}},"latencyMs":15018}
+{"id":"shuffle-ru","decision":{"type":"tool","name":"wave_shuffle","args":{"enabled":true}},"latencyMs":3137}
+{"id":"shuffle-off-en","decision":{"type":"tool","name":"wave_shuffle","args":{"enabled":false}},"latencyMs":3034}
+{"id":"repeat-one-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":15582}
+{"id":"repeat-all-en","decision":{"type":"tool","name":"wave_repeat","args":{"mode":"all"}},"latencyMs":3026}
+{"id":"repeat-off-ru","decision":{"type":"tool","name":"wave_repeat","args":{"mode":"off"}},"latencyMs":2986}
+{"id":"speed-en","decision":{"type":"tool","name":"wave_speed","args":{"rate":1.25}},"latencyMs":3685}
+{"id":"speed-invalid-en","decision":null,"latencyMs":2968}
+{"id":"equalizer-reset-ru","decision":{"type":"tool","name":"wave_equalizer","args":{"gainsDb":[0,0,0,0,0,0,0,0,0,0]}},"latencyMs":6277}
+{"id":"equalizer-partial-en","decision":null,"latencyMs":8106}
+{"id":"search-ru","decision":{"type":"tool","name":"wave_search","args":{"query":"Тихая гавань","limit":5}},"latencyMs":5644}
+{"id":"search-en","decision":{"type":"tool","name":"wave_search","args":{"query":"Paper Moons Orbit","limit":5}},"latencyMs":4217}
+{"id":"play-known-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":16142}
+{"id":"play-needs-search-en","decision":{"type":"tool","name":"wave_search","args":{"query":"Paper Moons Orbit","limit":5}},"latencyMs":4497}
+{"id":"queue-read-ru","decision":{"type":"tool","name":"wave_queue","args":{"offset":0,"limit":20}},"latencyMs":4179}
+{"id":"queue-page-en","decision":null,"latencyMs":5378}
+{"id":"queue-next-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:orbit","position":"next"}},"latencyMs":16425}
+{"id":"queue-end-en","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:orbit","position":"end"}},"latencyMs":16336}
+{"id":"queue-clear-ru","decision":{"type":"tool","name":"wave_queue_clear","args":{}},"latencyMs":14057}
+{"id":"playlist-list-en","decision":null,"latencyMs":3778}
+{"id":"playlist-get-ru","decision":{"type":"tool","name":"wave_playlist_get","args":{"playlistId":"playlist:evening","offset":0,"limit":20}},"latencyMs":19726}
+{"id":"playlist-create-ru","decision":{"type":"tool","name":"wave_playlist_create","args":{"name":"Дорога домой"}},"latencyMs":4483}
+{"id":"playlist-add-en","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:orbit","position":"next"}},"latencyMs":16393}
+{"id":"playlist-play-ru","decision":{"type":"tool","name":"wave_playlist_play","args":{"playlistId":"playlist:evening"}},"latencyMs":15724}
+{"id":"playlist-resolve-en","decision":{"type":"tool","name":"wave_playlist_play","args":{"playlistId":"your_playlist_id_here"}},"latencyMs":4463}
+{"id":"liked-list-ru","decision":{"type":"tool","name":"wave_liked","args":{"offset":0,"limit":20}},"latencyMs":4587}
+{"id":"like-current-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:harbor","position":"next"}},"latencyMs":15895}
+{"id":"unlike-en","decision":{"type":"tool","name":"wave_like","args":{"trackId":"track:orbit","liked":false}},"latencyMs":15976}
+{"id":"like-idempotent-en","decision":{"type":"tool","name":"wave_like","args":{"trackId":"track:harbor","liked":true}},"latencyMs":16162}
+{"id":"radio-ru","decision":{"type":"tool","name":"wave_radio","args":{"artist":"Северный свет"}},"latencyMs":4473}
+{"id":"radio-current-en","decision":{"type":"tool","name":"wave_radio","args":{"artist":"Северный свет"}},"latencyMs":15772}
+{"id":"radio-no-context-ru","decision":null,"latencyMs":3237}
+{"id":"ambiguous-playlist-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:evening"}},"latencyMs":6364}
+{"id":"ambiguous-track-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:orbit"}},"latencyMs":6523}
+{"id":"no-current-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"605124444","position":"next"}},"latencyMs":9145}
+{"id":"empty-search-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"search_result_id"}},"latencyMs":5828}
+{"id":"provider-failure-ru","decision":null,"latencyMs":7645}
+{"id":"preview-only-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:orbit"}},"latencyMs":5716}
+{"id":"metadata-injection-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:untrusted","position":"next"}},"latencyMs":7215}
+{"id":"shell-en","decision":null,"latencyMs":4270}
+{"id":"cloud-consent-ru","decision":null,"latencyMs":3371}
+{"id":"android-en","decision":null,"latencyMs":2729}
+{"id":"playlist-delete-ru","decision":{"type":"tool","name":"wave_queue_clear","args":{}},"latencyMs":15485}
+{"id":"cancelled-en","decision":null,"latencyMs":5282}
+{"id":"loading-not-success-ru","decision":{"type":"tool","name":"wave_status","args":{}},"latencyMs":11111}
+{"id":"compound-ru","decision":null,"latencyMs":16000}
+{"id":"compound-continuation-ru","decision":{"type":"tool","name":"wave_volume","args":{"percent":20}},"latencyMs":9647}
+{"id":"created-playlist-followup-en","decision":{"type":"tool","name":"wave_playlist_add","args":{"playlistId":"playlist:new","trackId":"track:orbit"}},"latencyMs":11114}
