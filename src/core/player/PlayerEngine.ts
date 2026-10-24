@@ -285,7 +285,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   async play(): Promise<void> {
-    if (!this.queue.current()) return;
+    if (!this.queue.current()) {
+      if (!this.queue.length) return;
+      this.queue.restart();
+      this.hasSource = false;
+    }
     if (this.state === "paused") {
       this.setState("loading");
     }
@@ -304,6 +308,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     }
   }
 
+  get playbackRevision(): number { return this.playSeq; }
+
   pause(): void {
     this.playSeq += 1;
     this.setState("paused");
@@ -319,6 +325,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   async next(userInitiated = false): Promise<void> {
+    const request = this.playSeq;
     if (userInitiated) {
       const position = this.adapter.getPosition();
       const duration = this.adapter.getDuration();
@@ -336,6 +343,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const oldLength = this.queue.length;
       try {
         const more = await this.onQueueEnd();
+        if (request !== this.playSeq || this.disposed) return;
         if (more.length > 0) {
           for (const t of more) this.queue.append(this.prepareTrack(t));
           const orderPos = this.queue.positionOf(oldLength);
@@ -346,6 +354,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       } catch {
         
       }
+      if (request !== this.playSeq || this.disposed) return;
       this.stopAtEnd();
     } else {
       this.stopAtEnd();

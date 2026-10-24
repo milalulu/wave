@@ -55,7 +55,13 @@ jobs:
         run: pnpm agent:eval:test
 
       - name: Build frontend
+        env:
+          TAURI_ENV_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'darwin' || 'linux' }}
         run: pnpm build
+
+      - name: Check agent desktop and mobile bundle boundaries
+        if: runner.os == 'Linux'
+        run: pnpm agent:check-bundles
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'

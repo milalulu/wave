@@ -14,7 +14,7 @@ export type ArtistRadioState =
 
 export interface ArtistRadioSlice {
   artistRadioState: ArtistRadioState;
-  startArtistRadio: (artist: string) => Promise<ArtistRadioStation | null>;
+  startArtistRadio: (artist: string, signal?: AbortSignal) => Promise<ArtistRadioStation | null>;
   refreshArtistRadio: () => Promise<ArtistRadioStation | null>;
   playArtistRadio: (index?: number, shuffle?: boolean) => Promise<void>;
   cancelArtistRadio: () => void;
@@ -35,7 +35,8 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
         set({ artistRadioState: { status: "idle", artist: "", station: null, error: null } });
       }
     },
-    startArtistRadio: async (rawArtist) => {
+    startArtistRadio: async (rawArtist, signal) => {
+      signal?.throwIfAborted();
       const artist = normalizeArtistName(rawArtist);
       const services = get().services;
       if (!artist || !services) return null;
@@ -47,6 +48,13 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
       const controller = new AbortController();
       pending = controller;
       const request = ++generation;
+      let playbackRevision: number | null = null;
+      const abort = () => {
+        if (request !== generation) return;
+        get().cancelArtistRadio();
+        if (playbackRevision !== null && services.engine.playbackRevision === playbackRevision) services.engine.pause();
+      };
+      signal?.addEventListener("abort", abort, { once: true });
       set({ artistRadioState: { status: "loading", artist, station: null, error: null } });
       get().setView("artistRadio");
       try {
@@ -54,7 +62,10 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
         if (request !== generation) return null;
         if (!station.tracks.length) throw new Error(t("toasts").similarEmpty);
         set({ artistRadioState: { status: "ready", artist, station, error: null } });
-        await get().playArtistRadio();
+        if (request !== generation || signal?.aborted) return null;
+        const playing = get().playArtistRadio();
+        playbackRevision = services.engine.playbackRevision;
+        await playing;
         return request === generation ? station : null;
       } catch (error) {
         if (request !== generation) return null;
@@ -63,6 +74,7 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
         get().notify(message);
         return null;
       } finally {
+        signal?.removeEventListener("abort", abort);
         if (request === generation) pending = null;
       }
     },

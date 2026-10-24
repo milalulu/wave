@@ -8,6 +8,17 @@ export class LibraryService {
     return this.storage.isLiked(track.id);
   }
 
+  async setLiked(track: Track, liked: boolean, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted();
+    const current = await this.storage.isLiked(track.id);
+    signal?.throwIfAborted();
+    if (current !== liked) {
+      if (liked) await this.storage.addLikedTrack(track);
+      else await this.storage.removeLikedTrack(track.id);
+    }
+    return liked;
+  }
+
   async toggleLike(track: Track): Promise<boolean> {
     const liked = await this.storage.isLiked(track.id);
     if (liked) {

@@ -40,6 +40,7 @@ import { findTrackVariants } from "./trackVariants";
 import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
 import { normalizeSearchResults } from "../core/search/normalizeSearch";
+import { withDeadline } from "../core/util/deadline";
 import { rankCandidates } from "../core/recommendations/rankCandidates";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
@@ -304,16 +305,27 @@ export async function searchAll(
   providers: MusicProvider[],
   query: string,
 ): Promise<SearchResults[]> {
+  return (await searchAllDetailed(providers, query)).results;
+}
+
+export async function searchAllDetailed(providers: MusicProvider[], query: string, signal?: AbortSignal): Promise<{
+  results: SearchResults[]; incomplete: boolean; available: boolean;
+}> {
+  signal?.throwIfAborted();
   const results = await Promise.allSettled(
-    providers.map((p) => withTimeout(p.search(query), SEARCH_PROVIDER_TIMEOUT_MS, p.id)),
+    providers.map((p) => signal
+      ? withDeadline(Promise.resolve().then(() => { signal.throwIfAborted(); return p.search(query); }), SEARCH_PROVIDER_TIMEOUT_MS, signal)
+      : withTimeout(Promise.resolve().then(() => p.search(query)), SEARCH_PROVIDER_TIMEOUT_MS, p.id)),
   );
+  signal?.throwIfAborted();
   const filtered = filterPreviewResults(
     results
       .filter((r): r is PromiseFulfilledResult<SearchResults> => r.status === "fulfilled")
       .map((r) => r.value),
     isExcludePreviewsEnabled(),
   );
-  return normalizeSearchResults(filtered, query);
+  return { results: normalizeSearchResults(filtered, query), incomplete: results.some((r) => r.status === "rejected"),
+    available: results.some((r) => r.status === "fulfilled") };
 }
 
 export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AgentExecutor } from "../core/agent/AgentExecutor";
 import { createNavigationSlice, type NavigationSlice } from "./navigationSlice";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createArtistRadioSlice, type ArtistRadioSlice } from "./artistRadioSlice";
@@ -64,6 +65,7 @@ import {
 } from "../core/cover/accent";
 
 let initPromise: Promise<void> | null = null;
+let agentGeneration = 0;
 
 const savedLeveling = loadLeveling();
 
@@ -80,6 +82,9 @@ const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator
 export type { DownloadItem } from "./downloadsSlice";
 
 export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlice, NavigationSlice {
+  agentSession: AgentExecutor | null;
+  openAgentSession: () => Promise<AgentExecutor>;
+  closeAgentSession: () => void;
   services: AppServices | null;
   ready: boolean;
   onboardingCompleted: boolean;
@@ -101,10 +106,10 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   selectedPlaylistId: string | null;
   setSelectedPlaylist: (id: string | null) => void;
   loadPlaylists: () => Promise<void>;
-  createPlaylist: (name: string, tracks?: Track[]) => Promise<void>;
+  createPlaylist: (name: string, tracks?: Track[], signal?: AbortSignal) => Promise<Playlist | null>;
   importPlaylistFromLink: (url: string) => Promise<number>;
   deletePlaylist: (id: string) => Promise<void>;
-  addToPlaylist: (playlistId: string, track: Track) => Promise<void>;
+  addToPlaylist: (playlistId: string, track: Track, signal?: AbortSignal) => Promise<boolean | null>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   reorderPlaylist: (playlistId: string, from: number, to: number) => void;
   setPlaylistFolder: (playlistId: string, folder: string | null) => Promise<void>;
@@ -141,6 +146,7 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   removeFromQueue: (index: number) => void;
   saveQueueAsPlaylist: (name: string) => Promise<void>;
   toggleLike: (track?: Track) => Promise<void>;
+  setLiked: (track: Track, liked: boolean, signal?: AbortSignal) => Promise<boolean>;
   shareTrack: (track: Track) => Promise<void>;
   updateLocalTrack: (trackId: string, meta: Partial<Pick<Track, "title" | "artist" | "album" | "genre" | "year">>) => void;
   startWave: () => Promise<void>;
@@ -229,6 +235,27 @@ const emptySnapshot: PlayerSnapshot = {
 };
 
 export const useApp = create<AppState>()((set, get, api) => ({
+  agentSession: null,
+  closeAgentSession: () => {
+    agentGeneration++;
+    get().agentSession?.dispose();
+    set({ agentSession: null });
+  },
+  openAgentSession: async () => {
+    if (typeof __WAVE_DESKTOP_AGENT__ === "undefined" || !__WAVE_DESKTOP_AGENT__) throw new Error("Desktop agent unavailable");
+    const services = get().services;
+    if (!services || !isTauri()) throw new Error("Desktop app is not ready");
+    const existing = get().agentSession;
+    if (existing) return existing;
+    const generation = agentGeneration;
+    if (await invoke<boolean>("desktop_agent_available") !== true) throw new Error("Desktop agent unavailable");
+    const { createDesktopAgentSession } = await import("./agentDesktop");
+    if (generation !== agentGeneration || get().services !== services) throw new Error("Agent session cancelled");
+    if (get().agentSession) return get().agentSession!;
+    const session = createDesktopAgentSession(services, get);
+    set({ agentSession: session });
+    return session;
+  },
   services: null,
   ready: false,
   onboardingCompleted: isOnboardingCompleted(),
@@ -281,9 +308,10 @@ export const useApp = create<AppState>()((set, get, api) => ({
     const pls = await services.storage.getPlaylists();
     set({ playlists: pls });
   },
-  createPlaylist: async (name, tracks = []) => {
+  createPlaylist: async (name, tracks = [], signal) => {
+    signal?.throwIfAborted();
     const { services } = get();
-    if (!services) return;
+    if (!services) return null;
     const now = Date.now();
     const playlist: Playlist = {
       id: `playlist:${now}:${Math.random().toString(36).slice(2)}`,
@@ -296,6 +324,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     };
     await services.storage.addPlaylist(playlist);
     await get().loadPlaylists();
+    return playlist;
   },
   importPlaylistFromLink: async (url) => {
     const { services } = get();
@@ -325,20 +354,21 @@ export const useApp = create<AppState>()((set, get, api) => ({
       });
     }
   },
-  addToPlaylist: async (playlistId, track) => {
+  addToPlaylist: async (playlistId, track, signal) => {
+    signal?.throwIfAborted();
     const { services } = get();
-    if (!services) return;
+    if (!services) return null;
     const pl = await services.storage.getPlaylist(playlistId);
-    if (!pl) return;
+    signal?.throwIfAborted();
+    if (!pl) return null;
     track = services.recordings?.resolve(track) ?? track;
     if (!pl.trackIds.includes(track.id)) {
-      pl.trackIds.push(track.id);
-      pl.tracks = [...(pl.tracks ?? []), track];
-      if (!pl.coverUrl && track.coverUrl) pl.coverUrl = track.coverUrl;
-      pl.updatedAt = Date.now();
-      await services.storage.updatePlaylist(pl);
+      await services.storage.updatePlaylist({ ...pl, trackIds: [...pl.trackIds, track.id],
+        tracks: [...(pl.tracks ?? []), track], coverUrl: pl.coverUrl ?? track.coverUrl, updatedAt: Date.now() });
       await get().loadPlaylists();
+      return true;
     }
+    return false;
   },
   removeFromPlaylist: async (playlistId, trackId) => {
     const { services } = get();
@@ -493,6 +523,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   },
 
   reloadServices: async () => {
+    get().closeAgentSession();
     get().cancelArtistRadio();
     const { services } = get();
     services?.prewarmer?.cancel();
@@ -643,6 +674,14 @@ export const useApp = create<AppState>()((set, get, api) => ({
       nowLiked ? t("common").like : t("common").unlike,
       { label: t("common").undo, run: () => void useApp.getState().toggleLike(target) },
     );
+  },
+
+  setLiked: async (track, liked, signal) => {
+    const { services } = get();
+    if (!services) throw new Error("App is not ready");
+    const result = await services.library.setLiked(track, liked, signal);
+    await get().refreshLibrary();
+    return result;
   },
 
   shareTrack: async (track) => {

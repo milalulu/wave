@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "agent:eval": "node scripts/agent-eval.mjs",
     "agent:eval:test": "node --test scripts/agent-eval.test.mjs",
+    "agent:check-bundles": "node scripts/check-agent-bundles.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "tauri": "tauri"

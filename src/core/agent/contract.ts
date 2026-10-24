@@ -86,11 +86,14 @@ export interface ToolResults {
 
 export type AgentErrorCode = "invalid_arguments" | "unknown_tool" | "unknown_reference"
   | "not_found" | "not_playable" | "empty_queue" | "out_of_range" | "provider_unavailable"
-  | "cancelled" | "timeout" | "platform_unavailable" | "internal_error";
+  | "cancelled" | "timeout" | "platform_unavailable" | "internal_error"
+  | "request_conflict" | "session_limit" | "permission_denied" | "playback_failed";
 export type ToolResult<K extends ToolName> = {
   ok: true;
   data: ToolResults[K];
 } | {
   ok: false;
-  error: { code: AgentErrorCode; message: string; retryable: boolean };
+  error: { code: AgentErrorCode; message: string; retryable: boolean;
+    /** A timed-out write can still settle. Never automatically retry an unknown effect. */
+    effect?: "not_started" | "unknown" };
 };

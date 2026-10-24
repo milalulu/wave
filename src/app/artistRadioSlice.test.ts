@@ -146,3 +146,17 @@ it("a late autofill result cannot extend a queue after leaving the station", asy
   resolve(station("Artist A").tracks);
   expect(await pending).toEqual([]);
 });
+
+it("an external abort cancels station preparation without replacing playback", async () => {
+  let finish!: (value: ReturnType<typeof station>) => void;
+  builder.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const controller = new AbortController();
+  const pending = useApp.getState().startArtistRadio("Artist A", controller.signal);
+  await vi.waitFor(() => expect(builder).toHaveBeenCalledOnce());
+  controller.abort();
+  expect(builder.mock.calls[0][3]?.aborted).toBe(true);
+  finish(station("Artist A"));
+  expect(await pending).toBeNull();
+  expect(engine.playTracks).not.toHaveBeenCalled();
+  expect(useApp.getState().artistRadioState.status).toBe("idle");
+});

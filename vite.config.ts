@@ -4,10 +4,13 @@ import { resolve } from "node:path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
+// @ts-expect-error process is a nodejs global
+const targetPlatform = process.env.TAURI_ENV_PLATFORM;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  define: { __WAVE_DESKTOP_AGENT__: JSON.stringify(["linux", "windows", "darwin", "macos"].includes(targetPlatform)) },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

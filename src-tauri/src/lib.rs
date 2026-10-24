@@ -44,6 +44,15 @@ fn env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.trim().is_empty())
 }
 
+#[tauri::command]
+fn desktop_agent_available() -> bool {
+    cfg!(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux"
+    ))
+}
+
 /// Файл персистентного конфига (настройки API без env-переменных).
 /// Кросс-платформенно: app_config_dir есть на Windows/Linux/Android.
 fn persisted_config_path(app: &tauri::AppHandle) -> std::path::PathBuf {
@@ -484,6 +493,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            desktop_agent_available,
             api_respond,
             list_music_files,
             log_frontend,
