@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "allowJs": true, "checkJs": false, "types": ["node"], "lib": ["ES2022", "DOM", "DOM.Iterable"] },
+  "include": ["*.ts"],
+  "exclude": []
+}

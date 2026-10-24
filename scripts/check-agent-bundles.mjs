@@ -25,6 +25,7 @@ try {
     const css = readdirSync(assets).filter((file) => file.endsWith(".css")).map((file) => readFileSync(join(assets, file), "utf8")).join("\n");
     assert.equal(css.includes(".agent-view"), platform === "linux", `${platform}: unexpected agent UI styles`);
     assert.equal(js.includes("metadata-injection-ru"), false, `${platform}: benchmark data leaked into application`);
+    assert.equal(js.includes("train-transport-roundtrip-ru"), false, `${platform}: training data leaked into application`);
     console.log(`${platform}: agent ${platform === "linux" ? "included lazily" : "excluded"}, benchmark excluded`);
   }
 } finally { rmSync(temporary, { recursive: true, force: true }); }

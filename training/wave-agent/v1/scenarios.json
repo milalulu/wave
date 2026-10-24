@@ -1,0 +1,3428 @@
+[
+  {
+    "id": "train-transport-roundtrip-ru",
+    "family": "transport-roundtrip",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a",
+        "b"
+      ],
+      "playlists": [
+        {
+          "name": "Archive",
+          "tracks": [
+            "c"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Перед разговором приостанови текущий трек. Очередь пригодится позже.",
+        "steps": [
+          {
+            "name": "wave_pause",
+            "args": {},
+            "as": "pause"
+          },
+          {
+            "type": "answer",
+            "message": "Воспроизведение приостановлено; очередь сохранена."
+          }
+        ],
+        "expect": {
+          "state": "paused",
+          "queue": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "Звонок закончен: продолжи, перейди вперёд на один трек, затем вернись на предыдущий.",
+        "steps": [
+          {
+            "name": "wave_resume",
+            "args": {},
+            "as": "resume"
+          },
+          {
+            "name": "wave_next",
+            "args": {},
+            "as": "next"
+          },
+          {
+            "name": "wave_previous",
+            "args": {},
+            "as": "previous"
+          },
+          {
+            "type": "answer",
+            "message": "Снова играет Copper Orchard; порядок очереди сохранён."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "current": "a",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "playlists": [
+            {
+              "name": "Archive",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-cue-and-level-ru",
+    "family": "cue-and-level",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "position": 42,
+      "volume": 61
+    },
+    "turns": [
+      {
+        "user": "Верни текущий трек на 12 секунд назад и убавь громкость на 7 процентных пунктов.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "status"
+          },
+          {
+            "name": "wave_seek",
+            "args": {
+              "positionSeconds": 30
+            },
+            "as": "seek"
+          },
+          {
+            "name": "wave_volume",
+            "args": {
+              "percent": 54
+            },
+            "as": "volume"
+          },
+          {
+            "type": "answer",
+            "message": "Позиция 30 секунд, громкость 54%."
+          }
+        ],
+        "expect": {
+          "position": 30,
+          "volume": 54,
+          "queue": [
+            "a"
+          ],
+          "state": "playing"
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-queue-staging-ru",
+    "family": "queue-staging",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "c"
+      ],
+      "playlists": [
+        {
+          "name": "Archive",
+          "tracks": [
+            "a"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "После текущего поставь Copper Orchard от Mira Vale, а Velvet Transit того же исполнителя — в самый конец.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard Mira Vale",
+              "limit": 5
+            },
+            "as": "sa"
+          },
+          {
+            "name": "wave_queue_add",
+            "args": {
+              "trackId": {
+                "$ref": "sa.data.tracks.0.id"
+              },
+              "position": "next"
+            },
+            "as": "qa"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "sb"
+          },
+          {
+            "name": "wave_queue_add",
+            "args": {
+              "trackId": {
+                "$ref": "sb.data.tracks.0.id"
+              },
+              "position": "end"
+            },
+            "as": "qb"
+          },
+          {
+            "name": "wave_queue",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "queue"
+          },
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "after_queue"
+          },
+          {
+            "type": "answer",
+            "message": "Оба трека добавлены; Tidal Loom продолжает играть."
+          }
+        ],
+        "expect": {
+          "queue": [
+            "c",
+            "a",
+            "b"
+          ],
+          "current": "c",
+          "state": "playing"
+        }
+      },
+      {
+        "user": "Планы изменились: останови всё и опустоши очередь, но сохрани Archive.",
+        "steps": [
+          {
+            "name": "wave_queue_clear",
+            "args": {},
+            "as": "queue_clear"
+          },
+          {
+            "type": "answer",
+            "message": "Очередь пуста; плейлист Archive сохранён."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": [],
+          "playlists": [
+            {
+              "name": "Archive",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-playlist-assembly-ru",
+    "family": "playlist-assembly",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Подготовь плейлист «Lantern Desk»: найди Tidal Loom от Orin Field, добавь его и покажи состав. Воспроизведение не запускай.",
+        "steps": [
+          {
+            "name": "wave_playlist_create",
+            "args": {
+              "name": "Lantern Desk"
+            },
+            "as": "pc"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Tidal Loom Orin Field",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "name": "wave_playlist_add",
+            "args": {
+              "playlistId": {
+                "$ref": "pc.data.id"
+              },
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              }
+            },
+            "as": "pa"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "pc.data.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlist_get"
+          },
+          {
+            "type": "answer",
+            "message": "В Lantern Desk один трек: Tidal Loom — Orin Field. Музыка не запускалась."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": [],
+          "playlists": [
+            {
+              "name": "Lantern Desk",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-playlist-session-ru",
+    "family": "playlist-session",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Morning Shelf",
+          "tracks": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Проверь, какие треки есть в Morning Shelf, и запусти этот плейлист вместо текущей очереди.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "ps"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "pg"
+          },
+          {
+            "name": "wave_playlist_play",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              }
+            },
+            "as": "playlist_play"
+          },
+          {
+            "type": "answer",
+            "message": "В Morning Shelf два трека; первым играет Copper Orchard."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "playlists": [
+            {
+              "name": "Morning Shelf",
+              "tracks": [
+                "a",
+                "b"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-favorites-roundtrip-ru",
+    "family": "favorites-roundtrip",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Посмотри избранное. Если Copper Orchard от Mira Vale там нет, найди и добавь его, не включая.",
+        "steps": [
+          {
+            "name": "wave_liked",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "liked"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard Mira Vale",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "name": "wave_like",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              },
+              "liked": true
+            },
+            "as": "like"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard добавлен в избранное; воспроизведение не запускалось."
+          }
+        ],
+        "expect": {
+          "liked": [
+            "a"
+          ],
+          "state": "idle"
+        }
+      },
+      {
+        "user": "Передумала насчёт этого трека: убери только эту отметку избранного.",
+        "steps": [
+          {
+            "name": "wave_like",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              },
+              "liked": false
+            },
+            "as": "unlike"
+          },
+          {
+            "type": "answer",
+            "message": "Отметка избранного снята с Copper Orchard."
+          }
+        ],
+        "expect": {
+          "liked": [],
+          "queue": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-radio-listening-mode-ru",
+    "family": "radio-listening-mode",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Включи радио Mira Vale, перемешивание выключи, а всю очередь поставь на повтор.",
+        "steps": [
+          {
+            "name": "wave_radio",
+            "args": {
+              "artist": "Mira Vale"
+            },
+            "as": "radio"
+          },
+          {
+            "name": "wave_shuffle",
+            "args": {
+              "enabled": false
+            },
+            "as": "shuffle"
+          },
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "all"
+            },
+            "as": "repeat"
+          },
+          {
+            "type": "answer",
+            "message": "Радио играет, перемешивание выключено, повторяется вся очередь."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "shuffle": false,
+          "repeat": "all",
+          "queue": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "Теперь повторяй только текущую песню, остальное оставь как есть.",
+        "steps": [
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "one"
+            },
+            "as": "one"
+          },
+          {
+            "type": "answer",
+            "message": "Включён повтор текущего трека."
+          }
+        ],
+        "expect": {
+          "repeat": "one",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "shuffle": false
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-audio-profile-reset-ru",
+    "family": "audio-profile-reset",
+    "split": "train",
+    "language": "ru",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "b"
+      ]
+    },
+    "turns": [
+      {
+        "user": "Для репетиции поставь скорость 0.85 и все десять полос эквалайзера в 0 дБ.",
+        "steps": [
+          {
+            "name": "wave_speed",
+            "args": {
+              "rate": 0.85
+            },
+            "as": "speed"
+          },
+          {
+            "name": "wave_equalizer",
+            "args": {
+              "gainsDb": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "as": "equalizer"
+          },
+          {
+            "type": "answer",
+            "message": "Скорость 0.85, все полосы эквалайзера — 0 дБ."
+          }
+        ],
+        "expect": {
+          "speed": 0.85,
+          "gainsDb": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "queue": [
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "Репетиция закончилась: верни скорость 1 и отключи повтор очереди.",
+        "steps": [
+          {
+            "name": "wave_speed",
+            "args": {
+              "rate": 1
+            },
+            "as": "normal"
+          },
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "off"
+            },
+            "as": "repeat"
+          },
+          {
+            "type": "answer",
+            "message": "Обычная скорость восстановлена, повтор выключен."
+          }
+        ],
+        "expect": {
+          "speed": 1,
+          "repeat": "off",
+          "queue": [
+            "b"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-ambiguous-selection-ru",
+    "family": "ambiguous-selection",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Copper Orchard",
+          "artist": "Orin Field",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ],
+        "Copper Orchard": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Найди Copper Orchard для прослушивания; если есть разные исполнители, сначала уточни.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "type": "clarify",
+            "message": "Нашлись Mira Vale и Orin Field. Какого исполнителя выбрать?"
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      },
+      {
+        "user": "Выбираю Orin Field; можно запускать.",
+        "steps": [
+          {
+            "name": "wave_play",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.1.id"
+              }
+            },
+            "as": "play"
+          },
+          {
+            "type": "answer",
+            "message": "Играет Copper Orchard исполнителя Orin Field."
+          }
+        ],
+        "expect": {
+          "current": "b",
+          "queue": [
+            "b"
+          ],
+          "state": "playing"
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-unplayable-discovery-ru",
+    "family": "unplayable-discovery",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190,
+          "playable": false
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Проверь Tidal Loom от Orin Field: включай только если найденный вариант доступен для воспроизведения.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Tidal Loom Orin Field",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "type": "answer",
+            "message": "Трек найден, но недоступен для воспроизведения. Музыку не запускал."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-provider-followup-ru",
+    "family": "provider-followup",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "searchError": "provider_unavailable",
+      "queue": [
+        "a"
+      ]
+    },
+    "turns": [
+      {
+        "user": "Поищи Velvet Transit от Mira Vale, текущую песню пока не трогай.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "s",
+            "error": "provider_unavailable"
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Объясни результат поиска, повторять его не надо.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "after_failure"
+          },
+          {
+            "type": "answer",
+            "message": "Источник музыки недоступен; это не означает, что трека нет. Поиск не повторял, текущая песня продолжает играть."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-loading-inspection-ru",
+    "family": "loading-inspection",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "state": "loading"
+    },
+    "turns": [
+      {
+        "user": "Проверь состояние плеера и скажи, действительно ли началось воспроизведение. Ничего не переключай.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "status"
+          },
+          {
+            "type": "answer",
+            "message": "Плеер ещё в состоянии загрузки; начало воспроизведения не подтверждено."
+          }
+        ],
+        "expect": {
+          "state": "loading",
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Тогда поставь текущую загрузку на паузу.",
+        "steps": [
+          {
+            "name": "wave_pause",
+            "args": {},
+            "as": "pause"
+          },
+          {
+            "type": "answer",
+            "message": "Плеер перешёл в состояние паузы."
+          }
+        ],
+        "expect": {
+          "state": "paused",
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-unavailable-scheduling-and-tags-ru",
+    "family": "unavailable-scheduling-and-tags",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Поставь музыкальный будильник на следующий четверг в 07:15; до этого воспроизведение не трогай.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "Не могу настроить будильник: у агента нет инструмента расписаний. Воспроизведение не менял."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      },
+      {
+        "user": "Тогда измени тег жанра Copper Orchard на Ambient внутри самого музыкального файла.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "Не могу менять теги внутри аудиофайлов: инструмента редактирования метаданных нет."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-invalid-level-correction-ru",
+    "family": "invalid-level-correction",
+    "split": "train",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "volume": 61
+    },
+    "turns": [
+      {
+        "user": "Для сравнения выставь 137% громкости; если это выходит за диапазон, оставь текущую и спроси новое значение.",
+        "steps": [
+          {
+            "type": "clarify",
+            "message": "Допустимая громкость — 0–100%. Какое значение установить?"
+          }
+        ],
+        "expect": {
+          "volume": 61,
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Исправляю: поставь 69%.",
+        "steps": [
+          {
+            "name": "wave_volume",
+            "args": {
+              "percent": 69
+            },
+            "as": "volume"
+          },
+          {
+            "type": "answer",
+            "message": "Громкость установлена на 69%."
+          }
+        ],
+        "expect": {
+          "volume": 69,
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "dev-readonly-library-audit-ru",
+    "family": "readonly-library-audit",
+    "split": "dev",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Quiet Cabinet",
+          "tracks": [
+            "c"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Покажи список плейлистов и избранное, чтобы я выбрала музыку вручную.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlists"
+          },
+          {
+            "name": "wave_liked",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "liked"
+          },
+          {
+            "type": "answer",
+            "message": "Есть Quiet Cabinet с одним треком; избранное пусто."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Quiet Cabinet",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "user": "Добавь новый плейлист прямо сейчас.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "В режиме просмотра создание плейлистов недоступно."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Quiet Cabinet",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "readOnly": true
+  },
+  {
+    "id": "dev-interrupted-curation-ru",
+    "family": "interrupted-curation",
+    "split": "dev",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "searchError": "cancelled"
+    },
+    "turns": [
+      {
+        "user": "Создай «Pebble Route» и подбери туда Velvet Transit от Mira Vale без запуска музыки.",
+        "steps": [
+          {
+            "name": "wave_playlist_create",
+            "args": {
+              "name": "Pebble Route"
+            },
+            "as": "p"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "s",
+            "error": "cancelled"
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Pebble Route",
+              "tracks": []
+            }
+          ]
+        }
+      },
+      {
+        "user": "Что успело сохраниться до отмены? Проверь состав, но не продолжай добавление.",
+        "steps": [
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "p.data.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlist_get"
+          },
+          {
+            "type": "answer",
+            "message": "Pebble Route создан и пуст. Поиск был отменён, трек не добавлен."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Pebble Route",
+              "tracks": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "dev-playlist-membership-idempotence-ru",
+    "family": "playlist-membership-idempotence",
+    "split": "dev",
+    "language": "ru",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Still Harbor",
+          "tracks": [
+            "a"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Проверь Still Harbor: Copper Orchard от Mira Vale должен быть там ровно один раз; плеер не запускай.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "ps"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "pg"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard уже есть в Still Harbor в одном экземпляре; изменений не делал."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Still Harbor",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "user": "Явно повтори добавление того же трека; дубликат появиться не должен.",
+        "steps": [
+          {
+            "name": "wave_playlist_add",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "trackId": {
+                "$ref": "pg.data.items.0.id"
+              }
+            },
+            "as": "again"
+          },
+          {
+            "type": "answer",
+            "message": "Трек уже был в плейлисте; дубликат не добавлен."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Still Harbor",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-transport-roundtrip-en",
+    "family": "transport-roundtrip",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a",
+        "b"
+      ],
+      "playlists": [
+        {
+          "name": "Archive",
+          "tracks": [
+            "c"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Pause the current track before my call; I will need this queue afterwards.",
+        "steps": [
+          {
+            "name": "wave_pause",
+            "args": {},
+            "as": "pause"
+          },
+          {
+            "type": "answer",
+            "message": "Playback is paused; the queue is preserved."
+          }
+        ],
+        "expect": {
+          "state": "paused",
+          "queue": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "The call is over: resume, advance one track, then return to the previous track.",
+        "steps": [
+          {
+            "name": "wave_resume",
+            "args": {},
+            "as": "resume"
+          },
+          {
+            "name": "wave_next",
+            "args": {},
+            "as": "next"
+          },
+          {
+            "name": "wave_previous",
+            "args": {},
+            "as": "previous"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard is playing again; queue order is preserved."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "current": "a",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "playlists": [
+            {
+              "name": "Archive",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-cue-and-level-en",
+    "family": "cue-and-level",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "position": 42,
+      "volume": 61
+    },
+    "turns": [
+      {
+        "user": "Move the current track back by 12 seconds and lower volume by 7 percentage points.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "status"
+          },
+          {
+            "name": "wave_seek",
+            "args": {
+              "positionSeconds": 30
+            },
+            "as": "seek"
+          },
+          {
+            "name": "wave_volume",
+            "args": {
+              "percent": 54
+            },
+            "as": "volume"
+          },
+          {
+            "type": "answer",
+            "message": "Position is 30 seconds and volume is 54%."
+          }
+        ],
+        "expect": {
+          "position": 30,
+          "volume": 54,
+          "queue": [
+            "a"
+          ],
+          "state": "playing"
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-queue-staging-en",
+    "family": "queue-staging",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "c"
+      ],
+      "playlists": [
+        {
+          "name": "Archive",
+          "tracks": [
+            "a"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Put Copper Orchard by Mira Vale after the current song and Velvet Transit by the same artist at the very end.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard Mira Vale",
+              "limit": 5
+            },
+            "as": "sa"
+          },
+          {
+            "name": "wave_queue_add",
+            "args": {
+              "trackId": {
+                "$ref": "sa.data.tracks.0.id"
+              },
+              "position": "next"
+            },
+            "as": "qa"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "sb"
+          },
+          {
+            "name": "wave_queue_add",
+            "args": {
+              "trackId": {
+                "$ref": "sb.data.tracks.0.id"
+              },
+              "position": "end"
+            },
+            "as": "qb"
+          },
+          {
+            "name": "wave_queue",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "queue"
+          },
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "after_queue"
+          },
+          {
+            "type": "answer",
+            "message": "Both tracks were queued; Tidal Loom continues playing."
+          }
+        ],
+        "expect": {
+          "queue": [
+            "c",
+            "a",
+            "b"
+          ],
+          "current": "c",
+          "state": "playing"
+        }
+      },
+      {
+        "user": "Plans changed: stop playback and empty the queue while keeping Archive.",
+        "steps": [
+          {
+            "name": "wave_queue_clear",
+            "args": {},
+            "as": "queue_clear"
+          },
+          {
+            "type": "answer",
+            "message": "The queue is empty; Archive is preserved."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": [],
+          "playlists": [
+            {
+              "name": "Archive",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-playlist-assembly-en",
+    "family": "playlist-assembly",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Prepare a playlist called Lantern Desk: find Tidal Loom by Orin Field, add it, and show its contents. Leave playback stopped.",
+        "steps": [
+          {
+            "name": "wave_playlist_create",
+            "args": {
+              "name": "Lantern Desk"
+            },
+            "as": "pc"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Tidal Loom Orin Field",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "name": "wave_playlist_add",
+            "args": {
+              "playlistId": {
+                "$ref": "pc.data.id"
+              },
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              }
+            },
+            "as": "pa"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "pc.data.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlist_get"
+          },
+          {
+            "type": "answer",
+            "message": "Lantern Desk contains one track: Tidal Loom by Orin Field. Playback was not started."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": [],
+          "playlists": [
+            {
+              "name": "Lantern Desk",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-playlist-session-en",
+    "family": "playlist-session",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Morning Shelf",
+          "tracks": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Check the tracks in Morning Shelf, then play that playlist in place of the current queue.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "ps"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "pg"
+          },
+          {
+            "name": "wave_playlist_play",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              }
+            },
+            "as": "playlist_play"
+          },
+          {
+            "type": "answer",
+            "message": "Morning Shelf has two tracks; Copper Orchard is playing first."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "playlists": [
+            {
+              "name": "Morning Shelf",
+              "tracks": [
+                "a",
+                "b"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-favorites-roundtrip-en",
+    "family": "favorites-roundtrip",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Check my liked tracks. If Copper Orchard by Mira Vale is missing, find it and like it without playing it.",
+        "steps": [
+          {
+            "name": "wave_liked",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "liked"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard Mira Vale",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "name": "wave_like",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              },
+              "liked": true
+            },
+            "as": "like"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard is liked; playback was not started."
+          }
+        ],
+        "expect": {
+          "liked": [
+            "a"
+          ],
+          "state": "idle"
+        }
+      },
+      {
+        "user": "I changed my mind about that track: remove only its liked mark.",
+        "steps": [
+          {
+            "name": "wave_like",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.0.id"
+              },
+              "liked": false
+            },
+            "as": "unlike"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard is no longer liked."
+          }
+        ],
+        "expect": {
+          "liked": [],
+          "queue": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-radio-listening-mode-en",
+    "family": "radio-listening-mode",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Start Mira Vale radio, turn shuffle off, and repeat the whole queue.",
+        "steps": [
+          {
+            "name": "wave_radio",
+            "args": {
+              "artist": "Mira Vale"
+            },
+            "as": "radio"
+          },
+          {
+            "name": "wave_shuffle",
+            "args": {
+              "enabled": false
+            },
+            "as": "shuffle"
+          },
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "all"
+            },
+            "as": "repeat"
+          },
+          {
+            "type": "answer",
+            "message": "Radio is playing, shuffle is off, and the whole queue repeats."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "shuffle": false,
+          "repeat": "all",
+          "queue": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "Now repeat only the current song; keep everything else as it is.",
+        "steps": [
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "one"
+            },
+            "as": "one"
+          },
+          {
+            "type": "answer",
+            "message": "The current track now repeats."
+          }
+        ],
+        "expect": {
+          "repeat": "one",
+          "queue": [
+            "a",
+            "b"
+          ],
+          "shuffle": false
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-audio-profile-reset-en",
+    "family": "audio-profile-reset",
+    "split": "train",
+    "language": "en",
+    "critical": false,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "b"
+      ]
+    },
+    "turns": [
+      {
+        "user": "For rehearsal, set speed to 0.85 and all ten EQ bands to 0 dB.",
+        "steps": [
+          {
+            "name": "wave_speed",
+            "args": {
+              "rate": 0.85
+            },
+            "as": "speed"
+          },
+          {
+            "name": "wave_equalizer",
+            "args": {
+              "gainsDb": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "as": "equalizer"
+          },
+          {
+            "type": "answer",
+            "message": "Speed is 0.85 and all EQ bands are at 0 dB."
+          }
+        ],
+        "expect": {
+          "speed": 0.85,
+          "gainsDb": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "queue": [
+            "b"
+          ]
+        }
+      },
+      {
+        "user": "Rehearsal is over: restore speed to 1 and turn queue repeat off.",
+        "steps": [
+          {
+            "name": "wave_speed",
+            "args": {
+              "rate": 1
+            },
+            "as": "normal"
+          },
+          {
+            "name": "wave_repeat",
+            "args": {
+              "mode": "off"
+            },
+            "as": "repeat"
+          },
+          {
+            "type": "answer",
+            "message": "Normal speed is restored and repeat is off."
+          }
+        ],
+        "expect": {
+          "speed": 1,
+          "repeat": "off",
+          "queue": [
+            "b"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-ambiguous-selection-en",
+    "family": "ambiguous-selection",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Copper Orchard",
+          "artist": "Orin Field",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ],
+        "Copper Orchard": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Find Copper Orchard to listen to; ask first if there are different artists.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Copper Orchard",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "type": "clarify",
+            "message": "I found Mira Vale and Orin Field. Which artist do you want?"
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      },
+      {
+        "user": "Choose Orin Field; you can start it now.",
+        "steps": [
+          {
+            "name": "wave_play",
+            "args": {
+              "trackId": {
+                "$ref": "s.data.tracks.1.id"
+              }
+            },
+            "as": "play"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard by Orin Field is playing."
+          }
+        ],
+        "expect": {
+          "current": "b",
+          "queue": [
+            "b"
+          ],
+          "state": "playing"
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-unplayable-discovery-en",
+    "family": "unplayable-discovery",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190,
+          "playable": false
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Check Tidal Loom by Orin Field: start it only if the result is playable.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Tidal Loom Orin Field",
+              "limit": 5
+            },
+            "as": "s"
+          },
+          {
+            "type": "answer",
+            "message": "The track was found but is not playable. I did not start playback."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-provider-followup-en",
+    "family": "provider-followup",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "searchError": "provider_unavailable",
+      "queue": [
+        "a"
+      ]
+    },
+    "turns": [
+      {
+        "user": "Look up Velvet Transit by Mira Vale and leave the current song alone for now.",
+        "steps": [
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "s",
+            "error": "provider_unavailable"
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Explain the search result without retrying it.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "after_failure"
+          },
+          {
+            "type": "answer",
+            "message": "The music source is unavailable; that does not mean the track is missing. I did not retry; the current song continues playing."
+          }
+        ],
+        "expect": {
+          "state": "playing",
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-loading-inspection-en",
+    "family": "loading-inspection",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "state": "loading"
+    },
+    "turns": [
+      {
+        "user": "Inspect the player and tell me whether playback has actually started. Do not switch anything.",
+        "steps": [
+          {
+            "name": "wave_status",
+            "args": {},
+            "as": "status"
+          },
+          {
+            "type": "answer",
+            "message": "The player is still loading; playback has not been confirmed."
+          }
+        ],
+        "expect": {
+          "state": "loading",
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Then pause the current loading item.",
+        "steps": [
+          {
+            "name": "wave_pause",
+            "args": {},
+            "as": "pause"
+          },
+          {
+            "type": "answer",
+            "message": "The player is now paused."
+          }
+        ],
+        "expect": {
+          "state": "paused",
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-unavailable-scheduling-and-tags-en",
+    "family": "unavailable-scheduling-and-tags",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "user": "Schedule an alarm for next Thursday at 07:15 using my music; leave playback alone until then.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "I cannot schedule alarms: the agent has no scheduling tool. Playback has not been changed."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "queue": []
+        }
+      },
+      {
+        "user": "Then edit the genre tag of Copper Orchard to Ambient in the music file itself.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "I cannot edit tags inside audio files; there is no metadata-editing tool."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "train-invalid-level-correction-en",
+    "family": "invalid-level-correction",
+    "split": "train",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "queue": [
+        "a"
+      ],
+      "volume": 61
+    },
+    "turns": [
+      {
+        "user": "For comparison, set volume to 137%; if that exceeds the range, keep the current level and ask for another value.",
+        "steps": [
+          {
+            "type": "clarify",
+            "message": "Volume must be between 0 and 100%. What value should I set?"
+          }
+        ],
+        "expect": {
+          "volume": 61,
+          "queue": [
+            "a"
+          ]
+        }
+      },
+      {
+        "user": "Correction: set it to 69%.",
+        "steps": [
+          {
+            "name": "wave_volume",
+            "args": {
+              "percent": 69
+            },
+            "as": "volume"
+          },
+          {
+            "type": "answer",
+            "message": "Volume is set to 69%."
+          }
+        ],
+        "expect": {
+          "volume": 69,
+          "queue": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "dev-readonly-library-audit-en",
+    "family": "readonly-library-audit",
+    "split": "dev",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Quiet Cabinet",
+          "tracks": [
+            "c"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Show my playlists and liked tracks so I can choose music manually.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlists"
+          },
+          {
+            "name": "wave_liked",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "liked"
+          },
+          {
+            "type": "answer",
+            "message": "Quiet Cabinet contains one track; liked tracks are empty."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Quiet Cabinet",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "user": "Add a new playlist right now.",
+        "steps": [
+          {
+            "type": "unsupported",
+            "message": "Playlist creation is unavailable in read-only mode."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Quiet Cabinet",
+              "tracks": [
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "readOnly": true
+  },
+  {
+    "id": "dev-interrupted-curation-en",
+    "family": "interrupted-curation",
+    "split": "dev",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "searchError": "cancelled"
+    },
+    "turns": [
+      {
+        "user": "Create Pebble Route and find Velvet Transit by Mira Vale for it without starting music.",
+        "steps": [
+          {
+            "name": "wave_playlist_create",
+            "args": {
+              "name": "Pebble Route"
+            },
+            "as": "p"
+          },
+          {
+            "name": "wave_search",
+            "args": {
+              "query": "Velvet Transit Mira Vale",
+              "limit": 5
+            },
+            "as": "s",
+            "error": "cancelled"
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Pebble Route",
+              "tracks": []
+            }
+          ]
+        }
+      },
+      {
+        "user": "What was saved before cancellation? Check the contents without continuing the addition.",
+        "steps": [
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "p.data.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "playlist_get"
+          },
+          {
+            "type": "answer",
+            "message": "Pebble Route was created and is empty. Search was cancelled; no track was added."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Pebble Route",
+              "tracks": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "dev-playlist-membership-idempotence-en",
+    "family": "playlist-membership-idempotence",
+    "split": "dev",
+    "language": "en",
+    "critical": true,
+    "rubric": "Follow the requested order, use only observed IDs, report only confirmed effects, preserve unrequested state and answer in the user language.",
+    "fixture": {
+      "tracks": [
+        {
+          "key": "a",
+          "title": "Copper Orchard",
+          "artist": "Mira Vale",
+          "duration": 240
+        },
+        {
+          "key": "b",
+          "title": "Velvet Transit",
+          "artist": "Mira Vale",
+          "duration": 210
+        },
+        {
+          "key": "c",
+          "title": "Tidal Loom",
+          "artist": "Orin Field",
+          "duration": 190
+        }
+      ],
+      "search": {
+        "Copper Orchard Mira Vale": [
+          "a"
+        ],
+        "Velvet Transit Mira Vale": [
+          "b"
+        ],
+        "Tidal Loom Orin Field": [
+          "c"
+        ]
+      },
+      "playlists": [
+        {
+          "name": "Still Harbor",
+          "tracks": [
+            "a"
+          ]
+        }
+      ]
+    },
+    "turns": [
+      {
+        "user": "Check Still Harbor and make sure Copper Orchard by Mira Vale is in it exactly once; leave the player stopped.",
+        "steps": [
+          {
+            "name": "wave_playlists",
+            "args": {
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "ps"
+          },
+          {
+            "name": "wave_playlist_get",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "offset": 0,
+              "limit": 20
+            },
+            "as": "pg"
+          },
+          {
+            "type": "answer",
+            "message": "Copper Orchard is already in Still Harbor once; I made no changes."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Still Harbor",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "user": "Repeat the addition explicitly for that same track; it must not create a duplicate.",
+        "steps": [
+          {
+            "name": "wave_playlist_add",
+            "args": {
+              "playlistId": {
+                "$ref": "ps.data.items.0.id"
+              },
+              "trackId": {
+                "$ref": "pg.data.items.0.id"
+              }
+            },
+            "as": "again"
+          },
+          {
+            "type": "answer",
+            "message": "The track was already present; no duplicate was added."
+          }
+        ],
+        "expect": {
+          "state": "idle",
+          "playlists": [
+            {
+              "name": "Still Harbor",
+              "tracks": [
+                "a"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

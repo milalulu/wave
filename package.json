@@ -14,6 +14,8 @@
     "test:watch": "vitest",
     "agent:eval": "node scripts/agent-eval.mjs",
     "agent:eval:test": "node --test scripts/agent-eval.test.mjs",
+    "agent:data": "node scripts/agent-data.mjs",
+    "agent:data:test": "node --test scripts/agent-data.test.mjs",
     "agent:benchmark": "node scripts/agent-benchmark.mjs",
     "agent:benchmark:test": "node --test scripts/agent-benchmark.test.mjs",
     "agent:scenarios": "vitest run --config evals/wave-agent/scenarios.config.ts",

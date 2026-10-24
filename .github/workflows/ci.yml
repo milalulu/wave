@@ -60,6 +60,12 @@ jobs:
       - name: Type check isolated model execution scenarios
         run: pnpm exec tsc --noEmit -p evals/wave-agent/tsconfig.json
 
+      - name: Validate training data isolation and replay synthetic teacher dialogues
+        run: |
+          pnpm agent:data:test
+          pnpm agent:data validate
+          pnpm exec tsc --noEmit -p training/wave-agent/tsconfig.json
+
       - name: Build frontend
         env:
           TAURI_ENV_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'darwin' || 'linux' }}

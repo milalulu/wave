@@ -1,0 +1,42 @@
+{
+  "version": "seed-v1",
+  "kind": "training-development",
+  "sourceSha256": "7f2819b3737b57200c0ebd0cffbdb3ce76b626c46ba74cec55fbf49e6087bf4e",
+  "gitCommit": "61d50ed67f4cd6a7feed079b694237f5f022ca35",
+  "codeHashes": {
+    "training/wave-agent/replay.ts": "065813ee725cffdae472675f990f0216a3c120c47adbbad624d17f8192a5a3f4",
+    "training/wave-agent/replay.test.ts": "e3869a4163ceda24181fbb33963d9cf382734b9c4609139564742ccd590d2c88",
+    "scripts/agent-data-lib.mjs": "70d89e3bda34c953233d3cc2f2dd097cc9bc5b7380125b3e06c1805a9247881e",
+    "scripts/agent-data.mjs": "d27bf547171cfb2c00776959da1b8864a478e62a1336fa8d673a63f1ff4b9461",
+    "src/core/agent/protocol.ts": "e7865ac50f988b2248f81dd03123eb0e7bcbb8198e3e5f5a4986b20454cbe442",
+    "src/core/agent/catalog.ts": "a95c0ff78291af92f7339af5575e2de8943a4cd157a46e83b7c6631e2b252166",
+    "src/core/agent/AgentConversation.ts": "dfb330949d650cccb7d493ebf8028b2d5af13df064df911b0f440491fbafe6a5",
+    "src/core/agent/WaveAgentTools.ts": "cfbc3a2113b2bce4b073ed724f278aa824f56fb5aad58dc54490236765f6999b"
+  },
+  "files": {
+    "train.jsonl": "e3cdae7115a5013777a0f76735657df3c6955f50ba5d1c26ee8ee71f46e0c209",
+    "dev.jsonl": "659ee97390868dbc461a067c7413be00f463d61105d20d9cea86863657d3e041",
+    "index.jsonl": "aab8c879d265897db51b55a77ca235d47048256521d2415ddc45d23561249356",
+    "traces.jsonl": "15f65dcc90b27972e192bc908f639e409f64f7a50cf7f2e9853564afcce7140f"
+  },
+  "dialogues": 34,
+  "samples": 154,
+  "splits": {
+    "train": {
+      "dialogues": 28,
+      "samples": 128,
+      "families": 14
+    },
+    "dev": {
+      "dialogues": 6,
+      "samples": 26,
+      "families": 3
+    }
+  },
+  "provenance": "Original synthetic scenarios authored by Codex for this repository; no user library or third-party teacher API.",
+  "review": "Executable receipts and state assertions checked; text and intent reviewed by the same author, not independently certified.",
+  "trainingCompleted": false,
+  "closedLoopModelEvaluation": false,
+  "lossPolicy": "Train only on completion tokens. Prompt includes earlier assistant decisions and tool results; mask all prompt tokens.",
+  "limitations": "Small seed corpus. Family separation and lexical checks cannot prove semantic independence. Holdout prefixes use teacher receipts, not model-generated trajectories."
+}

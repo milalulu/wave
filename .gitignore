@@ -28,3 +28,7 @@ src-tauri/target
 *.sw?
 *.keystore
 *.jks
+
+# Generated training exports and private evaluation material stay outside Git.
+training/wave-agent/exports/
+training/wave-agent/private/
