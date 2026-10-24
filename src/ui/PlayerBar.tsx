@@ -1,13 +1,14 @@
 import { playbackSource } from "../core/types";
 import { CastButton } from "./CastButton";
 import { isTauri } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../app/stores";
 import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
 import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
 import { SeekBar } from "./SeekBar";
+import { VolumeSlider } from "./VolumeSlider";
 import { MiniSpectrum } from "./MiniSpectrum";
 import { providerLabel } from "./providers";
 import { Spectrum } from "./Spectrum";
@@ -73,16 +74,6 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const eqRef = useRef<HTMLDivElement>(null);
   const variantsRef = useRef<HTMLDivElement>(null);
   const spectrumRef = useRef<HTMLDivElement>(null);
-  const volTrackRef = useRef<HTMLDivElement>(null);
-  const volDragging = useRef(false);
-  const [volDrag, setVolDrag] = useState<number | null>(null);
-
-  const commitVolume = useCallback((val: number) => {
-    setVolume(val);
-  }, [setVolume]);
-
-  const volDisplay = volDrag ?? Math.round(snapshot.volume * 100);
-
   usePopoverDismiss(speedRef, speedOpen, () => setSpeedOpen(false));
   usePopoverDismiss(eqRef, eqOpen, () => setEqOpen(false));
   usePopoverDismiss(variantsRef, variantsOpen, () => setVariantsOpen(false));
@@ -302,56 +293,11 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         >
           {snapshot.volume === 0 ? <VolumeMuteIcon size={18} /> : <VolumeIcon size={18} />}
         </button>
-        <div
-          className="volume-track"
-          ref={volTrackRef}
-          role="slider"
-          tabIndex={0}
-          aria-label={t("player").volume}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={volDisplay}
-          aria-valuetext={`${volDisplay}%`}
-          onKeyDown={(e) => {
-            if (e.altKey || e.ctrlKey || e.metaKey) return;
-            const current = volDrag ?? Math.round(snapshot.volume * 100);
-            let next: number;
-            if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(100, current + 5);
-            else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, current - 5);
-            else if (e.key === "Home") next = 0;
-            else if (e.key === "End") next = 100;
-            else return;
-            e.preventDefault();
-            setVolDrag(next);
-            commitVolume(next);
-          }}
-          onPointerDown={(e) => {
-            volDragging.current = true;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
-            setVolDrag(pct);
-            commitVolume(pct);
-          }}
-          onPointerMove={(e) => {
-            if (!volDragging.current) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
-            setVolDrag(pct);
-            commitVolume(pct);
-          }}
-          onPointerUp={(e) => {
-            if (!volDragging.current) return;
-            volDragging.current = false;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
-            setVolDrag(null);
-            commitVolume(pct);
-          }}
-        >
-          <div className="volume-fill" style={{ width: `${volDisplay}%` }} />
-          <div className="volume-thumb" style={{ left: `${volDisplay}%` }} />
-        </div>
+        <VolumeSlider
+          value={Math.round(snapshot.volume * 100)}
+          onChange={setVolume}
+          label={t("player").volume}
+        />
       <CastButton />
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
           <QueueIcon size={18} />

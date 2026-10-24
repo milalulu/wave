@@ -1096,47 +1096,17 @@ input[type="range"].seek {
 
 input[type="range"].volume {
   width: 90px;
+  height: 20px;
+  margin: 0;
+  touch-action: none;
+  background:
+    linear-gradient(var(--accent), var(--accent)) left center / var(--volume-pct, 100%) 4px no-repeat,
+    linear-gradient(var(--border), var(--border)) center / 100% 4px no-repeat;
 }
 
-.volume-track {
-  position: relative;
-  width: 90px;
-  height: 20px;
-  cursor: pointer;
-  touch-action: none;
-}
-.volume-fill {
-  position: absolute;
-  top: 8px;
-  left: 0;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--accent);
-  pointer-events: none;
-  transition: none;
-}
-.volume-thumb {
-  position: absolute;
-  top: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--accent);
-  transform: translateX(-50%);
-  pointer-events: none;
-  transition: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-}
-.volume-track::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  left: 0;
-  right: 0;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
+input[type="range"].volume:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 input[type="range"]::-webkit-slider-thumb {

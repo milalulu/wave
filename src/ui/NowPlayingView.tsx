@@ -13,6 +13,7 @@ import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, 
 import { Spectrum } from "./Spectrum";
 import { extractDominantColor, preloadDominantColor } from "./extractColor";
 import { SeekBar } from "./SeekBar";
+import { VolumeSlider } from "./VolumeSlider";
 import { LyricsBody } from "./LyricsBody";
 import { ElapsedTime } from "./ElapsedTime";
 
@@ -219,15 +220,10 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                 >
                   {snapshot.volume === 0 ? <VolumeMuteIcon size={16} /> : <VolumeIcon size={16} />}
                 </button>
-                <input
-                  type="range"
-                  className="volume"
-                  min={0}
-                  max={100}
+                <VolumeSlider
                   value={Math.round(snapshot.volume * 100)}
-                  aria-label="Volume"
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  onInput={(e) => setVolume(Number((e.target as HTMLInputElement).value))}
+                  label={t("player").volume}
+                  onChange={setVolume}
                 />
               </div>
             </div>
