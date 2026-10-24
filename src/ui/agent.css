@@ -1,0 +1,24 @@
+.agent-view { max-width: 900px; margin: 0 auto; padding: 24px; }
+.agent-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.agent-heading h1 { margin: 0 0 8px; }
+.agent-view p { line-height: 1.5; }
+.agent-heading p, .agent-settings p, .agent-compose small, .agent-empty { opacity: .75; }
+.agent-settings { margin: 20px 0; padding: 16px; border: 1px solid var(--border, #444); border-radius: 12px; }
+.agent-view summary { cursor: pointer; }
+.agent-settings fieldset { border: 0; padding: 16px 0 0; margin: 0; display: grid; gap: 12px; min-width: 0; }
+.agent-settings label { display: grid; gap: 6px; }
+.agent-settings input:not([type="checkbox"]), .agent-settings select, .agent-compose textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border, #444); border-radius: 8px; padding: 10px; color: inherit; background: var(--bg-elev); font: inherit; }
+.agent-settings .agent-check { display: flex; align-items: start; gap: 8px; line-height: 1.5; }
+.agent-check input { margin-top: 5px; flex: 0 0 auto; }
+.agent-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.agent-notice { padding: 12px; border-left: 3px solid var(--accent, #888); }
+.agent-messages { display: grid; gap: 12px; margin: 20px 0; }
+.agent-message { padding: 14px 16px; border: 1px solid var(--border, #444); border-radius: 12px; overflow-wrap: anywhere; }
+.agent-message-user { margin-left: 40px; background: var(--bg-elev); }
+.agent-message p { white-space: pre-wrap; margin: 8px 0 0; }
+.agent-message pre { white-space: pre-wrap; max-height: 250px; overflow: auto; font-size: 12px; }
+.agent-message details { margin-top: 8px; }
+.agent-compose { display: grid; gap: 12px; }
+.agent-compose textarea { resize: vertical; min-height: 80px; }
+.agent-view button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 600px) { .agent-view { padding: 16px; } .agent-heading { flex-wrap: wrap; } .agent-message-user { margin-left: 16px; } }

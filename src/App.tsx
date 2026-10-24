@@ -14,6 +14,9 @@ import {
 } from "./ui/MobileNav";
 import type { ViewKey } from "./ui/Sidebar";
 
+const AgentView = __WAVE_DESKTOP_AGENT__
+  ? lazy(() => import("./ui/AgentView").then((m) => ({ default: m.AgentView }))) : null;
+
 const HomeView = lazy(() => import("./ui/HomeView").then((m) => ({ default: m.HomeView })));
 const NowPlayingView = lazy(() =>
   import("./ui/NowPlayingView").then((m) => ({ default: m.NowPlayingView })),
@@ -215,6 +218,7 @@ function App() {
       {view === "downloads" && <DownloadsView />}
       {view === "wrapped" && <WrappedView />}
       {view === "settings" && <SettingsView />}
+      {__WAVE_DESKTOP_AGENT__ && AgentView && view === "agent" && <AgentView />}
     </Suspense>
   );
 

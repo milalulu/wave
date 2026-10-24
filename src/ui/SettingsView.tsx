@@ -471,6 +471,9 @@ export function SettingsView() {
       <div className="settings-topbar">
         <h1>{t("settings").title}</h1>
         <div className="settings-topbar-actions">
+          {typeof __WAVE_DESKTOP_AGENT__ !== "undefined" && __WAVE_DESKTOP_AGENT__ && <button className="btn" onClick={() => useApp.getState().setView("agent")}>
+            {locale === "ru" ? "Агент Wave" : "Wave agent"}
+          </button>}
           <div className="settings-seg" role="group" aria-label="settings">
             <button className={tab === "main" ? "active" : ""} onClick={() => setTab("main")}>
               {t("settings").title}

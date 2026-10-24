@@ -77,6 +77,14 @@ it("retry repeats the requested artist after an initial failure", async () => {
   expect(builder).toHaveBeenCalledTimes(2);
 });
 
+it("agent radio keeps the chat and its stop button visible", async () => {
+  useApp.setState({ view: "agent", navStack: ["home", "agent"] });
+  builder.mockResolvedValueOnce(station("Artist A"));
+  await useApp.getState().startArtistRadio("Artist A", new AbortController().signal, false);
+  expect(useApp.getState().view).toBe("agent");
+  expect(engine.playTracks).toHaveBeenCalledOnce();
+});
+
 it("station ranking keeps the full stream instead of an earlier preview", () => {
   const preview = {
     id: "preview", provider: "itunes", uri: "preview", title: "Song",

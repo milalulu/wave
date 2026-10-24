@@ -84,6 +84,8 @@ export class AgentExecutor {
   }
 
   cancel(requestId: string): void { this.entries.get(requestId)?.controller.abort("cancelled"); }
+  /** Reset must wait for underlying writes, even after an early timeout response. */
+  whenIdle(): Promise<void> { return this.tail.then(() => undefined); }
   result(requestId: string): ToolResult<ToolName> | null {
     const result = this.entries.get(requestId)?.result;
     return result ? structuredClone(result) : null;

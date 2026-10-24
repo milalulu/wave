@@ -35,6 +35,8 @@ import type { AgentExecutor } from "../core/agent/AgentExecutor";
 import { AGENT_TOOLS } from "../core/agent/catalog";
 import type { Track } from "../core/types";
 import { invoke } from "@tauri-apps/api/core";
+import { AgentConversation } from "../core/agent/AgentConversation";
+import type { ModelMessage } from "../core/agent/model";
 
 const original = useApp.getState();
 const tracks: Track[] = [
@@ -85,6 +87,28 @@ afterEach(() => {
 });
 
 describe("desktop agent execution", () => {
+  it("runs a model-driven search, grounded playback and volume sequence through real application services", async () => {
+    let step = 0;
+    const model = { complete: vi.fn(async (messages: readonly ModelMessage[]) => {
+      expect(JSON.stringify(messages)).not.toMatch(/private\/|asset:\/|secret/);
+      step++;
+      if (step === 1) return JSON.stringify({ type: "tool", name: "wave_search", args: { query: "Orbit Paper Moons", limit: 5 } });
+      if (step === 2) {
+        const observation = JSON.parse(messages[messages.length - 1].content);
+        return JSON.stringify({ type: "tool", name: "wave_play", args: { trackId: observation.result.data.tracks[0].id } });
+      }
+      if (step === 3) return JSON.stringify({ type: "tool", name: "wave_volume", args: { percent: 30 } });
+      return JSON.stringify({ type: "answer", message: "Включено, громкость 30%." });
+    }) };
+    const chat = new AgentConversation(model, session);
+    await chat.send("Включи Orbit от Paper Moons и поставь громкость 30%");
+    expect(engine.snapshot.current?.id).toBe(tracks[0].id);
+    expect(adapter.state).toBe("playing");
+    expect(adapter.volume).toBe(0.3);
+    expect(chat.getSnapshot().events.filter((e) => e.type === "tool")).toHaveLength(3);
+    expect(chat.getSnapshot().events.slice(-1)[0]).toMatchObject({ type: "assistant" });
+  });
+
   it("searches without playing and exposes only session IDs and public metadata", async () => {
     const result = await found();
     expect(result).toHaveLength(2);
@@ -248,5 +272,27 @@ describe("desktop agent execution", () => {
     expect(await useApp.getState().openAgentSession()).toBe(opened);
     useApp.getState().closeAgentSession();
     expect(await opened.execute("closed", { type: "tool", name: "wave_status", args: {} }, { allowedTools })).toMatchObject({ ok: false, error: { code: "cancelled" } });
+  });
+
+  it("waits for a retired session's pending write before opening another executor", async () => {
+    vi.stubGlobal("__WAVE_DESKTOP_AGENT__", true);
+    vi.mocked(invoke).mockResolvedValue(true);
+    useApp.setState({ agentSession: session });
+    const pending = deferred<void>();
+    const save = storage.addPlaylist.bind(storage);
+    const write = vi.spyOn(storage, "addPlaylist").mockImplementation(async (playlist) => {
+      await pending.promise; await save(playlist);
+    });
+    const action = run("wave_playlist_create", { name: "Finishing" });
+    await vi.waitFor(() => expect(write).toHaveBeenCalledOnce());
+    useApp.getState().closeAgentSession();
+    await action;
+    let opened = false;
+    const opening = useApp.getState().openAgentSession().then((value) => { opened = true; return value; });
+    await Promise.resolve(); await Promise.resolve();
+    expect(opened).toBe(false);
+    pending.resolve();
+    expect(await opening).not.toBe(session);
+    expect((await storage.getPlaylists()).some((p) => p.name === "Finishing")).toBe(true);
   });
 });

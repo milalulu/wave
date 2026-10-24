@@ -70,7 +70,7 @@ export function createWaveAgentHost(services: AppServices, get: () => AppState):
     },
     setLiked: (track, liked, signal) => current().setLiked(track, liked, signal),
     radio: async (artist, signal) => {
-      const station = await current().startArtistRadio(artist, signal);
+      const station = await current().startArtistRadio(artist, signal, false);
       signal.throwIfAborted();
       if (!station) throw new AgentFault("provider_unavailable");
       if (!["playing", "loading"].includes(services.engine.snapshot.state)) throw new AgentFault("playback_failed");

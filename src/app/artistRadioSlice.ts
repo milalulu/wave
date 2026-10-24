@@ -14,7 +14,7 @@ export type ArtistRadioState =
 
 export interface ArtistRadioSlice {
   artistRadioState: ArtistRadioState;
-  startArtistRadio: (artist: string, signal?: AbortSignal) => Promise<ArtistRadioStation | null>;
+  startArtistRadio: (artist: string, signal?: AbortSignal, navigate?: boolean) => Promise<ArtistRadioStation | null>;
   refreshArtistRadio: () => Promise<ArtistRadioStation | null>;
   playArtistRadio: (index?: number, shuffle?: boolean) => Promise<void>;
   cancelArtistRadio: () => void;
@@ -35,7 +35,7 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
         set({ artistRadioState: { status: "idle", artist: "", station: null, error: null } });
       }
     },
-    startArtistRadio: async (rawArtist, signal) => {
+    startArtistRadio: async (rawArtist, signal, navigate = true) => {
       signal?.throwIfAborted();
       const artist = normalizeArtistName(rawArtist);
       const services = get().services;
@@ -56,7 +56,7 @@ export const createArtistRadioSlice: StateCreator<AppState, [], [], ArtistRadioS
       };
       signal?.addEventListener("abort", abort, { once: true });
       set({ artistRadioState: { status: "loading", artist, station: null, error: null } });
-      get().setView("artistRadio");
+      if (navigate) get().setView("artistRadio");
       try {
         const station = await buildArtistRadioStation(services, artist, 20, controller.signal);
         if (request !== generation) return null;

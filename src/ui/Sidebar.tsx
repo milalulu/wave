@@ -3,7 +3,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { FolderIcon, HomeIcon, ListIcon, SearchIcon, PlaylistIcon, SettingsIcon, DownloadIcon, PlayIcon, WaveLogoMark, WaveIcon, ChartIcon } from "./icons";
 
-export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped";
+export type ViewKey = "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped" | "agent";
 
 function QueueIcon2(p: { size?: number }) {
   return (
@@ -28,7 +28,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ view, onView }: SidebarProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const openLocalDirectory = useApp((s) => s.openLocalDirectory);
   const downloads = useApp((s) => s.downloads);
   const activeDownloads = downloads.filter((d) => d.status === "running" || d.status === "queued").length;
@@ -45,6 +45,7 @@ export function Sidebar({ view, onView }: SidebarProps) {
     { key: "settings", label: t("nav").settings, icon: SettingsIcon },
     { key: "queue", label: t("nav").queue, icon: QueueIcon2 },
   ];
+  if (__WAVE_DESKTOP_AGENT__) items.splice(items.length - 2, 0, { key: "agent", label: locale === "ru" ? "Агент" : "Agent", icon: WaveIcon });
 
   return (
     <aside className="sidebar">

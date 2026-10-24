@@ -1,3 +1,5 @@
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+mod agent_model;
 mod soundcloud;
 mod youtube;
 use youtube::{run_ytdlp, ytdlp_cookies_args, ytdlp_proxy_args, ytdlp_should_retry_proxy};
@@ -453,6 +455,8 @@ pub fn run() {
         .manage(bridge.clone())
         .manage(cast::CastHost::default())
         .setup(move |app| {
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            app.manage(agent_model::ModelState::default());
             {
                 let plugins_dir = app
                     .path()
@@ -493,6 +497,18 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_model_begin,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_model_cancel,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_model_complete,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_key_present,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_key_save,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            agent_model::agent_key_delete,
             desktop_agent_available,
             api_respond,
             list_music_files,

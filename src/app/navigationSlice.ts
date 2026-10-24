@@ -3,7 +3,7 @@ import type { AlbumDetail, ArtistDetail } from "../core/types";
 import type { AppState } from "./stores";
 
 export interface NavigationSlice {
-  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped";
+  view: "home" | "nowPlaying" | "search" | "library" | "queue" | "wave" | "album" | "artist" | "artistRadio" | "playlist" | "settings" | "downloads" | "wrapped" | "agent";
   navStack: NavigationSlice["view"][];
   setView: (view: NavigationSlice["view"]) => void;
   goBack: () => void;

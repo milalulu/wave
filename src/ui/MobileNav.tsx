@@ -45,7 +45,7 @@ interface MobileTopBarProps {
 }
 
 export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const albumTitle = useApp((s) => s.albumDetail?.album.title);
   const artistName = useApp((s) => s.artistDetail?.artist.name);
   const stationArtist = useApp((s) => s.artistRadioState.artist);
@@ -55,6 +55,8 @@ export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
 
   const title = (() => {
     switch (view) {
+      case "agent":
+        return locale === "ru" ? "Агент" : "Agent";
       case "album":
         return albumTitle ?? t("nav").library;
       case "artist":

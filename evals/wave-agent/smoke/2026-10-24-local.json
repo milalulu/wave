@@ -1,0 +1,30 @@
+{
+  "kind": "single_transport_smoke_check_not_benchmark",
+  "date": "2026-10-24",
+  "model": "entity12208/editorai:v2",
+  "installedModelMetadata": {
+    "family": "qwen2",
+    "parameterSize": "1.5B",
+    "quantization": "Q4_K_M",
+    "sizeBytes": 986050701
+  },
+  "transport": "loopback Chat Completions API",
+  "prompt": "Поставь музыку на паузу.",
+  "systemPrompt": "AGENT_RUNTIME_PROMPT plus all 24 AGENT_TOOLS",
+  "settings": { "stream": false, "max_tokens": 1024, "response_format": { "type": "json_object" } },
+  "observed": {
+    "httpStatus": 200,
+    "finishReason": "stop",
+    "latencyMs": 48567,
+    "validDecision": false,
+    "matchedExpectedDecision": false,
+    "commandsExecuted": 0
+  },
+  "limitations": [
+    "One synthetic request; not the 60-case suite and not a quality estimate.",
+    "Model was not loaded before the request. Compilation was running concurrently; this latency is not a performance benchmark.",
+    "No memory or audio-impact measurements were taken.",
+    "Raw model content was not retained; only the failed schema-validation result is available.",
+    "No weights were downloaded, changed or trained. The model was unloaded after the check."
+  ]
+}

@@ -66,6 +66,7 @@ import {
 
 let initPromise: Promise<void> | null = null;
 let agentGeneration = 0;
+let agentRetirement: Promise<void> = Promise.resolve();
 
 const savedLeveling = loadLeveling();
 
@@ -238,7 +239,9 @@ export const useApp = create<AppState>()((set, get, api) => ({
   agentSession: null,
   closeAgentSession: () => {
     agentGeneration++;
-    get().agentSession?.dispose();
+    const session = get().agentSession;
+    session?.dispose();
+    if (session) agentRetirement = Promise.all([agentRetirement, session.whenIdle()]).then(() => undefined);
     set({ agentSession: null });
   },
   openAgentSession: async () => {
@@ -248,6 +251,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     const existing = get().agentSession;
     if (existing) return existing;
     const generation = agentGeneration;
+    await agentRetirement;
     if (await invoke<boolean>("desktop_agent_available") !== true) throw new Error("Desktop agent unavailable");
     const { createDesktopAgentSession } = await import("./agentDesktop");
     if (generation !== agentGeneration || get().services !== services) throw new Error("Agent session cancelled");
