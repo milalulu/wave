@@ -26,12 +26,12 @@ export async function openAgentChat(): Promise<AgentConversation> {
   if (state.conversation) return state.conversation;
   if (state.preparing) throw new ModelError("cancelled");
   const current = generation;
-  const model = new DesktopAgentModel(modelConfig(state.settings));
+  const model = new DesktopAgentModel(modelConfig(state.settings), { readOnly: state.settings.readOnly });
   useAgentChat.setState({ preparing: true });
   try {
     const executor = await useApp.getState().openAgentSession();
     if (generation !== current) throw new ModelError("cancelled");
-    const conversation = new AgentConversation(model, executor, { readOnly: state.settings.readOnly });
+    const conversation = new AgentConversation(model, executor, { readOnly: state.settings.readOnly, compactContext: modelConfig(state.settings).structuredOutput });
     useAgentChat.setState({ conversation });
     return conversation;
   } finally { useAgentChat.setState({ preparing: false }); }

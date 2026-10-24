@@ -7,14 +7,14 @@ import { setTimeout as delay } from "node:timers/promises";
 import { AGENT_CONTRACT_VERSION } from "../src/core/agent/contract.ts";
 import { AGENT_TOOLS } from "../src/core/agent/catalog.ts";
 import { gradeDecision, scoreSubmissions } from "../src/core/agent/evaluation.ts";
-import { DEFAULT_OPTIONS, SCREEN_IDS, hardware, localHost, measureCompletion, requestJson, sha256, summary, systemPrompt } from "./agent-benchmark-lib.mjs";
+import { DEFAULT_OPTIONS, SCREEN_IDS, hardware, localHost, measureCompletion, requestJson, sha256, summary, profilePrompt, requestFormat } from "./agent-benchmark-lib.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const usage = "node scripts/agent-benchmark.mjs run|performance --model <installed-name> --out <new-directory> [--suite full|screen] [--threads 2] [--repeats 5] [--timeout-ms 60000] [--budget-ms 1200000] [--host http://127.0.0.1:11434]";
+const usage = "node scripts/agent-benchmark.mjs run|performance --model <installed-name> --out <new-directory> [--profile baseline|compact-json|compact-schema] [--suite full|screen] [--threads 2] [--repeats 5] [--timeout-ms 60000] [--budget-ms 1200000] [--host http://127.0.0.1:11434]";
 function args(argv) {
   const [command, ...rest] = argv;
   if (!["run", "performance"].includes(command) || rest.length % 2) throw new Error(usage);
-  const allowed = ["model", "out", "suite", "threads", "repeats", "timeout-ms", "budget-ms", "host"];
+  const allowed = ["model", "out", "suite", "threads", "repeats", "timeout-ms", "budget-ms", "host", "profile"];
   const values = {};
   for (let i = 0; i < rest.length; i += 2) {
     const key = rest[i].replace(/^--/, "");
@@ -29,7 +29,9 @@ function args(argv) {
   };
   const suite = values.suite ?? "full";
   if (!["full", "screen"].includes(suite)) throw new Error(usage);
-  return { command, model: values.model, out: resolve(values.out), suite, host: localHost(values.host ?? "http://127.0.0.1:11434"),
+  const profile = values.profile ?? "baseline";
+  if (!["baseline", "compact-json", "compact-schema"].includes(profile)) throw new Error("Invalid profile");
+  return { command, profile, model: values.model, out: resolve(values.out), suite, host: localHost(values.host ?? "http://127.0.0.1:11434"),
     threads: integer("threads", 2, 1, 16), repeats: integer("repeats", 5, 5, 20),
     timeoutMs: integer("timeout-ms", 60000, 100, 180000), budgetMs: integer("budget-ms", 1200000, 100, 7200000) };
 }
@@ -70,25 +72,27 @@ try {
   manifest = { schemaVersion: 1, startedAt: new Date().toISOString(), command: config.command, suite: config.suite,
     contractVersion: AGENT_CONTRACT_VERSION, gitCommit: git("rev-parse", "HEAD"), worktreeDirty: Boolean(git("status", "--porcelain")),
     runnerSha256: sha256(await readFile(fileURLToPath(import.meta.url))), librarySha256: sha256(await readFile(new URL("./agent-benchmark-lib.mjs", import.meta.url))),
-    tasksSha256: sha256(taskBytes), systemSha256: sha256(systemPrompt), toolsSha256: sha256(JSON.stringify(AGENT_TOOLS)),
+    profile: config.profile, tasksSha256: sha256(taskBytes), systemSha256: sha256(profilePrompt(config.profile)), toolsSha256: sha256(JSON.stringify(AGENT_TOOLS)),
     hardware: hardware(), runtimeVersion: version.version, transport: "Ollama /api/chat; controlled CPU profile, not the application's default transport settings",
     model: { name: config.model, digest: tag.digest, sizeBytes: tag.size, family: tag.details.family,
       parameterSize: tag.details.parameter_size, quantization: tag.details.quantization_level,
       templateSha256: sha256(show.template ?? ""), embeddedSystemSha256: sha256(show.system ?? ""), embeddedParameters: show.parameters ?? null,
       licenseSha256: show.license ? sha256(show.license) : null,
       runtimeDeclaresApache2: /Apache License[\s\S]*Version 2\.0/.test(show.license ?? ""), capabilities: show.capabilities },
-    generation: { options, think: false, format: "json", stream: false }, timeoutMs: config.timeoutMs, budgetMs: config.budgetMs,
+    generation: { options, think: false, format: requestFormat(config.profile), stream: false }, timeoutMs: config.timeoutMs, budgetMs: config.budgetMs,
     taskIds: config.command === "run" ? tasks.map((t) => t.id) : ["pause-ru"], performanceRepeats: config.command === "performance" ? config.repeats : null,
     status: "running", eligibility: "Not established: automatic routing requires manual review, execution and audio-impact checks", commandsExecuted: 0 };
   await writeFile(join(config.out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   await writeFile(join(config.out, "runner.source.txt"), await readFile(fileURLToPath(import.meta.url)));
   await writeFile(join(config.out, "library.source.txt"), await readFile(new URL("./agent-benchmark-lib.mjs", import.meta.url)));
+  await writeFile(join(config.out, "protocol.source.txt"), await readFile(join(root, "src/core/agent/protocol.ts")));
+  await writeFile(join(config.out, "system.source.txt"), profilePrompt(config.profile));
   await writeFile(join(config.out, "samples.jsonl"), "");
   deadline = setTimeout(() => abort.abort(), config.budgetMs);
   const run = async (task, phase, repeat) => {
     if (abort.signal.aborted) return false;
     ownsModel = true;
-    const sample = { ...await measureCompletion(config.host, config.model, task, options, abort.signal, config.timeoutMs), phase, repeat };
+    const sample = { ...await measureCompletion(config.host, config.model, task, options, abort.signal, config.timeoutMs, config.profile), phase, repeat };
     sample.grade = gradeDecision(task, sample.decision);
     samples.push(sample);
     await appendFile(join(config.out, "samples.jsonl"), JSON.stringify(sample) + "\n");

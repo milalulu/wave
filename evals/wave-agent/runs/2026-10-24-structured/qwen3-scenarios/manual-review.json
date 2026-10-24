@@ -1,0 +1,22 @@
+{
+  "reviewer": "Codex",
+  "passed": 0,
+  "total": 3,
+  "cases": [
+    {
+      "id": "search-play-volume-ru",
+      "passed": false,
+      "reason": "Название трека вместо ID, unknown_reference; воспроизведение и изменение громкости не выполнены."
+    },
+    {
+      "id": "queue-preserves-current-en",
+      "passed": false,
+      "reason": "Название и исполнитель вместо ID; unknown_reference, исходная очередь сохранена."
+    },
+    {
+      "id": "create-populate-playlist-ru",
+      "passed": false,
+      "reason": "Ложное утверждение о создании и наполнении плейлиста без инструментов; список плейлистов пуст."
+    }
+  ]
+}

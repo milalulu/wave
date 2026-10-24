@@ -56,4 +56,12 @@ describe("desktop agent chat UI", () => {
     expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Settings have changed/)).toBeTruthy();
   });
+  it("requires explicit application of the experimental schema mode", async () => {
+    mount(); fireEvent.click(screen.getByText(/^Model connection ·/));
+    fireEvent.change(screen.getByLabelText("Response format"), { target: { value: "schema" } });
+    expect(screen.getByText(/Requires server support for JSON Schema/)).toBeTruthy();
+    expect(openAgentChat).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Apply and start a new conversation" }));
+    await waitFor(() => expect(resetAgentChat).toHaveBeenCalledWith(expect.objectContaining({ local: expect.objectContaining({ jsonMode: true, structuredOutput: true }) })));
+  });
 });

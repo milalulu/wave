@@ -10,15 +10,18 @@ import { WaveAgentTools, type WaveAgentHost } from "../../src/core/agent/WaveAge
 import { AgentFault } from "../../src/core/agent/execution";
 import { AGENT_TOOLS } from "../../src/core/agent/catalog";
 import { AGENT_RUNTIME_PROMPT } from "../../src/core/agent/prompt";
+import { compactPrompt, structuredMessages, unwrapDecision } from "../../src/core/agent/protocol";
 import { ModelError, type AgentModel, type ModelMessage } from "../../src/core/agent/model";
 import { PlayerEngine } from "../../src/core/player/PlayerEngine";
 import { MockAudioAdapter } from "../../src/core/player/PlayerAdapter";
 import { MemoryStorage } from "../../src/core/database/MemoryStorage";
 import type { Playlist, Track } from "../../src/core/types";
-import { DEFAULT_OPTIONS, hardware, requestJson, sha256 } from "../../scripts/agent-benchmark-lib.mjs";
+import { DEFAULT_OPTIONS, hardware, requestJson, requestFormat, sha256 } from "../../scripts/agent-benchmark-lib.mjs";
 
 const modelName = process.env.WAVE_BENCHMARK_MODEL;
 const output = process.env.WAVE_BENCHMARK_OUT;
+const profile = process.env.WAVE_BENCHMARK_PROFILE ?? "baseline";
+if (!["baseline", "compact-json", "compact-schema"].includes(profile)) throw new Error("Invalid profile");
 if (!modelName || !output) throw new Error("Set WAVE_BENCHMARK_MODEL and WAVE_BENCHMARK_OUT to run isolated model scenarios");
 const host = "http://127.0.0.1:11434";
 const rows: unknown[] = [];
@@ -39,13 +42,16 @@ beforeAll(async () => {
   if (info.remote_host || info.remote_model) throw new Error("Remote models are excluded");
   await mkdir(output, { recursive: false });
   Object.assign(metadata, { model: modelName, digest: tag.digest, hardware: hardware(), runtimeVersion: (await requestJson(host, "/api/version")).version,
-    options: DEFAULT_OPTIONS, think: false, format: "json", startedAt: new Date().toISOString(),
+    profile, options: DEFAULT_OPTIONS, think: false, format: requestFormat(profile), startedAt: new Date().toISOString(),
     gitCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     scenarioSourceSha256: sha256(await readFile(new URL("./scenarios.test.ts", import.meta.url))),
-    runtimePromptSha256: sha256(AGENT_RUNTIME_PROMPT), toolsSha256: sha256(JSON.stringify(AGENT_TOOLS)),
+    conversationSourceSha256: sha256(await readFile(new URL("../../src/core/agent/AgentConversation.ts", import.meta.url))),
+    runtimePromptSha256: sha256(profile === "baseline" ? AGENT_RUNTIME_PROMPT : compactPrompt()), toolsSha256: sha256(JSON.stringify(AGENT_TOOLS)),
     engine: "Real PlayerEngine, MemoryStorage, WaveAgentTools, AgentExecutor and AgentConversation with MockAudioAdapter",
     limitations: "No production library, real audio output, app UI or provider network. Final model text needs manual review." });
   await writeFile(join(output, "scenarios.source.txt"), await readFile(new URL("./scenarios.test.ts", import.meta.url)));
+  await writeFile(join(output, "protocol.source.txt"), await readFile(new URL("../../src/core/agent/protocol.ts", import.meta.url)));
+  await writeFile(join(output, "conversation.source.txt"), await readFile(new URL("../../src/core/agent/AgentConversation.ts", import.meta.url)));
 });
 afterAll(async () => {
   try {
@@ -93,9 +99,10 @@ function fixture() {
     if (JSON.stringify(messages).includes("fixture:///")) throw new ModelError("internal_error");
     ownsModel = true;
     const start = performance.now();
+    const outgoing = profile === "compact-schema" ? structuredMessages(messages) : messages;
     let response;
     try {
-      response = await requestJson(host, "/api/chat", { model: modelName, messages, stream: false, format: "json", think: false,
+      response = await requestJson(host, "/api/chat", { model: modelName, messages: outgoing, stream: false, format: requestFormat(profile), think: false,
         keep_alive: "5m", options: DEFAULT_OPTIONS }, { signal, timeoutMs: 180000, limit: 65536 });
     } catch (error) {
       outputs.push({ latencyMs: Math.round(performance.now() - start), error: error instanceof Error ? error.message : "transport_error" });
@@ -104,13 +111,13 @@ function fixture() {
     const ps = await requestJson(host, "/api/ps", undefined, { signal, timeoutMs: 3000 });
     const allocation = ps.models?.find((m: { name: string }) => m.name === modelName);
     outputs.push({ latencyMs: Math.round(performance.now() - start), raw: response.message?.content, finishReason: response.done_reason,
-      inputMessages: messages, allocation });
+      inputMessages: outgoing, allocation, done: response.done ?? null });
     if (ps.models?.length !== 1 || allocation?.size_vram !== 0 || allocation?.context_length !== DEFAULT_OPTIONS.num_ctx) throw new ModelError("internal_error");
     if (response.done !== true || response.done_reason !== "stop" || typeof response.message?.content !== "string") throw new ModelError("invalid_response");
-    return response.message.content;
+    return profile === "compact-schema" ? unwrapDecision(response.message.content) : response.message.content;
   } };
   const executor = new AgentExecutor(new WaveAgentTools(port));
-  const conversation = new AgentConversation(model, executor);
+  const conversation = new AgentConversation(model, executor, { compactContext: profile !== "baseline" });
   return { audio, engine, storage, conversation, executor, outputs };
 }
 

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
-import { localHost, modelMessages, ollamaMemory, parseDecision, requestJson, SCREEN_IDS, serviceResources } from "./agent-benchmark-lib.mjs";
+import { localHost, modelMessages, ollamaMemory, parseDecision, requestJson, SCREEN_IDS, serviceResources, requestFormat } from "./agent-benchmark-lib.mjs";
 
 test("model inputs exclude expected decisions, rubric, evaluation IDs and other fields", () => {
   const task = { id: "hidden-id", prompt: "pause", context: { tracks: [] }, expected: ["gold-answer"], rubric: "secret-rubric", extra: "secret-extra" };
@@ -25,6 +25,15 @@ test("truncated JSON cannot receive a passing score; raw evidence remains", () =
   assert.equal(parseDecision({ done: true, done_reason: "stop", message: { content: raw } }).decision.name, "wave_pause");
   const invalid = parseDecision({ done: true, done_reason: "stop", message: { content: '{"name":"made_up"}' } });
   assert.equal(invalid.parseError, "invalid_decision"); assert.equal(invalid.raw, '{"name":"made_up"}');
+});
+test("structured profile keeps wire evidence and grades only validated unwrapped decisions", () => {
+  const raw = '{"decision":{"type":"tool","name":"wave_pause","args":{}}}';
+  const result = parseDecision({ done: true, done_reason: "stop", message: { content: raw } }, "compact-schema");
+  assert.equal(result.raw, raw); assert.equal(result.decision.name, "wave_pause");
+  assert.equal(parseDecision({ done: true, done_reason: "stop", message: { content: '{"type":"tool","name":"wave_pause","args":{}}' } }, "compact-schema").decision, null);
+  const messages = modelMessages({ prompt: "test", context: {}, expected: "secret" }, "compact-schema");
+  assert.doesNotMatch(JSON.stringify(messages), /secret/);
+  assert.equal(requestFormat("compact-schema").type, "object");
 });
 test("RSS includes descendants, excludes other processes and reports unavailable as null", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wave-proc-test-"));
@@ -68,7 +77,8 @@ test("transport bounds response bytes, rejects redirects, times out and sanitize
   } finally { await server.close(); }
 });
 
-for (const mode of ["complete", "timeout", "busy"]) test(`CLI ${mode}: preserves evidence, respects loaded models and cleans up its own model`, async () => {
+for (const mode of ["complete", "structured", "timeout", "busy"]) test(`CLI ${mode}: preserves evidence, respects loaded models and cleans up its own model`, async () => {
+  const complete = mode === "complete" || mode === "structured";
   let loaded = mode === "busy";
   let calls = 0;
   const server = await fixture(async (req, res) => {
@@ -86,7 +96,9 @@ for (const mode of ["complete", "timeout", "busy"]) test(`CLI ${mode}: preserves
       if (mode === "timeout") return;
       assert.equal(body.options.num_gpu, 0); assert.equal(body.think, false);
       assert.doesNotMatch(JSON.stringify(body.messages), /"expected"|"rubric"/);
-      value = { done: true, done_reason: "stop", message: { content: '{"type":"tool","name":"wave_pause","args":{}}' } };
+      const decision = { type: "tool", name: "wave_pause", args: {} };
+      if (mode === "structured") assert.deepEqual(body.format, requestFormat("compact-schema"));
+      value = { done: true, done_reason: "stop", message: { content: JSON.stringify(mode === "structured" ? { decision } : decision) } };
     }
     res.setHeader("content-type", "application/json"); res.end(JSON.stringify(value));
   });
@@ -95,22 +107,22 @@ for (const mode of ["complete", "timeout", "busy"]) test(`CLI ${mode}: preserves
   try {
     const script = fileURLToPath(new URL("./agent-benchmark.mjs", import.meta.url));
     const child = spawn(process.execPath, [script, "run", "--host", server.host, "--model", "fixture:1b", "--out", out, "--suite", "screen",
-      "--timeout-ms", mode === "timeout" ? "100" : "60000"]);
+      "--timeout-ms", mode === "timeout" ? "100" : "60000", "--profile", mode === "structured" ? "compact-schema" : "baseline"]);
     let error = ""; child.stderr.on("data", (s) => { error += s; }); child.stdout.resume();
     const code = await new Promise((r) => child.on("exit", r));
-    assert.equal(code, mode === "complete" ? 0 : 1, error);
+    assert.equal(code, complete ? 0 : 1, error);
     if (mode === "busy") {
       assert.equal(calls, 0); assert.equal(loaded, true);
       await assert.rejects(readFile(join(out, "manifest.json")), { code: "ENOENT" });
       return;
     }
-    assert.equal(calls, mode === "complete" ? SCREEN_IDS.length : 1); assert.equal(loaded, false);
+    assert.equal(calls, complete ? SCREEN_IDS.length : 1); assert.equal(loaded, false);
     const report = JSON.parse(await readFile(join(out, "score.json"), "utf8"));
     assert.equal(report.total, SCREEN_IDS.length); assert.equal(report.scope, "screen");
-    assert.equal(report.suiteComplete, mode === "complete"); assert.equal(report.productionReady, false);
-    assert.equal(report.matched, mode === "complete" ? 1 : 0);
+    assert.equal(report.suiteComplete, complete); assert.equal(report.productionReady, false);
+    assert.equal(report.matched, complete ? 1 : 0);
     const manifest = JSON.parse(await readFile(join(out, "manifest.json"), "utf8"));
-    assert.equal(manifest.modelUnloadConfirmed, true); assert.equal(manifest.status, mode === "complete" ? "complete" : "partial");
+    assert.equal(manifest.modelUnloadConfirmed, true); assert.equal(manifest.status, complete ? "complete" : "partial");
     if (mode === "timeout") {
       assert.equal(report.missing, SCREEN_IDS.length - 1);
       const sample = JSON.parse((await readFile(join(out, "samples.jsonl"), "utf8")).trim());

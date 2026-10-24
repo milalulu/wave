@@ -7,6 +7,7 @@ import { performance } from "node:perf_hooks";
 import { AGENT_TOOLS } from "../src/core/agent/catalog.ts";
 import { AGENT_SYSTEM_PROMPT } from "../src/core/agent/prompt.ts";
 import { isAgentDecision } from "../src/core/agent/decision.ts";
+import { compactPrompt, decisionSchema, structuredMessages, unwrapDecision } from "../src/core/agent/protocol.ts";
 
 // Fixed before running any candidate. A screen is never reported as a full-suite pass.
 export const SCREEN_IDS = ["pause-ru", "volume-ru", "seek-en", "search-en", "playlist-create-ru",
@@ -16,9 +17,14 @@ export const DEFAULT_OPTIONS = { num_ctx: 8192, num_thread: 2, num_gpu: 0, num_p
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 export const systemPrompt = `${AGENT_SYSTEM_PROMPT}\nAvailable tools:\n${JSON.stringify(AGENT_TOOLS)}`;
 
-export function modelMessages(task) {
+export function profilePrompt(profile = "baseline") {
+  const content = profile === "baseline" ? systemPrompt : compactPrompt(undefined, true);
+  return profile === "compact-schema" ? structuredMessages([{ role: "system", content }])[0].content : content;
+}
+export const requestFormat = (profile = "baseline") => profile === "compact-schema" ? decisionSchema() : "json";
+export function modelMessages(task, profile = "baseline") {
   // This explicit projection is the boundary between the evaluator and the model.
-  return [{ role: "system", content: systemPrompt },
+  return [{ role: "system", content: profilePrompt(profile) },
     { role: "user", content: JSON.stringify({ type: "user_request", text: task.prompt, context: task.context }) }];
 }
 export function localHost(value) {
@@ -67,14 +73,14 @@ export async function requestJson(host, path, body = undefined, { signal, timeou
   } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
 }
 
-export function parseDecision(response) {
+export function parseDecision(response, profile = "baseline") {
   const raw = response.message?.content;
   let decision = null;
   let error = null;
   if (response.done !== true || response.done_reason !== "stop") error = "incomplete_response";
-  else if (typeof raw !== "string" || raw.length > 16000 || response.message?.tool_calls?.length) error = "unsupported_response";
+  else if (typeof raw !== "string" || Buffer.byteLength(raw, "utf8") > 16000 || response.message?.tool_calls?.length) error = "unsupported_response";
   else {
-    try { decision = JSON.parse(raw); } catch { error = "invalid_json"; }
+    try { decision = JSON.parse(profile === "compact-schema" ? unwrapDecision(raw) : raw); } catch { error = "invalid_json_or_decision"; }
     if (!error && !isAgentDecision(decision)) error = "invalid_decision";
   }
   // Preserve wrong schema for inspection, but never score a truncated/refused response as valid.
@@ -131,7 +137,7 @@ export async function serviceResources(path = "/sys/fs/cgroup/system.slice/ollam
   } catch { return null; }
 }
 
-export async function measureCompletion(host, model, task, options, signal, timeoutMs) {
+export async function measureCompletion(host, model, task, options, signal, timeoutMs, profile = "baseline") {
   let memorySamples = 0; let peak = null; let peakSwap = null; let stopped = false;
   let cgroupSamples = 0; let cgroupPeak = null; let anonymousPeak = null; let mappedPeak = null;
   const serviceBefore = await serviceResources();
@@ -149,13 +155,13 @@ export async function measureCompletion(host, model, task, options, signal, time
   poll();
   const start = performance.now();
   let response; let error;
-  try { response = await requestJson(host, "/api/chat", { model, messages: modelMessages(task), stream: false,
-    format: "json", think: false, keep_alive: "5m", options }, { signal, timeoutMs, limit: 65536 }); }
+  try { response = await requestJson(host, "/api/chat", { model, messages: modelMessages(task, profile), stream: false,
+    format: requestFormat(profile), think: false, keep_alive: "5m", options }, { signal, timeoutMs, limit: 65536 }); }
   catch (e) { error = e.message; }
   const latencyMs = Math.round(performance.now() - start);
   stopped = true; clearTimeout(timer); await sampling; await sample();
   const serviceAfter = await serviceResources();
-  const parsed = response ? parseDecision(response) : { raw: null, decision: null, parseError: null };
+  const parsed = response ? parseDecision(response, profile) : { raw: null, decision: null, parseError: null };
   let allocation = null;
   try {
     const ps = await requestJson(host, "/api/ps", undefined, { timeoutMs: 3000 });

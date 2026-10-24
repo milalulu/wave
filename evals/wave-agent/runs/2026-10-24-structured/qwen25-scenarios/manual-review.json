@@ -1,0 +1,22 @@
+{
+  "reviewer": "Codex",
+  "passed": 0,
+  "total": 3,
+  "cases": [
+    {
+      "id": "search-play-volume-ru",
+      "passed": false,
+      "reason": "Ложное утверждение о воспроизведении и громкости без вызовов инструментов; плеер idle, громкость 100%."
+    },
+    {
+      "id": "queue-preserves-current-en",
+      "passed": false,
+      "reason": "Название вместо выданного ID; unknown_reference, исходная очередь сохранена."
+    },
+    {
+      "id": "create-populate-playlist-ru",
+      "passed": false,
+      "reason": "Создан пустой плейлист, затем изменён выданный playlistId и выдуман trackId. Добавление отклонено. Частичное изменение сохранено, финального ответа нет."
+    }
+  ]
+}

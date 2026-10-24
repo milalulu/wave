@@ -1,0 +1,115 @@
+{
+  "metrics": {
+    "model-unloaded": {
+      "completedResponses": 1,
+      "validDecisions": 1,
+      "matchedDecisions": 1,
+      "latencyMs": {
+        "samples": 1,
+        "p50": 43770,
+        "p95": 43770,
+        "max": 43770
+      },
+      "peakRssMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakSwapMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cgroupTotalMiB": {
+        "samples": 1,
+        "p50": 3038.22265625,
+        "p95": 3038.22265625,
+        "max": 3038.22265625
+      },
+      "cgroupAnonymousMiB": {
+        "samples": 1,
+        "p50": 2403.94921875,
+        "p95": 2403.94921875,
+        "max": 2403.94921875
+      },
+      "cgroupMappedFileMiB": {
+        "samples": 1,
+        "p50": 19.25390625,
+        "p95": 19.25390625,
+        "max": 19.25390625
+      },
+      "modelAllocationMiB": {
+        "samples": 1,
+        "p50": 2307.229998588562,
+        "p95": 2307.229998588562,
+        "max": 2307.229998588562
+      },
+      "averageCpuCores": {
+        "samples": 1,
+        "p50": 1.6837156499885766,
+        "p95": 1.6837156499885766,
+        "max": 1.6837156499885766
+      }
+    },
+    "resident": {
+      "completedResponses": 59,
+      "validDecisions": 57,
+      "matchedDecisions": 29,
+      "latencyMs": {
+        "samples": 59,
+        "p50": 8329,
+        "p95": 18130,
+        "max": 19067
+      },
+      "peakRssMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakSwapMiB": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cgroupTotalMiB": {
+        "samples": 59,
+        "p50": 2455.65625,
+        "p95": 3053.4765625,
+        "max": 3054.2109375
+      },
+      "cgroupAnonymousMiB": {
+        "samples": 59,
+        "p50": 2413.5703125,
+        "p95": 2420.32421875,
+        "max": 2420.38671875
+      },
+      "cgroupMappedFileMiB": {
+        "samples": 59,
+        "p50": 17.0078125,
+        "p95": 19.3046875,
+        "max": 19.3671875
+      },
+      "modelAllocationMiB": {
+        "samples": 59,
+        "p50": 2307.229998588562,
+        "p95": 2307.229998588562,
+        "max": 2307.229998588562
+      },
+      "averageCpuCores": {
+        "samples": 59,
+        "p50": 1.8206306279325146,
+        "p95": 1.901461547611967,
+        "max": 1.926371535041841
+      }
+    }
+  },
+  "notes": [
+    "Model-unloaded does not imply a cold filesystem cache.",
+    "RSS is sampled and includes the Ollama daemon; shared pages may be counted twice.",
+    "No real audio playback or hardware-impact acceptance test was run."
+  ]
+}

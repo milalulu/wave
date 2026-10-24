@@ -91,7 +91,11 @@ export function AgentView() {
           </div>
         </>}
         <label className="agent-check"><input type="checkbox" checked={draft.readOnly} onChange={(e) => setDraft({ ...draft, readOnly: e.target.checked })} />{t.readOnly}</label>
-        <label className="agent-check"><input type="checkbox" checked={selected.jsonMode} onChange={(e) => patchConnection({ jsonMode: e.target.checked })} />{t.jsonMode}</label>
+        <label>{t.outputFormat}<select value={selected.structuredOutput ? "schema" : selected.jsonMode ? "json" : "text"}
+          onChange={(e) => patchConnection({ jsonMode: e.target.value !== "text", structuredOutput: e.target.value === "schema" })}>
+          <option value="schema">{t.structuredOutput}</option><option value="json">JSON</option><option value="text">{t.textOutput}</option>
+        </select></label>
+        {selected.structuredOutput && <p className="agent-hint">{t.schemaHint}</p>}
         <label>{t.tokenParameter}<select value={selected.tokenParameter} onChange={(e) => patchConnection({ tokenParameter: e.target.value as typeof selected.tokenParameter })}>
           <option value="max_tokens">max_tokens</option><option value="max_completion_tokens">max_completion_tokens</option>
         </select></label>

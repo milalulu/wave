@@ -3,6 +3,7 @@ import { AGENT_TOOLS } from "./catalog";
 import type { AgentDecision, ToolCall, ToolName, ToolResult } from "./contract";
 import { isAgentDecision } from "./decision";
 import { ModelError, modelErrorCode, type AgentModel, type ModelErrorCode, type ModelMessage } from "./model";
+import { compactPrompt } from "./protocol";
 import { AGENT_RUNTIME_PROMPT } from "./prompt";
 
 export type ConversationEvent = { type: "user"; text: string }
@@ -26,12 +27,13 @@ export class AgentConversation {
   private readonly executor: AgentExecutor;
   private readonly timeoutMs: number;
 
-  constructor(model: AgentModel, executor: AgentExecutor, options: { readOnly?: boolean; timeoutMs?: number } = {}) {
+  constructor(model: AgentModel, executor: AgentExecutor, options: { readOnly?: boolean; timeoutMs?: number; compactContext?: boolean } = {}) {
     this.model = model;
     this.executor = executor;
     this.timeoutMs = Math.min(180000, Math.max(1, options.timeoutMs ?? 180000));
     this.allowedTools = (Object.keys(AGENT_TOOLS) as ToolName[]).filter((name) => !options.readOnly || AGENT_TOOLS[name].effect === "read");
-    this.messages = [{ role: "system", content: `${AGENT_RUNTIME_PROMPT}\nAvailable tools:\n${JSON.stringify(Object.fromEntries(this.allowedTools.map((name) => [name, AGENT_TOOLS[name]])))}` }];
+    this.messages = [{ role: "system", content: options.compactContext ? compactPrompt(this.allowedTools)
+      : `${AGENT_RUNTIME_PROMPT}\nAvailable tools:\n${JSON.stringify(Object.fromEntries(this.allowedTools.map((name) => [name, AGENT_TOOLS[name]])))}` }];
   }
 
   getSnapshot = (): ConversationState => this.state;

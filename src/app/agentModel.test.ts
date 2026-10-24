@@ -42,6 +42,38 @@ describe("desktop model adapter", () => {
     await testModelConnection(settings, new AbortController().signal);
     const request = vi.mocked(invoke).mock.calls[1][1];
     expect(request).toMatchObject({ messages: [{ role: "system" }, { role: "user", content: "Connection test. Return the requested JSON." }] });
+    expect(request).not.toHaveProperty("config.structuredOutput");
+    expect(request).not.toHaveProperty("config.responseSchema");
     expect(JSON.stringify(request)).not.toContain("wave_liked");
+  });
+  it("migrates old settings without silently opting into a different output mode", () => {
+    localStorage.setItem("wave:desktop-agent:v1", JSON.stringify({ local: { model: "old", jsonMode: false } }));
+    expect(loadAgentSettings().local).toMatchObject({ model: "old", jsonMode: false, structuredOutput: false });
+  });
+  it("sends a strict schema and wrapped history, then validates and unwraps the reply", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce("1").mockResolvedValueOnce('{"decision":{"type":"answer","message":"ok"}}');
+    const input = [{ role: "system" as const, content: "rules" }, { role: "assistant" as const, content: '{"type":"tool","name":"wave_status","args":{}}' }];
+    const model = new DesktopAgentModel({ ...config(), structuredOutput: true }, { readOnly: true });
+    await expect(model.complete(input, new AbortController().signal)).resolves.toBe('{"type":"answer","message":"ok"}');
+    const request = vi.mocked(invoke).mock.calls[1][1];
+    expect(JSON.stringify(request)).toContain("wave_status");
+    expect(JSON.stringify(request)).not.toContain('"wave_play"');
+    expect(request).toMatchObject({ config: { structuredOutput: true, responseSchema: { type: "object", required: ["decision"] } } });
+    expect(input[0].content).toBe("rules");
+  });
+  it("does not downgrade strict mode when the server rejects it", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce("1").mockRejectedValueOnce("provider_error");
+    await expect(new DesktopAgentModel({ ...config(), structuredOutput: true }).complete([], new AbortController().signal)).rejects.toThrow("provider_error");
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+  it("rejects a server ignoring the requested strict envelope", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce("1").mockResolvedValueOnce('{"type":"tool","name":"wave_pause","args":{}}');
+    await expect(new DesktopAgentModel({ ...config(), structuredOutput: true }).complete([], new AbortController().signal)).rejects.toThrow("invalid_decision");
+  });
+  it("uses a text-only strict schema for the connection probe", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce("1").mockResolvedValueOnce('{"decision":{"type":"answer","message":"Wave OK"}}');
+    const settings = defaultAgentSettings(); Object.assign(settings.local, { model: "fixture", structuredOutput: true });
+    await testModelConnection(settings, new AbortController().signal);
+    expect(JSON.stringify(vi.mocked(invoke).mock.calls[1][1])).not.toContain("wave_liked");
   });
 });

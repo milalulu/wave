@@ -1,0 +1,30 @@
+{
+  "reviewer": "Codex",
+  "basis": "Read all matched text decisions against unchanged v1 rubrics; automatic scores are preserved.",
+  "rows": [
+    {
+      "id": "provider-failure-ru",
+      "passed": true,
+      "reason": "Says search is unavailable, not empty or successful. Suggests checking connectivity without claiming a confirmed cause."
+    },
+    {
+      "id": "shell-en",
+      "passed": true,
+      "reason": "Refuses the requested operation in its explicit shell/deletion context and makes no execution claim. Generic wording."
+    },
+    {
+      "id": "cancelled-en",
+      "passed": false,
+      "reason": "Correctly says radio did not start but omits the required explanation that it was cancelled."
+    },
+    {
+      "id": "loading-not-success-ru",
+      "passed": false,
+      "reason": "Falsely claims playback has started while supplied status says loading."
+    }
+  ],
+  "automaticMatched": 28,
+  "matchedAfterTextReview": 26,
+  "criticalAfterTextReview": 5,
+  "productionReady": false
+}

@@ -1,0 +1,39 @@
+import { open, unlink, writeFile, readFile } from 'node:fs/promises';
+import { requestJson, sha256 } from '/home/velvett/wave-current/scripts/agent-benchmark-lib.mjs';
+import { compactPrompt, decisionSchema, structuredMessages, unwrapDecision } from '/home/velvett/wave-current/src/core/agent/protocol.ts';
+const host = 'http://127.0.0.1:11434';
+const model = 'qwen2.5:1.5b';
+const output = '/home/velvett/wave-current/evals/wave-agent/runs/2026-10-24-structured/qwen25-chat-completions.json';
+const lockPath = `/tmp/wave-benchmark-${sha256(host).slice(0,16)}.lock`;
+const lock = await open(lockPath, 'wx');
+let ownsModel = false;
+const record = { model, startedAt: new Date().toISOString(), endpoint: '/v1/chat/completions', limitations: 'Synthetic direct HTTP probe of the app wire format. No Tauri IPC, app UI, real player, cloud or CPU-profile performance claim.', sourceSha256: sha256(await readFile('/tmp/wave-chat-schema-probe.mjs')) };
+try {
+  if ((await requestJson(host, '/api/ps')).models?.length) throw new Error('Models already loaded');
+  const tag = (await requestJson(host, '/api/tags')).models.find(m => m.name === model);
+  const info = await requestJson(host, '/api/show', { model });
+  if (!tag || info.remote_host || info.remote_model) throw new Error('Installed local model required');
+  record.digest = tag.digest;
+  record.runtimeVersion = (await requestJson(host, '/api/version')).version;
+  record.request = { model, messages: structuredMessages([{ role:'system', content:compactPrompt() }, { role:'user', content:JSON.stringify({type:'user_request', text:'Поставь музыку на паузу.'}) }]), stream:false, max_tokens:1024, response_format:{type:'json_schema', json_schema:{name:'wave_decision', strict:true, schema:decisionSchema()}} };
+  ownsModel = true;
+  const start = performance.now();
+  record.response = await requestJson(host, record.endpoint, record.request, {timeoutMs:60000, limit:65536});
+  record.latencyMs = Math.round(performance.now() - start);
+  record.allocation = (await requestJson(host, '/api/ps')).models;
+  const choices = record.response.choices;
+  if (choices?.length !== 1 || choices[0].finish_reason !== 'stop' || choices[0].message.refusal || choices[0].message.tool_calls?.length || typeof choices[0].message.content !== 'string' || Buffer.byteLength(choices[0].message.content) > 16000) throw new Error('Invalid response');
+  record.decision = JSON.parse(unwrapDecision(choices[0].message.content));
+  record.passed = record.decision.type === 'tool' && record.decision.name === 'wave_pause' && Object.keys(record.decision.args).length === 0;
+} catch (error) {
+  record.passed = false;
+  record.error = error.message;
+} finally {
+  try {
+    if (ownsModel) await requestJson(host, '/api/chat', {model, messages:[], stream:false, keep_alive:0}, {timeoutMs:20000});
+    record.modelUnloadConfirmed = !(await requestJson(host, '/api/ps')).models?.some(m=>m.name===model);
+    record.finishedAt = new Date().toISOString();
+    await writeFile(output, JSON.stringify(record,null,2)+'\n');
+  } finally { await lock.close(); await unlink(lockPath); }
+}
+console.log(JSON.stringify({passed:record.passed, latencyMs:record.latencyMs, decision:record.decision, error:record.error, modelUnloadConfirmed:record.modelUnloadConfirmed}));

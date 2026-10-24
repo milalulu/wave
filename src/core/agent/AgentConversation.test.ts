@@ -7,19 +7,19 @@ import type { ToolResult, ToolName } from "./contract";
 const answer = JSON.stringify({ type: "answer", message: "Готово" });
 const change = JSON.stringify({ type: "tool", name: "wave_playlist_create", args: { name: "Focus" } });
 const success: ToolResult<ToolName> = { ok: true, data: { id: "p1", name: "Focus", trackCount: 0 } };
-function setup(responses: string[], readOnly = false) {
+function setup(responses: string[], readOnly = false, compactContext = false) {
   const run = vi.fn<AgentToolHandler["run"]>().mockResolvedValue(success);
   const executor = new AgentExecutor({ run, clear: () => {} });
   const complete = vi.fn<AgentModel["complete"]>();
   responses.forEach((response) => complete.mockResolvedValueOnce(response));
-  const chat = new AgentConversation({ complete }, executor, { readOnly });
+  const chat = new AgentConversation({ complete }, executor, { readOnly, compactContext });
   return { chat, run, complete, executor };
 }
 afterEach(() => vi.useRealTimers());
 
 describe("bounded model conversation", () => {
-  it("returns real observations to the model and retains clarification context", async () => {
-    const { chat, run, complete } = setup([JSON.stringify({ type: "clarify", message: "Как назвать?" }), change, answer]);
+  it.each([false, true])("returns real observations and retains clarification context (compact=%s)", async (compactContext) => {
+    const { chat, run, complete } = setup([JSON.stringify({ type: "clarify", message: "Как назвать?" }), change, answer], false, compactContext);
     await chat.send("Создай плейлист");
     expect(run).not.toHaveBeenCalled();
     await chat.send("Focus");
@@ -38,11 +38,11 @@ describe("bounded model conversation", () => {
       expect(chat.getSnapshot().events.slice(-1)[0]).toEqual({ type: "error", code: "invalid_decision" });
     });
 
-  it("enforces read-only outside model output", async () => {
-    const { chat, run, complete } = setup([change], true);
+  it.each([false, true])("enforces read-only outside model output (compact=%s)", async (compactContext) => {
+    const { chat, run, complete } = setup([change], true, compactContext);
     await chat.send("Создай плейлист");
     expect(run).not.toHaveBeenCalled();
-    expect(complete.mock.calls[0][0][0].content).not.toContain('"wave_playlist_create":');
+    expect(complete.mock.calls[0][0][0].content).not.toContain('wave_playlist_create');
     expect(chat.getSnapshot().events.slice(-1)[0]).toMatchObject({ type: "tool", result: { ok: false, error: { code: "permission_denied" } } });
   });
 

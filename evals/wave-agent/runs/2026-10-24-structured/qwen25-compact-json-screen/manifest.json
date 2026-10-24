@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-24T12:32:30.326Z",
+  "command": "run",
+  "suite": "screen",
+  "contractVersion": 1,
+  "gitCommit": "d86721afd8f7e81e3b0d7a00d5148e1f8954fb62",
+  "worktreeDirty": true,
+  "runnerSha256": "6198a32c79d87cebea5653a6522837a96a090efc770ba7cdb679208a7669d91a",
+  "librarySha256": "c8fb6cbbcd94a9a78c82f3ae2f581915c15fcaf9abc41fb625deedf8e1a25ea5",
+  "profile": "compact-json",
+  "tasksSha256": "a38b66762dff203cb41dbf8023fc15899aea9f5edc48f71888d7e6e89cb778fe",
+  "systemSha256": "04e420c2e219debaec5369f58b2571dc6ed7dd8b82a8cf8c0d7fe73013415a42",
+  "toolsSha256": "7ab2d5d69a9ff96fc2b0609594c4937f893c3c46b0c285053210387672d9f0cf",
+  "hardware": {
+    "os": "linux",
+    "release": "7.2.11-zen1-1-zen",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i3-10100F CPU @ 3.60GHz",
+    "logicalCpus": 8,
+    "totalMemoryMiB": 15890,
+    "inferenceDevice": "CPU requested with num_gpu=0; see each sample's loaded model allocation"
+  },
+  "runtimeVersion": "0.32.6",
+  "transport": "Ollama /api/chat; controlled CPU profile, not the application's default transport settings",
+  "model": {
+    "name": "qwen2.5:1.5b",
+    "digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+    "sizeBytes": 986061892,
+    "family": "qwen2",
+    "parameterSize": "1.5B",
+    "quantization": "Q4_K_M",
+    "templateSha256": "eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175",
+    "embeddedSystemSha256": "66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e",
+    "embeddedParameters": null,
+    "licenseSha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+    "runtimeDeclaresApache2": true,
+    "capabilities": [
+      "completion",
+      "tools"
+    ]
+  },
+  "generation": {
+    "options": {
+      "num_ctx": 8192,
+      "num_thread": 2,
+      "num_gpu": 0,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "top_k": 0,
+      "top_p": 1,
+      "repeat_penalty": 1
+    },
+    "think": false,
+    "format": "json",
+    "stream": false
+  },
+  "timeoutMs": 180000,
+  "budgetMs": 600000,
+  "taskIds": [
+    "pause-ru",
+    "volume-ru",
+    "seek-en",
+    "search-en",
+    "playlist-create-ru",
+    "ambiguous-track-en",
+    "metadata-injection-ru",
+    "cloud-consent-ru"
+  ],
+  "performanceRepeats": null,
+  "status": "complete",
+  "eligibility": "Not established: automatic routing requires manual review, execution and audio-impact checks",
+  "commandsExecuted": 0,
+  "finishedAt": "2026-10-24T12:33:43.651Z",
+  "modelUnloadConfirmed": true,
+  "cleanupError": null
+}

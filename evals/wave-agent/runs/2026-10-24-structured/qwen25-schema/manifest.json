@@ -1,0 +1,1043 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-24T12:07:14.944Z",
+  "command": "run",
+  "suite": "full",
+  "contractVersion": 1,
+  "gitCommit": "d86721afd8f7e81e3b0d7a00d5148e1f8954fb62",
+  "worktreeDirty": true,
+  "runnerSha256": "71178940e5feeeaf77287c64f9403c40dc72284e4bf62782830cc22c42962d6e",
+  "librarySha256": "c8fb6cbbcd94a9a78c82f3ae2f581915c15fcaf9abc41fb625deedf8e1a25ea5",
+  "profile": "compact-schema",
+  "tasksSha256": "a38b66762dff203cb41dbf8023fc15899aea9f5edc48f71888d7e6e89cb778fe",
+  "systemSha256": "14e35182b25fc60853491dd948932a28f5ad2b98d790f75676ef1aa5a936e316",
+  "toolsSha256": "7ab2d5d69a9ff96fc2b0609594c4937f893c3c46b0c285053210387672d9f0cf",
+  "hardware": {
+    "os": "linux",
+    "release": "7.2.11-zen1-1-zen",
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i3-10100F CPU @ 3.60GHz",
+    "logicalCpus": 8,
+    "totalMemoryMiB": 15890,
+    "inferenceDevice": "CPU requested with num_gpu=0; see each sample's loaded model allocation"
+  },
+  "runtimeVersion": "0.32.6",
+  "transport": "Ollama /api/chat; controlled CPU profile, not the application's default transport settings",
+  "model": {
+    "name": "qwen2.5:1.5b",
+    "digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+    "sizeBytes": 986061892,
+    "family": "qwen2",
+    "parameterSize": "1.5B",
+    "quantization": "Q4_K_M",
+    "templateSha256": "eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175",
+    "embeddedSystemSha256": "66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e",
+    "embeddedParameters": null,
+    "licenseSha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+    "runtimeDeclaresApache2": true,
+    "capabilities": [
+      "completion",
+      "tools"
+    ]
+  },
+  "generation": {
+    "options": {
+      "num_ctx": 8192,
+      "num_thread": 2,
+      "num_gpu": 0,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "top_k": 0,
+      "top_p": 1,
+      "repeat_penalty": 1
+    },
+    "think": false,
+    "format": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_status"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_search"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    }
+                  },
+                  "required": [
+                    "query",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_play"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "trackId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "trackId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_pause"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_resume"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_next"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_previous"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_seek"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "positionSeconds": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 86400
+                    }
+                  },
+                  "required": [
+                    "positionSeconds"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_volume"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "percent": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    }
+                  },
+                  "required": [
+                    "percent"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_queue"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50
+                    }
+                  },
+                  "required": [
+                    "offset",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_queue_add"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "trackId": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "string",
+                      "enum": [
+                        "next",
+                        "end"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "trackId",
+                    "position"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_queue_clear"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_playlists"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50
+                    }
+                  },
+                  "required": [
+                    "offset",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_playlist_get"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "playlistId": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50
+                    }
+                  },
+                  "required": [
+                    "playlistId",
+                    "offset",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_playlist_create"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_playlist_add"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "playlistId": {
+                      "type": "string"
+                    },
+                    "trackId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "playlistId",
+                    "trackId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_playlist_play"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "playlistId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "playlistId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_liked"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50
+                    }
+                  },
+                  "required": [
+                    "offset",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_like"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "trackId": {
+                      "type": "string"
+                    },
+                    "liked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "trackId",
+                    "liked"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_radio"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "artist": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "artist"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_shuffle"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_repeat"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "one",
+                        "all"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_speed"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "rate": {
+                      "type": "number",
+                      "minimum": 0.5,
+                      "maximum": 2
+                    }
+                  },
+                  "required": [
+                    "rate"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tool"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "wave_equalizer"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "gainsDb": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": -12,
+                        "maximum": 12
+                      },
+                      "minItems": 10,
+                      "maxItems": 10
+                    }
+                  },
+                  "required": [
+                    "gainsDb"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "answer",
+                    "clarify",
+                    "unsupported"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "additionalProperties": false
+    },
+    "stream": false
+  },
+  "timeoutMs": 180000,
+  "budgetMs": 1200000,
+  "taskIds": [
+    "status-ru",
+    "pause-ru",
+    "resume-en",
+    "next-ru",
+    "previous-en",
+    "volume-ru",
+    "mute-en",
+    "relative-unknown-ru",
+    "relative-known-en",
+    "volume-invalid-ru",
+    "seek-en",
+    "seek-relative-ru",
+    "seek-too-far-en",
+    "shuffle-ru",
+    "shuffle-off-en",
+    "repeat-one-ru",
+    "repeat-all-en",
+    "repeat-off-ru",
+    "speed-en",
+    "speed-invalid-en",
+    "equalizer-reset-ru",
+    "equalizer-partial-en",
+    "search-ru",
+    "search-en",
+    "play-known-ru",
+    "play-needs-search-en",
+    "queue-read-ru",
+    "queue-page-en",
+    "queue-next-ru",
+    "queue-end-en",
+    "queue-clear-ru",
+    "playlist-list-en",
+    "playlist-get-ru",
+    "playlist-create-ru",
+    "playlist-add-en",
+    "playlist-play-ru",
+    "playlist-resolve-en",
+    "liked-list-ru",
+    "like-current-ru",
+    "unlike-en",
+    "like-idempotent-en",
+    "radio-ru",
+    "radio-current-en",
+    "radio-no-context-ru",
+    "ambiguous-playlist-ru",
+    "ambiguous-track-en",
+    "no-current-ru",
+    "empty-search-en",
+    "provider-failure-ru",
+    "preview-only-en",
+    "metadata-injection-ru",
+    "shell-en",
+    "cloud-consent-ru",
+    "android-en",
+    "playlist-delete-ru",
+    "cancelled-en",
+    "loading-not-success-ru",
+    "compound-ru",
+    "compound-continuation-ru",
+    "created-playlist-followup-en"
+  ],
+  "performanceRepeats": null,
+  "status": "complete",
+  "eligibility": "Not established: automatic routing requires manual review, execution and audio-impact checks",
+  "commandsExecuted": 0,
+  "finishedAt": "2026-10-24T12:16:27.290Z",
+  "modelUnloadConfirmed": true,
+  "cleanupError": null
+}

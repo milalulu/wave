@@ -18,6 +18,10 @@ pub struct ModelConfig {
     base_url: String,
     model: String,
     json_mode: bool,
+    #[serde(default)]
+    structured_output: bool,
+    #[serde(default)]
+    response_schema: Option<Value>,
     token_parameter: TokenParameter,
     cloud_consent: bool,
 }
@@ -139,6 +143,21 @@ fn endpoint(base: &str, mode: &Mode) -> Result<Url> {
 
 fn validate(config: &ModelConfig, messages: &[Message]) -> Result<Url> {
     let url = endpoint(&config.base_url, &config.mode)?;
+    let schema_bytes = if config.structured_output {
+        let schema = config.response_schema.as_ref().ok_or("invalid_config")?;
+        let bytes = serde_json::to_vec(schema)
+            .map_err(|_| "invalid_config")?
+            .len();
+        if !config.json_mode || schema["type"] != "object" || bytes > 32_000 {
+            return Err("invalid_config".into());
+        }
+        bytes
+    } else {
+        if config.response_schema.is_some() {
+            return Err("invalid_config".into());
+        }
+        0
+    };
     if (config.mode == Mode::Cloud && !config.cloud_consent)
         || config.model.trim().is_empty()
         || config.model.len() > 200
@@ -151,6 +170,7 @@ fn validate(config: &ModelConfig, messages: &[Message]) -> Result<Url> {
         || serde_json::to_vec(messages)
             .map_err(|_| "invalid_config")?
             .len()
+            + schema_bytes
             > INPUT_LIMIT
     {
         return Err("invalid_config".into());
@@ -214,7 +234,11 @@ fn payload(config: &ModelConfig, messages: &[Message]) -> Value {
         TokenParameter::Completion => "max_completion_tokens",
     };
     body[field] = json!(1024);
-    if config.json_mode {
+    if config.structured_output {
+        body["response_format"] = json!({ "type": "json_schema", "json_schema": {
+            "name": "wave_decision", "strict": true, "schema": config.response_schema
+        }});
+    } else if config.json_mode {
         body["response_format"] = json!({ "type": "json_object" });
     }
     body
@@ -373,6 +397,8 @@ mod tests {
             base_url: base_url.into(),
             model: "fixture".into(),
             json_mode: true,
+            structured_output: false,
+            response_schema: None,
             token_parameter: TokenParameter::Legacy,
             cloud_consent: false,
         }
@@ -438,6 +464,47 @@ mod tests {
             }]
         )
         .is_err());
+    }
+    #[test]
+    fn strict_schema_payload_is_explicit_and_bounded() {
+        let mut conf = config("http://127.0.0.1:11434/v1");
+        let messages = vec![Message {
+            role: "user".into(),
+            content: "test".into(),
+        }];
+        assert_eq!(
+            payload(&conf, &messages)["response_format"]["type"],
+            "json_object"
+        );
+        conf.structured_output = true;
+        assert!(validate(&conf, &messages).is_err());
+        conf.response_schema = Some(
+            json!({ "type": "object", "properties": { "decision": { "type": "string" } }, "required": ["decision"], "additionalProperties": false }),
+        );
+        assert!(validate(&conf, &messages).is_ok());
+        let body = payload(&conf, &messages);
+        assert_eq!(body["response_format"]["type"], "json_schema");
+        assert_eq!(body["response_format"]["json_schema"]["strict"], true);
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"],
+            conf.response_schema.clone().unwrap()
+        );
+        conf.json_mode = false;
+        assert!(validate(&conf, &messages).is_err());
+        conf.json_mode = true;
+        conf.response_schema = Some(json!({ "type": "object", "description": "x".repeat(32_000) }));
+        assert!(validate(&conf, &messages).is_err());
+        conf.response_schema = Some(json!({ "type": "object", "description": "x".repeat(20_000) }));
+        assert!(validate(
+            &conf,
+            &[Message {
+                role: "user".into(),
+                content: "x".repeat(85_000)
+            }]
+        )
+        .is_err());
+        conf.structured_output = false;
+        assert!(validate(&conf, &messages).is_err());
     }
     #[test]
     fn refuses_truncated_and_nontext_model_outputs() {

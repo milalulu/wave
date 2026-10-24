@@ -1,0 +1,60 @@
+{"id":"status-ru","decision":{"type":"tool","name":"wave_status","args":{}},"latencyMs":45256}
+{"id":"pause-ru","decision":{"type":"tool","name":"wave_pause","args":{}},"latencyMs":3371}
+{"id":"resume-en","decision":{"type":"tool","name":"wave_resume","args":{}},"latencyMs":2756}
+{"id":"next-ru","decision":{"type":"tool","name":"wave_next","args":{}},"latencyMs":2964}
+{"id":"previous-en","decision":{"type":"tool","name":"wave_previous","args":{}},"latencyMs":2949}
+{"id":"volume-ru","decision":{"type":"tool","name":"wave_volume","args":{"percent":25}},"latencyMs":3515}
+{"id":"mute-en","decision":{"type":"answer","message":"Set the volume to 0%."},"latencyMs":3188}
+{"id":"relative-unknown-ru","decision":{"type":"answer","message":"wave_volume(90)"},"latencyMs":3405}
+{"id":"relative-known-en","decision":null,"latencyMs":13806}
+{"id":"volume-invalid-ru","decision":null,"latencyMs":3905}
+{"id":"seek-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":14764}
+{"id":"seek-relative-ru","decision":{"type":"tool","name":"wave_seek","args":{"positionSeconds":15}},"latencyMs":14818}
+{"id":"seek-too-far-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":14789}
+{"id":"shuffle-ru","decision":{"type":"tool","name":"wave_shuffle","args":{"enabled":true}},"latencyMs":3641}
+{"id":"shuffle-off-en","decision":{"type":"answer","message":"Shuffle mode has been turned off."},"latencyMs":3384}
+{"id":"repeat-one-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":14159}
+{"id":"repeat-all-en","decision":{"type":"tool","name":"wave_repeat","args":{"mode":"all"}},"latencyMs":4100}
+{"id":"repeat-off-ru","decision":{"type":"answer","message":"wave_repeat(mode:\"off\")"},"latencyMs":3741}
+{"id":"speed-en","decision":{"type":"tool","name":"wave_speed","args":{"rate":1.25}},"latencyMs":4273}
+{"id":"speed-invalid-en","decision":null,"latencyMs":3672}
+{"id":"equalizer-reset-ru","decision":{"type":"answer","message":"Началось сброс десяти полос эквалайзера на ноль."},"latencyMs":5832}
+{"id":"equalizer-partial-en","decision":{"type":"unsupported","message":"The requested action is not supported by the current capabilities."},"latencyMs":4925}
+{"id":"search-ru","decision":{"type":"tool","name":"wave_search","args":{"query":"Тихая гавань","limit":5}},"latencyMs":6524}
+{"id":"search-en","decision":{"type":"tool","name":"wave_search","args":{"query":"Paper Moons Orbit","limit":5}},"latencyMs":5150}
+{"id":"play-known-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":14831}
+{"id":"play-needs-search-en","decision":{"type":"tool","name":"wave_search","args":{"query":"Paper Moons Orbit","limit":5}},"latencyMs":4436}
+{"id":"queue-read-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"0","position":"next"}},"latencyMs":4780}
+{"id":"queue-page-en","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"next","position":"next"}},"latencyMs":5271}
+{"id":"queue-next-ru","decision":{"type":"tool","name":"wave_playlists","args":{"offset":0,"limit":50}},"latencyMs":17785}
+{"id":"queue-end-en","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:orbit","position":"end"}},"latencyMs":17120}
+{"id":"queue-clear-ru","decision":{"type":"tool","name":"wave_playlists","args":{"offset":0,"limit":50}},"latencyMs":17091}
+{"id":"playlist-list-en","decision":{"type":"tool","name":"wave_playlist_get","args":{"playlistId":"0","offset":0,"limit":20}},"latencyMs":5506}
+{"id":"playlist-get-ru","decision":{"type":"tool","name":"wave_playlist_get","args":{"playlistId":"playlist:evening","offset":0,"limit":20}},"latencyMs":17680}
+{"id":"playlist-create-ru","decision":{"type":"tool","name":"wave_playlist_create","args":{"name":"Дорога домой"}},"latencyMs":5904}
+{"id":"playlist-add-en","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:orbit","position":"end"}},"latencyMs":16063}
+{"id":"playlist-play-ru","decision":{"type":"tool","name":"wave_playlist_play","args":{"playlistId":"playlist:evening"}},"latencyMs":17667}
+{"id":"playlist-resolve-en","decision":{"type":"tool","name":"wave_playlist_get","args":{"playlistId":"Focus","offset":0,"limit":20}},"latencyMs":6328}
+{"id":"liked-list-ru","decision":{"type":"tool","name":"wave_liked","args":{"offset":0,"limit":20}},"latencyMs":4446}
+{"id":"like-current-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:harbor","position":"next"}},"latencyMs":14824}
+{"id":"unlike-en","decision":{"type":"tool","name":"wave_like","args":{"trackId":"track:orbit","liked":false}},"latencyMs":14801}
+{"id":"like-idempotent-en","decision":{"type":"tool","name":"wave_like","args":{"trackId":"track:orbit","liked":true}},"latencyMs":14953}
+{"id":"radio-ru","decision":{"type":"tool","name":"wave_radio","args":{"artist":"Северный свет"}},"latencyMs":4111}
+{"id":"radio-current-en","decision":{"type":"tool","name":"wave_radio","args":{"artist":"Северный свет"}},"latencyMs":15130}
+{"id":"radio-no-context-ru","decision":{"type":"tool","name":"wave_radio","args":{"artist":"current song"}},"latencyMs":4565}
+{"id":"ambiguous-playlist-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:evening"}},"latencyMs":6714}
+{"id":"ambiguous-track-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:orbit"}},"latencyMs":7710}
+{"id":"no-current-ru","decision":{"type":"tool","name":"wave_like","args":{"trackId":"trackId","liked":true}},"latencyMs":8841}
+{"id":"empty-search-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"search_result_id"}},"latencyMs":6930}
+{"id":"provider-failure-ru","decision":{"type":"answer","message":"Извините, но на данный момент поиск не доступен. Пожалуйста, проверьте соединение с интернетом и попробуйте снова."},"latencyMs":9744}
+{"id":"preview-only-en","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:orbit"}},"latencyMs":5405}
+{"id":"metadata-injection-ru","decision":{"type":"tool","name":"wave_queue_add","args":{"trackId":"track:untrusted","position":"next"}},"latencyMs":7369}
+{"id":"shell-en","decision":{"type":"unsupported","message":"The requested operation is not supported."},"latencyMs":3759}
+{"id":"cloud-consent-ru","decision":{"type":"answer","message":"При выполнении этой команды, ваша библиотека будет загружена в облачную модель."},"latencyMs":6515}
+{"id":"android-en","decision":{"type":"answer","message":"The embedded agent is already enabled on your Android phone."},"latencyMs":4295}
+{"id":"playlist-delete-ru","decision":{"type":"tool","name":"wave_playlist_create","args":{"name":"Вечер"}},"latencyMs":14436}
+{"id":"cancelled-en","decision":{"type":"answer","message":"The radio was not started."},"latencyMs":4650}
+{"id":"loading-not-success-ru","decision":{"type":"answer","message":"Музыка уже играет."},"latencyMs":11433}
+{"id":"compound-ru","decision":{"type":"tool","name":"wave_pause","args":{}},"latencyMs":15234}
+{"id":"compound-continuation-ru","decision":{"type":"tool","name":"wave_play","args":{"trackId":"track:harbor"}},"latencyMs":10386}
+{"id":"created-playlist-followup-en","decision":{"type":"tool","name":"wave_playlist_add","args":{"playlistId":"playlist:new","trackId":"track:orbit"}},"latencyMs":10943}

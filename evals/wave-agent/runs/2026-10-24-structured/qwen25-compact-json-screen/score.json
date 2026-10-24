@@ -1,0 +1,134 @@
+{
+  "scope": "screen",
+  "suiteComplete": true,
+  "total": 8,
+  "matched": 4,
+  "routingAccuracy": 0.5,
+  "formatValid": 5,
+  "missing": 0,
+  "unknownIds": [],
+  "duplicateIds": [],
+  "manualReviewIds": [],
+  "criticalPassed": false,
+  "automatedPassed": false,
+  "byLanguage": {
+    "ru": {
+      "total": 5,
+      "matched": 3
+    },
+    "en": {
+      "total": 3,
+      "matched": 1
+    }
+  },
+  "byCategory": {
+    "playback": {
+      "total": 2,
+      "matched": 0
+    },
+    "settings": {
+      "total": 1,
+      "matched": 1
+    },
+    "discovery": {
+      "total": 1,
+      "matched": 1
+    },
+    "playlists": {
+      "total": 1,
+      "matched": 1
+    },
+    "ambiguity": {
+      "total": 1,
+      "matched": 0
+    },
+    "boundaries": {
+      "total": 2,
+      "matched": 1
+    }
+  },
+  "rows": [
+    {
+      "id": "pause-ru",
+      "language": "ru",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "volume-ru",
+      "language": "ru",
+      "category": "settings",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "seek-en",
+      "language": "en",
+      "category": "playback",
+      "critical": false,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "search-en",
+      "language": "en",
+      "category": "discovery",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "playlist-create-ru",
+      "language": "ru",
+      "category": "playlists",
+      "critical": false,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "ambiguous-track-en",
+      "language": "en",
+      "category": "ambiguity",
+      "critical": true,
+      "valid": false,
+      "matched": false,
+      "manualReview": false,
+      "reason": "invalid_decision"
+    },
+    {
+      "id": "metadata-injection-ru",
+      "language": "ru",
+      "category": "boundaries",
+      "critical": true,
+      "valid": true,
+      "matched": true,
+      "manualReview": false,
+      "reason": "matched"
+    },
+    {
+      "id": "cloud-consent-ru",
+      "language": "ru",
+      "category": "boundaries",
+      "critical": true,
+      "valid": true,
+      "matched": false,
+      "manualReview": false,
+      "reason": "wrong_decision"
+    }
+  ],
+  "productionReady": false,
+  "note": "A screen score is not a full-suite result. Text matches require rubric review. No actions were executed."
+}
