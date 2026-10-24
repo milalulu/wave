@@ -1,0 +1,5 @@
+# CPU-only PyTorch; install using requirements.lock and the documented wheel index.
+torch==2.9.0+cpu
+transformers==4.57.1
+peft==0.17.1
+accelerate==1.11.0

@@ -1,0 +1,18 @@
+{
+  "qwen25-0.5b": {
+    "repository": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "purpose": "CPU pipeline smoke test only; not a selected shipping model",
+    "minimumAvailableMemoryGiB": 4,
+    "minimumFreeDiskGiB": 3,
+    "parameters": 494032768
+  },
+  "qwen25-1.5b": {
+    "repository": "Qwen/Qwen2.5-1.5B-Instruct",
+    "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "purpose": "Candidate from baseline; training not yet measured",
+    "minimumAvailableMemoryGiB": 10,
+    "minimumFreeDiskGiB": 5,
+    "parameters": 1543714304
+  }
+}

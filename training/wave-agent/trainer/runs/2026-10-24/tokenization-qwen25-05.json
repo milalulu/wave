@@ -1,0 +1,55 @@
+{
+  "kind": "wave-completion-only-tokens-v1",
+  "model": "qwen25-0.5b",
+  "modelSpec": {
+    "repository": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "purpose": "CPU pipeline smoke test only; not a selected shipping model",
+    "minimumAvailableMemoryGiB": 4,
+    "minimumFreeDiskGiB": 3,
+    "parameters": 494032768
+  },
+  "datasetSourceSha256": "7f2819b3737b57200c0ebd0cffbdb3ce76b626c46ba74cec55fbf49e6087bf4e",
+  "datasetFiles": {
+    "train.jsonl": "e3cdae7115a5013777a0f76735657df3c6955f50ba5d1c26ee8ee71f46e0c209",
+    "dev.jsonl": "659ee97390868dbc461a067c7413be00f463d61105d20d9cea86863657d3e041",
+    "index.jsonl": "aab8c879d265897db51b55a77ca235d47048256521d2415ddc45d23561249356",
+    "traces.jsonl": "15f65dcc90b27972e192bc908f639e409f64f7a50cf7f2e9853564afcce7140f"
+  },
+  "files": {
+    "train.jsonl": "265b8d73f84447ceb0db348fdf61ebee0da0d4d204131788b66e64393421685c",
+    "dev.jsonl": "a2faab7dc48cfce64775a13eca370c4d63c3962f5294798bbe29649f7db2276f",
+    "chat-template.jinja": "cd8e9439f0570856fd70470bf8889ebd8b5d1107207f67a5efb46e342330527f"
+  },
+  "maxLength": 4096,
+  "stats": {
+    "train": {
+      "samples": 128,
+      "maxTokens": 1993,
+      "minCompletionTokens": 18,
+      "completionTokens": 3926,
+      "maskedPromptTokens": 153934
+    },
+    "dev": {
+      "samples": 26,
+      "maxTokens": 1537,
+      "minCompletionTokens": 21,
+      "completionTokens": 992,
+      "maskedPromptTokens": 25639
+    }
+  },
+  "versions": {
+    "torch": "2.9.0+cpu",
+    "transformers": "4.57.1",
+    "peft": "0.17.1",
+    "accelerate": "1.11.0",
+    "tokenizers": "0.22.2",
+    "huggingface-hub": "0.36.2"
+  },
+  "eosTokenId": 151645,
+  "padTokenId": 151643,
+  "maskRule": "All prompt tokens and positional padding have label -100; only final completion is supervised",
+  "dataCodeSha256": "2d119a2c98d4e4a7e0b52cff535bfdef308ea7f02f7e972a06d79270b95a5124",
+  "truncation": false,
+  "holdoutRead": false
+}

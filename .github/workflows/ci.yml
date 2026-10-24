@@ -66,6 +66,16 @@ jobs:
           pnpm agent:data validate
           pnpm exec tsc --noEmit -p training/wave-agent/tsconfig.json
 
+      - name: Setup Python for dependency-free trainer checks
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Test completion-only training masks and run guards without model dependencies
+        run: |
+          python -m unittest discover -s training/wave-agent/trainer -p test_data.py -v
+          python -m unittest discover -s training/wave-agent/trainer -p test_runner.py -v
+
       - name: Build frontend
         env:
           TAURI_ENV_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'darwin' || 'linux' }}

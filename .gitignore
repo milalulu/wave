@@ -32,3 +32,5 @@ src-tauri/target
 # Generated training exports and private evaluation material stay outside Git.
 training/wave-agent/exports/
 training/wave-agent/private/
+__pycache__/
+*.py[cod]

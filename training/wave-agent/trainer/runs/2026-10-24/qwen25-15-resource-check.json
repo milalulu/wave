@@ -1,0 +1,8 @@
+{
+  "model": "qwen25-1.5b",
+  "guardVerified": true,
+  "exitCode": 1,
+  "reason": "ValueError: Need 10 GiB available RAM; have 6.23. No model was loaded.",
+  "outputCreated": false,
+  "weightsLoaded": false
+}

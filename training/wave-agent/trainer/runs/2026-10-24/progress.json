@@ -1,0 +1,18 @@
+[
+  {
+    "step": 1,
+    "id": "train-transport-roundtrip-ru:1",
+    "loss": 1.3662811517715454,
+    "gradNormBeforeClip": 8.052446365356445,
+    "seconds": 29.023424147002515,
+    "supervisedTokens": 18
+  },
+  {
+    "step": 2,
+    "id": "train-transport-roundtrip-en:1",
+    "loss": 1.3316353559494019,
+    "gradNormBeforeClip": 9.01552963256836,
+    "seconds": 24.626636589000555,
+    "supervisedTokens": 18
+  }
+]
