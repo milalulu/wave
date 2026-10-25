@@ -26,14 +26,7 @@ pub struct Diagnostics {
 }
 
 fn db_file(app: &tauri::AppHandle) -> Option<PathBuf> {
-    [
-        app.path().app_data_dir().ok(),
-        app.path().app_local_data_dir().ok(),
-    ]
-    .into_iter()
-    .flatten()
-    .map(|dir| dir.join("wave.db"))
-    .find(|p| p.is_file())
+    crate::wave_db_path(app).filter(|p| p.is_file())
 }
 
 async fn net_ok() -> bool {

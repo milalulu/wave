@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { formatTime } from "../core/util/format";
-import type { Track } from "../core/types";
+import { playbackSource, type Track } from "../core/types";
 
 export const SeekBar = memo(function SeekBar({
   track,
@@ -15,7 +15,7 @@ export const SeekBar = memo(function SeekBar({
   const position = useApp((s) => s.position);
   const storeDuration = useApp((s) => s.duration);
   const seek = useApp((s) => s.seek);
-  const duration = track?.duration ?? storeDuration;
+  const duration = storeDuration > 0 ? storeDuration : track ? playbackSource(track).duration ?? track.duration ?? 0 : 0;
   const pct = duration ? (Math.min(position, duration) / duration) * 100 : 0;
   return (
     <div className={className}>

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { playbackSource, type Track } from "../core/types";
 import { t } from "../core/i18n";
-import { registerDownload, unregisterDownload, needsStreamResolve } from "./offline";
+import { registerDownload, needsStreamResolve } from "./offline";
 import type { AppState } from "./stores";
 
 export interface DownloadItem {
@@ -77,19 +77,14 @@ export const createDownloadsSlice: StateCreator<AppState, [], [], DownloadsSlice
   downloads: [],
   downloading: false,
   clearDownloads: () =>
-    set((s) => {
-      for (const d of s.downloads) {
-        if (d.status === "done" && d.filePath) unregisterDownload(d.filePath);
-      }
-      return {
-        downloads: s.downloads.filter((d) => d.status === "queued" || d.status === "running"),
-      };
-    }),
+    set((s) => ({
+      downloads: s.downloads.filter((d) => d.status === "queued" || d.status === "running"),
+    })),
 
   retryDownload: (id) => {
     set((s) => ({
       downloads: s.downloads.map((d) =>
-        d.id === id ? { ...d, status: "queued", error: undefined, percent: 0 } : d,
+        d.id === id && d.status === "error" ? { ...d, status: "queued", error: undefined, percent: 0 } : d,
       ),
     }));
     void get().pumpDownloads();

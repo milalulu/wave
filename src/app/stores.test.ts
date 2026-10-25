@@ -70,6 +70,20 @@ const track = (id: string, title: string, artist = "Artist"): Track => ({
   coverUrl: "",
 });
 
+it("unblocking is idempotent, including artist name casing", () => {
+  const app = useApp.getState();
+  app.unblockAllTracks();
+  app.unblockAllArtists();
+  app.toggleBlockTrack(track("audit-block", "Song"));
+  app.toggleBlockArtist("Audit Artist");
+  for (let i = 0; i < 2; i++) {
+    app.unblockTrack("audit-block");
+    app.unblockArtist(" AUDIT ARTIST ");
+  }
+  expect(useApp.getState().blockedTrackIds).toEqual([]);
+  expect(useApp.getState().blockedArtists).toEqual([]);
+});
+
 describe("navigation", () => {
   it("setView switches the current view", () => {
     useApp.setState({ view: "home" });

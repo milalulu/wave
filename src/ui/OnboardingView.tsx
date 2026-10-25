@@ -31,13 +31,14 @@ export function OnboardingView() {
   const ot = t("onboarding");
 
   useEffect(() => {
+    let cancelled = false;
     window.clearTimeout(debounceRef.current);
     if (!input.trim()) {
       setResults([]);
+      setSearching(false);
       return;
     }
     debounceRef.current = window.setTimeout(() => {
-      let cancelled = false;
       setSearching(true);
       searchAll(providers, input.trim())
         .then((r) => {
@@ -60,9 +61,8 @@ export function OnboardingView() {
         .finally(() => {
           if (!cancelled) setSearching(false);
         });
-      return () => { cancelled = true; };
     }, 350);
-    return () => window.clearTimeout(debounceRef.current);
+    return () => { cancelled = true; window.clearTimeout(debounceRef.current); };
   }, [input, providers]);
 
   const toggleArtist = (artist: OnboardingArtist) => {

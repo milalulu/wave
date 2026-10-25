@@ -17,8 +17,13 @@ export function loadRestore(): RestoreState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const data = JSON.parse(raw) as RestoreState;
-    if (!Array.isArray(data.queue) || data.queue.length === 0) return null;
-    if (Date.now() - (data.savedAt ?? 0) > TTL) return null;
+    if (!data || !Array.isArray(data.queue) || data.queue.length === 0) return null;
+    if (!data.queue.every((track) => track && typeof track.id === "string"
+      && typeof track.provider === "string" && typeof track.title === "string"
+      && typeof track.uri === "string")) return null;
+    if (!Number.isInteger(data.index) || data.index < 0 || data.index >= data.queue.length) return null;
+    if (!Number.isFinite(data.position) || data.position < 0) return null;
+    if (!Number.isFinite(data.savedAt) || Date.now() - data.savedAt > TTL) return null;
     return data;
   } catch {
     return null;
@@ -27,7 +32,11 @@ export function loadRestore(): RestoreState | null {
 
 export function saveRestore(queue: Track[], index: number, position: number): void {
   try {
-    const slice = queue.slice(0, MAX_TRACKS);
+    if (queue.length === 0) { clearRestore(); return; }
+    const current = Number.isFinite(index) ? Math.max(0, Math.min(Math.trunc(index), queue.length - 1)) : 0;
+    // Keep the active track inside the saved window, including on long playlists.
+    const start = Math.max(0, Math.min(current - Math.floor(MAX_TRACKS / 2), queue.length - MAX_TRACKS));
+    const slice = queue.slice(start, start + MAX_TRACKS);
     
     
     const compact: Track[] = slice.map((t) =>
@@ -35,7 +44,8 @@ export function saveRestore(queue: Track[], index: number, position: number): vo
     );
     localStorage.setItem(
       KEY,
-      JSON.stringify({ queue: compact, index, position, savedAt: Date.now() }),
+      JSON.stringify({ queue: compact, index: current - start,
+        position: Number.isFinite(position) ? Math.max(0, position) : 0, savedAt: Date.now() }),
     );
   } catch {
     

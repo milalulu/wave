@@ -1,5 +1,5 @@
 import { listen, emit } from "@tauri-apps/api/event";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 import type { AppServices } from "./compose";
 
 export interface MiniState {
@@ -64,12 +64,5 @@ export function bindMiniRemote(services: AppServices): () => void {
 }
 
 export async function openMiniPlayerWindow(): Promise<void> {
-  try {
-    const mini = await WebviewWindow.getByLabel("mini-player");
-    if (!mini) return;
-    await mini.show();
-    await mini.setFocus();
-  } catch {
-    
-  }
+  await invoke("open_mini_player");
 }

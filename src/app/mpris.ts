@@ -45,7 +45,11 @@ export function bindMpris(services: AppServices): () => void {
     const engine = services.engine;
     switch (action) {
       case "play":
+        void engine.play();
+        break;
       case "pause":
+        engine.pause();
+        break;
       case "togglePlay":
       case "playpause":
         void engine.togglePlay();

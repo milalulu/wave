@@ -277,7 +277,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           className="icon-btn"
           onClick={() => {
             if (isTauri() && !/Android/i.test(navigator.userAgent)) {
-              void openMiniPlayerWindow();
+              void openMiniPlayerWindow().catch((error: unknown) => useApp.getState().notify(String(error)));
             } else {
               setCompactPlayer(true);
             }

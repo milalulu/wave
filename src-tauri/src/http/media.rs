@@ -139,6 +139,10 @@ async fn audio_proxy(
         HeaderValue::from_static("*"),
     );
     res.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_EXPOSE_HEADERS,
+        HeaderValue::from_static("Content-Range, Accept-Ranges"),
+    );
+    res.headers_mut().insert(
         axum::http::header::CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=3600"),
     );

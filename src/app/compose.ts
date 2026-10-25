@@ -250,15 +250,10 @@ export async function composeServices(): Promise<AppServices> {
   const mbProvider = providers.find((p) => p.id === "musicbrainz") as MusicBrainzProvider | undefined;
   const dzProvider = providers.find((p) => p.id === "deezer") as DeezerProvider | undefined;
 
-  engine.on("state", (state) => {
-    if (state === "playing") {
-      const track = engine.snapshot.current;
-      if (track) {
-        void history.recordPlay(track);
-        if (mbProvider && dzProvider) {
-          void enrichTrack(track, mbProvider, dzProvider);
-        }
-      }
+  engine.on("played", (track) => {
+    void history.recordPlay(track).catch((error: unknown) => console.error("History write failed", error));
+    if (mbProvider && dzProvider) {
+      void enrichTrack(track, mbProvider, dzProvider);
     }
   });
   return { engine, providers, prewarmer, output, local, storage, recordings, library, history, wave, lyrics, scrobbler };

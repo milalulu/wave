@@ -6,6 +6,7 @@ use youtube::{run_ytdlp, ytdlp_cookies_args, ytdlp_proxy_args, ytdlp_should_retr
 pub mod android;
 mod cast;
 mod cast_relay;
+mod database_backup;
 mod diag;
 pub mod discord_rpc;
 mod http;
@@ -537,6 +538,7 @@ pub fn run() {
             read_text_file,
             write_text_file,
             backup_database,
+            open_mini_player,
             restore_database,
             yt_update,
             yt_download,
@@ -839,58 +841,52 @@ fn resolve_safe_path(
 }
 
 fn wave_db_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    let dir = app.path().app_local_data_dir().ok()?;
-    Some(dir.join("wave.db"))
+    // tauri-plugin-sql resolves sqlite:wave.db relative to app_config_dir.
+    Some(app.path().app_config_dir().ok()?.join("wave.db"))
 }
 
 #[tauri::command]
-fn backup_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+async fn backup_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
     let safe = resolve_safe_path(&app, &path, true)?;
     let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
-    std::fs::copy(&db, &safe)
-        .map_err(|e| format!("backup failed: {e}"))
-        .map(|_| ())
-}
-
-/// Таблицы, которые обязаны быть в БД Wave (проверка файла перед restore).
-const DB_TABLES: [&str; 5] = [
-    "liked_tracks",
-    "saved_albums",
-    "saved_artists",
-    "history",
-    "playlists",
-];
-
-fn looks_like_wave_db(path: &std::path::Path) -> Result<(), String> {
-    use std::io::Read;
-    let f = std::fs::File::open(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let mut head = Vec::with_capacity(256 * 1024);
-    f.take(256 * 1024)
-        .read_to_end(&mut head)
-        .map_err(|e| format!("read {}: {e}", path.display()))?;
-    if !head.starts_with(b"SQLite format 3\0") {
-        return Err("file is not a SQLite database".to_string());
-    }
-    // Имена таблиц видны в sqlite_master — достаточно заглянуть в шапку файла.
-    for table in DB_TABLES {
-        if !head.windows(table.len()).any(|w| w == table.as_bytes()) {
-            return Err(format!("database is missing table: {table}"));
-        }
-    }
-    Ok(())
+    database_backup::backup(&db, &safe).await
 }
 
 #[tauri::command]
-fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
+async fn restore_database(path: String, app: tauri::AppHandle) -> Result<(), String> {
     let safe = resolve_safe_path(&app, &path, false)?;
     let db = wave_db_path(&app).ok_or("cannot resolve database path")?;
-    looks_like_wave_db(&safe)?;
-    if let Some(dir) = db.parent() {
-        let _ = std::fs::create_dir_all(dir);
+    database_backup::restore(&safe, &db).await
+}
+
+#[tauri::command]
+async fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(not(target_os = "android"))]
+    {
+        let window = if let Some(window) = app.get_webview_window("mini-player") {
+            window
+        } else {
+            tauri::WebviewWindowBuilder::new(
+                &app,
+                "mini-player",
+                tauri::WebviewUrl::App("mini.html".into()),
+            )
+            .title("Wave mini player")
+            .inner_size(400.0, 150.0)
+            .decorations(false)
+            .resizable(false)
+            .always_on_top(true)
+            .build()
+            .map_err(|e| e.to_string())?
+        };
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())
     }
-    std::fs::copy(&safe, &db)
-        .map_err(|e| format!("restore failed: {e}"))
-        .map(|_| ())
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        Err("Mini player is available on desktop".into())
+    }
 }
 
 #[tauri::command]

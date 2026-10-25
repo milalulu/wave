@@ -10,6 +10,8 @@ export interface PlayerEvents {
   startup: StartupTiming;
   state: PlayerState;
   track: Track | null;
+  /** A successful new play, excluding pause/resume, buffering and source retries. */
+  played: Track;
   time: { position: number; duration: number };
   queue: { queue: Track[]; index: number; history: Track[] };
   volume: number;
@@ -88,6 +90,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private pauseAtEnd = false;
   
   private hasSource = false;
+  private playRecorded = false;
   private queueUpdateScheduled = false;
   
 
@@ -204,6 +207,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (!track) return;
     const seq = ++this.playSeq;
     this.hasSource = false;
+    this.playRecorded = false;
     this.clearStallTimer();
     this.adapter.pause();
     this.setState("paused");
@@ -547,6 +551,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async playCurrent(usePreference = true): Promise<void> {
     const selected = this.queue.current();
     if (!selected) return;
+    if (usePreference) this.playRecorded = false;
     const track = usePreference ? this.prepareTrack(selected) : selected;
     if (track !== selected) this.queue.replaceCurrent(track);
     if (track.id !== this.fallbackTrackId) {
@@ -662,6 +667,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   
 
   private async playWithGuard(): Promise<void> {
+    const seq = this.playSeq;
     let settled = false;
     let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
@@ -673,6 +679,13 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const play = this.adapter.play().then(
       () => {
         if (timer !== undefined) globalThis.clearTimeout(timer);
+        if (!settled && seq === this.playSeq && !this.disposed && !this.playRecorded) {
+          const track = this.queue.current();
+          if (track) {
+            this.playRecorded = true;
+            this.emit("played", track);
+          }
+        }
       },
       (err: unknown) => {
         if (timer !== undefined) globalThis.clearTimeout(timer);
@@ -810,6 +823,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private async onTrackEnded(): Promise<void> {
+    this.playRecorded = false;
     
     const stop = this.pauseAtEnd;
     this.emit("ended", undefined);

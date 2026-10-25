@@ -3,7 +3,8 @@ import type { AppServices } from "./compose";
 export function bindMediaSession(
   services: AppServices,
   actions: {
-    togglePlay: () => void;
+    play: () => void;
+    pause: () => void;
     next: () => void;
     previous: () => void;
     seek: (seconds: number) => void;
@@ -26,13 +27,13 @@ export function bindMediaSession(
       } catch {
         
       }
-    }
+    } else ms.metadata = null;
     ms.playbackState = snap.state === "playing" ? "playing" : "paused";
     try {
       ms.setPositionState({
         duration: snap.duration || 0,
         position: snap.position,
-        playbackRate: 1,
+        playbackRate: snap.speed,
       });
     } catch {
       
@@ -42,22 +43,21 @@ export function bindMediaSession(
   const onSeek = (detail: MediaSessionActionDetails): void => {
     if (detail.seekTime !== undefined && Number.isFinite(detail.seekTime)) {
       actions.seek(detail.seekTime);
-    } else if (detail.seekOffset !== undefined && Number.isFinite(detail.seekOffset)) {
+    } else if (detail.action === "seekforward" || detail.action === "seekbackward") {
       const snap = services.engine.snapshot;
-      actions.seek(Math.max(0, snap.position + detail.seekOffset));
+      const offset = detail.seekOffset ?? 10;
+      if (!Number.isFinite(offset) || offset < 0) return;
+      actions.seek(Math.max(0, snap.position + (detail.action === "seekbackward" ? -offset : offset)));
     }
   };
 
-  ms.setActionHandler("play", actions.togglePlay);
-  ms.setActionHandler("pause", actions.togglePlay);
-  ms.setActionHandler("previoustrack", actions.previous);
-  ms.setActionHandler("nexttrack", actions.next);
-  ms.setActionHandler("seekto", onSeek);
-  try {
-    ms.setActionHandler("seekbackward", (d) => onSeek(d));
-    ms.setActionHandler("seekforward", (d) => onSeek(d));
-  } catch {
-    
+  const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
+    play: actions.play, pause: actions.pause, previoustrack: actions.previous,
+    nexttrack: actions.next, seekto: onSeek, seekbackward: onSeek, seekforward: onSeek,
+  };
+  for (const [action, handler] of Object.entries(handlers)) {
+    try { ms.setActionHandler(action as MediaSessionAction, handler); }
+    catch { /* Some WebViews implement only a subset of media controls. */ }
   }
 
   services.engine.on("state", refresh);

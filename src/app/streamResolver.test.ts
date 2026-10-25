@@ -28,6 +28,18 @@ beforeEach(() => {
   flags.blocked = false;
   flags.quality = "best";
 });
+it.each(["asset://localhost/music/song.mp3", "http://asset.localhost/music/song.mp3", "file:///music/song.mp3"])("plays local files in offline mode: %s", async (uri) => {
+  flags.offline = true;
+  const resolveUri = vi.fn();
+  const resolve = createStreamResolver([{ id: "local", resolveUri } as unknown as MusicProvider]);
+  await expect(resolve({ ...track, provider: "local", uri })).resolves.toBe(uri);
+  expect(resolveUri).not.toHaveBeenCalled();
+});
+
+it("does not mistake a remote hostname containing asset.localhost for a local file", async () => {
+  flags.offline = true;
+  await expect(createStreamResolver([])({ ...track, uri: "https://asset.localhost.example.org/song.mp3" })).rejects.toThrow("offline");
+});
 it("coalesces simultaneous background and playback resolves, then respects quality changes", async () => {
   const resolveUri = vi.fn(async () => "https://example.org/music.mp3"),
     resolve = createStreamResolver([

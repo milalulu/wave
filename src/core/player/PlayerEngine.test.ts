@@ -10,6 +10,46 @@ const tracks: Track[] = [
 ];
 
 describe("PlayerEngine", () => {
+  it("records one successful play across pause, resume and source replacement", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    const played = vi.fn();
+    engine.on("played", played);
+    await engine.playTrack(tracks[0]);
+    engine.pause();
+    await engine.play();
+    engine.playVariant({ ...tracks[0], uri: "u://replacement" }, true);
+    await vi.waitFor(() => expect(adapter.src).toBe("u://replacement"));
+    expect(played).toHaveBeenCalledTimes(1);
+    await engine.playTrack(tracks[0]);
+    expect(played).toHaveBeenCalledTimes(2);
+    engine.destroy();
+  });
+
+  it("counts repeat-one as a new play", async () => {
+    const adapter = new MockAudioAdapter();
+    const engine = new PlayerEngine(adapter);
+    const played = vi.fn();
+    engine.on("played", played);
+    await engine.playTrack(tracks[0]);
+    engine.setRepeat("one");
+    adapter.end();
+    await vi.waitFor(() => expect(played).toHaveBeenCalledTimes(2));
+    engine.destroy();
+  });
+
+  it("does not record a failed play even if the adapter first announces playing", async () => {
+    const adapter = new MockAudioAdapter();
+    const original = adapter.play.bind(adapter);
+    vi.spyOn(adapter, "play").mockImplementation(async () => { await original(); throw new Error("decode failed"); });
+    const engine = new PlayerEngine(adapter, { retries: 0 });
+    const played = vi.fn();
+    engine.on("played", played);
+    await engine.playTrack(tracks[0]);
+    expect(played).not.toHaveBeenCalled();
+    engine.destroy();
+  });
+
   it("plays first track of a list", async () => {
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter);

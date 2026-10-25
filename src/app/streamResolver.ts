@@ -6,6 +6,7 @@ import { PROXY_BASE } from "../core/player/WebAudioAdapter";
 import { isBlockedProvider } from "./platformSettings";
 import { localUriFor, offlineEnabled } from "./offline";
 import { resolveYtQuality } from "./ytQuality";
+import { isLocalMediaUri } from "../core/util/localMedia";
 
 export function createStreamResolver(
   providers: MusicProvider[],
@@ -15,6 +16,7 @@ export function createStreamResolver(
     track = playbackSource(track);
     if (isBlockedProvider(track.provider))
       throw new Error(`provider blocked: ${track.provider}`);
+    if (isLocalMediaUri(track.uri)) return track.uri;
     const local = localUriFor(track);
     if (local) return local;
     if (offlineEnabled()) throw new Error("offline mode: track not downloaded");

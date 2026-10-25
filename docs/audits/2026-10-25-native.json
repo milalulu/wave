@@ -1,0 +1,208 @@
+{
+  "environment": "Linux Tauri debug, isolated XDG profile, real SQLite and WebKit audio; synthetic silent WAV and MP3",
+  "note": "Last completed instrumented run before GTK display connections stopped responding. The failing unblock scenario was subsequently fixed and covered by stores.test.ts; new backup and mini-player native commands were not exercised through the GUI.",
+  "checks": [
+    {
+      "name": "startup",
+      "detail": {
+        "ready": true,
+        "onboarding": false,
+        "providerIds": [
+          "itunes",
+          "deezer",
+          "musicbrainz",
+          "local",
+          "youtube",
+          "soundcloud"
+        ]
+      }
+    },
+    {
+      "name": "navigation Home",
+      "detail": {
+        "ok": true,
+        "view": "home",
+        "heading": "Recently played"
+      }
+    },
+    {
+      "name": "navigation Now Playing",
+      "detail": {
+        "ok": true,
+        "view": "nowPlaying",
+        "heading": "Audit One"
+      }
+    },
+    {
+      "name": "navigation Search",
+      "detail": {
+        "ok": true,
+        "view": "search"
+      }
+    },
+    {
+      "name": "navigation Library",
+      "detail": {
+        "ok": true,
+        "view": "library"
+      }
+    },
+    {
+      "name": "navigation Wave",
+      "detail": {
+        "ok": true,
+        "view": "wave",
+        "heading": "Wave"
+      }
+    },
+    {
+      "name": "navigation Wrapped",
+      "detail": {
+        "ok": true,
+        "view": "wrapped",
+        "heading": "Wrapped"
+      }
+    },
+    {
+      "name": "navigation Playlists",
+      "detail": {
+        "ok": true,
+        "view": "playlist",
+        "heading": "Playlists"
+      }
+    },
+    {
+      "name": "navigation Downloads",
+      "detail": {
+        "ok": true,
+        "view": "downloads",
+        "heading": "Downloads"
+      }
+    },
+    {
+      "name": "navigation Agent",
+      "detail": {
+        "ok": true,
+        "view": "agent",
+        "heading": "Wave agent"
+      }
+    },
+    {
+      "name": "navigation Settings",
+      "detail": {
+        "ok": true,
+        "view": "settings",
+        "heading": "Settings"
+      }
+    },
+    {
+      "name": "navigation Queue",
+      "detail": {
+        "ok": true,
+        "view": "queue",
+        "heading": "Queue"
+      }
+    },
+    {
+      "name": "sqlite playlists",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "sqlite likes",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "asset wav",
+      "detail": {
+        "status": 200,
+        "type": "audio/x-wav",
+        "bytes": 1440044
+      }
+    },
+    {
+      "name": "media plays wav",
+      "detail": {
+        "position": 0.260299
+      }
+    },
+    {
+      "name": "asset mp3",
+      "detail": {
+        "status": 200,
+        "type": "audio/mpeg",
+        "bytes": 90404
+      }
+    },
+    {
+      "name": "media plays mp3",
+      "detail": {
+        "position": 0.249404
+      }
+    },
+    {
+      "name": "raw audio diagnostics",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "native local audio play seek pause resume",
+      "detail": {
+        "ok": true,
+        "position": 17.048,
+        "duration": 90
+      }
+    },
+    {
+      "name": "history pause resume",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "volume speed equalizer effects",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "queue next previous shuffle repeat",
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "themes and blocks",
+      "detail": {
+        "ok": false,
+        "error": "Error: Artist block failed"
+      }
+    },
+    {
+      "name": "finished",
+      "detail": {
+        "logs": [
+          "Playlist deleted",
+          "Playback local: playing, 199ms (resolve=4ms validate=0ms load=59ms play=135ms)",
+          "Playback local: playing, 110ms (resolve=4ms validate=0ms load=0ms play=106ms)",
+          "Playback local: playing, 116ms (resolve=4ms validate=0ms load=0ms play=112ms)",
+          "Shuffle: on",
+          "Shuffle: off",
+          "Track won't appear in Wave anymore",
+          "Artist restored in Wave"
+        ],
+        "notices": [
+          "Playlist deleted",
+          "Shuffle: on",
+          "Shuffle: off",
+          "Track won't appear in Wave anymore",
+          "Artist restored in Wave"
+        ]
+      }
+    }
+  ]
+}

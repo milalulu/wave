@@ -1,4 +1,5 @@
 import { fetchMediaBlob, MEDIA_MEMORY_TIMEOUT_MS } from "./mediaMemoryFallback";
+import { isLocalMediaUri } from "../util/localMedia";
 import type { PlayerState } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
 import { DEFAULT_LEVELING_OPTIONS, Leveler, rmsOfSamples, rmsToDb } from "./leveling";
@@ -69,7 +70,7 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private pendingUri: string | null = null;
   private preloadedUri: string | null = null;
-  private pendingSeek = 0;
+  private pendingSeek: number | null = null;
   private fading = false;
   private fadeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private masterVolume = 1;
@@ -238,8 +239,11 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private isMediaCacheFailure(el: HTMLAudioElement): boolean {
-    return isWebKitEngine() && /could not create temp file.*WebKit-Media/i.test(el.error?.message ?? "")
-      && !(el.currentSrc || el.src).startsWith("blob:");
+    const src = el.currentSrc || el.src;
+    return isWebKitEngine() && !src.startsWith("blob:")
+      && (/could not create temp file.*WebKit-Media/i.test(el.error?.message ?? "")
+        // WebKitGTK can fetch Tauri assets but reject that scheme as a media source.
+        || (el.error?.code === 4 && isLocalMediaUri(src)));
   }
 
   private cancelMemoryRecovery(release: boolean): void {
@@ -255,7 +259,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private recoverMediaCache(el: HTMLAudioElement): Promise<void> {
     if (this.memoryRecovery) return this.memoryRecovery;
     const src = el.currentSrc || el.src;
-    const url = /^https?:/.test(src) && !isProxiedAudioUrl(src)
+    const url = /^https?:/.test(src) && !isProxiedAudioUrl(src) && !isLocalMediaUri(src)
       ? `${PROXY_BASE}/audio?url=${encodeURIComponent(src)}` : src;
     const controller = new AbortController();
     this.memoryController = controller;
@@ -296,10 +300,10 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private applySeek(): void {
     const el = this.activeElement();
-    if (!el || this.pendingSeek <= 0 || !Number.isFinite(el.duration)) return;
+    if (!el || this.pendingSeek === null || !Number.isFinite(el.duration)) return;
     try {
       el.currentTime = Math.min(this.pendingSeek, Math.max(el.duration, 0));
-      this.pendingSeek = 0;
+      this.pendingSeek = null;
     } catch {
       
       
@@ -546,7 +550,7 @@ export class WebAudioAdapter implements AudioAdapter {
     this.ensureGraph();
     this.cancelFade();
     const active = this.activeElement();
-    this.pendingSeek = 0;
+    this.pendingSeek = null;
     const playing = !active.paused && !active.ended;
     if (playing && this.ctx) {
       this.pendingUri = src;

@@ -1308,7 +1308,8 @@ export function SettingsView() {
                 if (!path || typeof path !== "string") return;
                 try {
                   await invoke("restore_database", { path });
-                  notify(t("settings").restoreDesc);
+                  // Recreate the recording catalog and UI caches from the restored DB.
+                  window.location.reload();
                 } catch (e) {
                   notify(e instanceof Error ? e.message : String(e));
                 }

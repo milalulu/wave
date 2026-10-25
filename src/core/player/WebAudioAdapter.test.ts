@@ -474,6 +474,19 @@ describe("WebAudioAdapter", () => {
     adapter.destroy();
   });
 
+  it("seeks back to zero and does not reset playback on later metadata events", async () => {
+    const adapter = new WebAudioAdapter();
+    await adapter.load("a.mp3");
+    const el = instances()[0];
+    el.currentTime = 30;
+    adapter.seek(0);
+    expect(el.currentTime).toBe(0);
+    el.currentTime = 5;
+    el.onloadedmetadata?.();
+    expect(el.currentTime).toBe(5);
+    adapter.destroy();
+  });
+
   it("resume() контекста вызывается при play", async () => {
     const adapter = new WebAudioAdapter();
     adapter.load("a.mp3");
@@ -866,6 +879,27 @@ describe("WebKit media disk-cache recovery", () => {
     expect(lastCtx().elementSources).toHaveLength(2);
     adapter.destroy();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:memory-media");
+  });
+
+  it("recovers WebKit's unsupported local asset scheme using bounded blob media", async () => {
+    const adapter = new WebAudioAdapter();
+    const error = vi.fn();
+    adapter.onError(error);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2]), { headers: { "Content-Type": "audio/mpeg" } })));
+    const url = "asset://localhost/music/song.mp3";
+    await adapter.load(url);
+    const el = instances()[0];
+    vi.spyOn(el, "play").mockImplementationOnce(async () => {
+      el.error = { code: 4, message: "" };
+      el.onerror?.();
+      throw new Error("not supported");
+    });
+    await adapter.play();
+    expect(fetch).toHaveBeenCalledWith(url, expect.anything());
+    expect(el.src).toBe("blob:memory-media");
+    expect(el.paused).toBe(false);
+    expect(error).not.toHaveBeenCalled();
+    adapter.destroy();
   });
 
   it.each(["pause", "destroy", "load"] as const)("%s cancels recovery and prevents late playback", async (action) => {

@@ -121,9 +121,11 @@ function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      if (e.defaultPrevented || e.isComposing) return;
       const inInput =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement;
+        e.target instanceof Element && Boolean(e.target.closest(
+          'input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"]), [role="slider"], [role="textbox"]',
+        ));
 
       if ((e.ctrlKey || e.metaKey) && e.code === "KeyK") {
         e.preventDefault();
@@ -131,6 +133,8 @@ function App() {
         setFocusToken((n) => n + 1);
         return;
       }
+
+      if (inInput) return;
 
       if (e.key === "/" && !inInput) {
         e.preventDefault();

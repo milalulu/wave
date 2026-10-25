@@ -919,11 +919,11 @@ export const useApp = create<AppState>()((set, get, api) => ({
   blockedTrackIds: [],
   blockedArtists: [],
   unblockTrack: (id) => {
-    toggleBlockedTrack(id);
+    if (getBlockedTrackIds().includes(id)) toggleBlockedTrack(id);
     set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
   },
   unblockArtist: (name) => {
-    toggleBlockedArtist(name);
+    if (getBlockedArtists().includes(name.trim().toLocaleLowerCase())) toggleBlockedArtist(name);
     set({ blockedTrackIds: getBlockedTrackIds(), blockedArtists: getBlockedArtists() });
   },
   unblockAllTracks: () => {
@@ -1322,7 +1322,8 @@ async function doInit(
   }
 
   bindMediaSession(services, {
-    togglePlay: () => void services.engine.togglePlay(),
+    play: () => void services.engine.play(),
+    pause: () => services.engine.pause(),
     next: () => void services.engine.next(),
     previous: () => void services.engine.previous(),
     seek: (s) => services.engine.seek(s),

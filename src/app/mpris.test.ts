@@ -34,6 +34,8 @@ function fakeEngine() {
     },
     on: vi.fn(),
     togglePlay: vi.fn(),
+    play: vi.fn(),
+    pause: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),
     seek: vi.fn(),
@@ -67,6 +69,17 @@ describe("bindMpris", () => {
     const { engine, send } = setup();
     await send("playpause");
     expect(engine.togglePlay).toHaveBeenCalled();
+  });
+
+  it("explicit play and pause commands do not toggle the opposite state", async () => {
+    const { engine, send } = setup();
+    await send("play");
+    await send("play");
+    await send("pause");
+    await send("pause");
+    expect(engine.play).toHaveBeenCalledTimes(2);
+    expect(engine.pause).toHaveBeenCalledTimes(2);
+    expect(engine.togglePlay).not.toHaveBeenCalled();
   });
 
   it("seek applies a relative offset in microseconds as seconds", async () => {
