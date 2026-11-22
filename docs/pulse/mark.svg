@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+ <linearGradient id="surface" x1="65" y1="30" x2="438" y2="490" gradientUnits="userSpaceOnUse"><stop stop-color="#251b30"/><stop offset=".45" stop-color="#120d16"/><stop offset="1" stop-color="#24152f"/></linearGradient>
+ <linearGradient id="edge" x1="150" y1="0" x2="350" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#65506f" stop-opacity=".3"/><stop offset=".55" stop-color="#92709e" stop-opacity=".15"/><stop offset="1" stop-color="#b26bff" stop-opacity=".75"/></linearGradient>
+ <linearGradient id="signal" x1="133" y1="200" x2="379" y2="310" gradientUnits="userSpaceOnUse"><stop stop-color="#ff8979"/><stop offset=".48" stop-color="#ff6b64"/><stop offset=".77" stop-color="#e479c9"/><stop offset="1" stop-color="#b26bff"/></linearGradient>
+ <radialGradient id="light"><stop stop-color="#b26bff" stop-opacity=".23"/><stop offset="1" stop-color="#b26bff" stop-opacity="0"/></radialGradient>
+ <clipPath id="tile"><rect x="14" y="14" width="484" height="484" rx="112"/></clipPath>
+ <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="17"/></filter>
+ <g id="mark" stroke="url(#signal)" stroke-width="25" stroke-linecap="round" transform="translate(256 256) skewX(-18) translate(-256 -256)">
+  <path d="M142 244V268 M180 222V290 M218 194V318 M256 156V356 M294 190V322 M332 220V292 M370 251V261"/>
+ </g>
+</defs>
+<rect x="14" y="14" width="484" height="484" rx="112" fill="url(#surface)"/>
+<g clip-path="url(#tile)"><ellipse cx="280" cy="487" rx="260" ry="125" fill="url(#light)"/><use href="#mark" filter="url(#glow)" opacity=".55"/></g>
+<rect x="15" y="15" width="482" height="482" rx="111" fill="none" stroke="url(#edge)" stroke-width="2"/>
+<use href="#mark"/>
+</svg>
