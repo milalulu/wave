@@ -2,7 +2,7 @@
   "name": "wave",
   "private": true,
   "license": "Apache-2.0",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "packageManager": "pnpm@11.3.0",
   "type": "module",
   "scripts": {

@@ -41,7 +41,7 @@ export function recommendationArtist(artist?: string) {
 }
 
 function recommendationTitle(value: string) {
-  const unwrapped = value.replace(/\s*[[\(]([^\])]+)[\])]/gu, (full, annotation: string) =>
+  const unwrapped = value.replace(/\s*[[(]([^\])]+)[\])]/gu, (full, annotation: string) =>
     edition.test(annotation) || packaging.test(annotation.trim()) || /^(?:feat\.?|ft\.?|prod\.?)\s/iu.test(annotation.trim()) ? "" : full);
   const suffix = unwrapped.split(/\s+[-–—|/]\s+/u);
   while (suffix.length > 1 && (isEditionTail(suffix[suffix.length - 1]) || packaging.test(suffix[suffix.length - 1].trim()))) suffix.pop();
@@ -73,7 +73,7 @@ function songFamily(track: TrackSource): SongFamily {
     id: track.id, provider: track.provider, titles: [...titles], artists: [...artists],
     duration: track.duration ?? 0,
     version: pieces.length > 1 && isEditionTail(pieces[pieces.length - 1]) ||
-      Array.from(track.title.matchAll(/[[\(]([^\])]+)[\])]/gu)).some((match) => edition.test(match[1])),
+      Array.from(track.title.matchAll(/[[(]([^\])]+)[\])]/gu)).some((match) => edition.test(match[1])),
     repost: /\b(?:re[ -]?upload|mirror|uploads?|archive|nightcore|sped\s*up)\b/iu.test(`${track.artist ?? ""} ${track.title}`),
   };
 }

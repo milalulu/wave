@@ -30,6 +30,7 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$version"
           grep -Fx "version = \"$version\"" src-tauri/Cargo.toml
       - run: pnpm typecheck
+      - run: pnpm lint --max-warnings 0
       - run: pnpm test
       - name: Verify upgrade from the previous release
         run: python3 scripts/check-library-upgrade.py
@@ -43,9 +44,7 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ""
           - platform: windows-latest
-            args: ""
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 60
     env:
@@ -114,7 +113,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           # Манифест автообновлений (latest.json) генерируем только при заданном ключе подписи.
           uploadUpdaterJson: ${{ env.TAURI_SIGNING_PRIVATE_KEY != '' }}
-          args: ${{ matrix.args }}
+          args: ${{ runner.os == 'Windows' && contains(github.ref_name, '-') && '--bundles nsis' || '' }}
 
       - name: Verify Windows installation and upgrade
         if: runner.os == 'Windows'
