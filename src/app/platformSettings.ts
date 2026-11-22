@@ -10,19 +10,13 @@ const EXCLUDE_PREVIEWS_KEY = "wave-exclude-previews";
 
 const PREVIEW_ONLY_PROVIDERS = new Set(["itunes", "deezer"]);
 
-export const KNOWN_PROVIDERS = [
-  "itunes",
-  "deezer",
-  "youtube",
-  "soundcloud",
-  "spotify",
-  "vk",
-  "lastfm",
-  "musicbrainz",
-  "local",
-] as const;
+export const KNOWN_PROVIDERS = ["youtube", "soundcloud"] as const;
 
 export type ProviderId = (typeof KNOWN_PROVIDERS)[number];
+
+export function isStreamingProvider(id: string): id is ProviderId {
+  return KNOWN_PROVIDERS.some((provider) => provider === id);
+}
 
 function readArray(key: string): string[] {
   try {
@@ -54,8 +48,7 @@ export function parseProviderFlags(data: unknown): string[] {
   if (typeof data !== "object" || data === null) return [];
   const raw = (data as { disabled?: unknown }).disabled;
   if (!Array.isArray(raw)) return [];
-  const known = new Set<string>(KNOWN_PROVIDERS);
-  return raw.filter((x): x is string => typeof x === "string" && known.has(x));
+  return raw.filter((x): x is ProviderId => typeof x === "string" && isStreamingProvider(x));
 }
 
 export function getRemoteDisabledCached(): string[] {

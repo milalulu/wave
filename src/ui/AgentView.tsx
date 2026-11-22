@@ -34,7 +34,9 @@ export function AgentView() {
   const selected = draft[draft.mode];
   const patchConnection = (patch: Partial<typeof selected>) => setDraft((value) => ({ ...value, [value.mode]: { ...value[value.mode], ...patch } }));
 
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }); }, [state.events.length, state.busy]);
+  useEffect(() => {
+    if (state.events.length > 0 || state.busy) end.current?.scrollIntoView?.({ block: "nearest" });
+  }, [state.events.length, state.busy]);
   useEffect(() => () => testing.current?.abort(), []);
   useEffect(() => {
     let current = true;

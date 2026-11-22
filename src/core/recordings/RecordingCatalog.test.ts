@@ -15,6 +15,20 @@ async function setup(base = new MemoryStorage()) {
 }
 
 describe("recording preferences", () => {
+  it("automatically unifies timed matches while retaining the source already chosen by the user", async () => {
+    const { catalog, storage, base } = await setup();
+    await base.addLikedTrack(alternate);
+    await catalog.associate(original, { ...alternate, duration: undefined });
+    expect(catalog.id(alternate.id)).toBe(alternate.id);
+    await catalog.associate(original, alternate);
+    expect(catalog.id(alternate.id)).toBe(original.id);
+    expect((await storage.getLikedTracks()).map((track) => track.id)).toEqual([original.id]);
+    await catalog.select(original, alternate);
+    await catalog.associate(original, alternate);
+    expect(playbackSource(catalog.resolve(original)).id).toBe(alternate.id);
+    expect(catalog.resolve({ ...alternate, meta: { recommendationReason: "artist" } }).meta?.recommendationReason).toBe("artist");
+  });
+
   it("keeps the original identity and persists the selected source across reloads", async () => {
     const { base, catalog } = await setup();
     const selected = await catalog.select(original, alternate);

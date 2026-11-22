@@ -1,10 +1,13 @@
 import { playbackSource } from "../types";
 import { StartupMeasurement, type StartupTiming } from "./StartupMeasurement";
 import { EventEmitter } from "../util/EventEmitter";
-import type { PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
-import type { AudioAdapter } from "./PlayerAdapter";
+import type { PlaybackMode, PlayerSnapshot, PlayerState, RepeatMode, Track } from "../types";
+import type { AudioAdapter, AudioProcessingState } from "./PlayerAdapter";
+import { normalizeEqualizer, sanitizeAudioValue } from "./equalizerPresets";
+import { dbToGain, DEFAULT_LEVELING_OPTIONS, desiredGainDb, type NormalizationMode } from "./leveling";
 import { Queue } from "../queue/Queue";
 import { validateStreamUrl } from "../util/validateUrl";
+import { uniqueRecommendations } from "../recordings/matching";
 
 export interface PlayerEvents {
   startup: StartupTiming;
@@ -44,8 +47,11 @@ interface PlayerEngineOptions {
   onQueueEnd?: () => Promise<Track[]> | Track[];
   
    autoGenerateThreshold?: number;
+  crossfadeMs?: number;
 
   upgradePreview?: (track: Track) => Promise<Track | null>;
+  recoverSource?: (track: Track) => Promise<Track | null>;
+  measureLoudness?: (tracks: readonly Track[], signal: AbortSignal) => Promise<number | null>;
 }
 
 export class PlayerEngine extends EventEmitter<PlayerEvents> {
@@ -55,10 +61,21 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private volume = 1;
   private speed = 1;
   private equalizer: number[] = [];
+  private effectsBypassed = false;
+  private levelingEnabled = false;
+  private levelingTargetDb = DEFAULT_LEVELING_OPTIONS.targetDb;
+  private normalizationMode: NormalizationMode = "adaptive";
+  private measuredLevel: number | null = null;
+  private measurementKey = "";
+  private loudnessAnalysis?: AbortController;
+  private readonly measureLoudness?: PlayerEngineOptions["measureLoudness"];
   private bassBoost = 0;
   private reverb = 0;
   private stereoWidth = 0;
+  private spatialOrbit = 0;
   private repeat: RepeatMode = "off";
+  private mode: PlaybackMode = "normal";
+  private crossfadeMs: number | undefined;
   private duration = 0;
   private detach: (() => void)[] = [];
   private prepareTrack: (track: Track) => Track;
@@ -67,6 +84,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
    private onQueueEnd?: () => Promise<Track[]> | Track[];
    private defaultFiller?: () => Promise<Track[]> | Track[];
    private upgradePreview?: (track: Track) => Promise<Track | null>;
+  private recoverSource?: (track: Track) => Promise<Track | null>;
    private autoGenerateThreshold: number = 3;
   
   private upgradedTrackId: string | null = null;
@@ -80,6 +98,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private preloadedId: string | null = null;
   private stallTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private consecutiveFails = 0;
+  private keepSelectionOnError = false;
   private static MAX_CONSECUTIVE_FAILS = 5;
   
   private fallback?: () => Track | null;
@@ -96,6 +115,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private restorePos = 0;
   private restorePosTrackId: string | null = null;
+  private lastPlayingPosition = 0;
+  private interruptedPosition: number | null = null;
+  private waitingForNetwork = false;
+  private recoveringSource: number | null = null;
+  private alternateAttemptedFor: string | null = null;
 
   constructor(adapter: AudioAdapter, options: PlayerEngineOptions = {}) {
     super();
@@ -105,7 +129,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.invalidateStream = options.invalidateStream;
      this.onQueueEnd = options.onQueueEnd;
      this.defaultFiller = options.onQueueEnd;
+     this.crossfadeMs = options.crossfadeMs;
      this.upgradePreview = options.upgradePreview;
+    this.recoverSource = options.recoverSource;
+    this.measureLoudness = options.measureLoudness;
      this.maxRetries = Math.max(0, options.retries ?? 1);
      if (options.autoGenerateThreshold !== undefined) this.autoGenerateThreshold = options.autoGenerateThreshold;
      this.queue = new Queue({ rng: options.rng });
@@ -114,8 +141,22 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   private attachAdapter(): void {
     this.detach.push(
-      this.adapter.onStateChange((s) => this.setState(s)),
+      this.adapter.onStateChange((s) => {
+        if (!this.queue.current()) {
+          if (s === "playing") this.adapter.pause();
+          return;
+        }
+        if (s === "paused" && this.state === "loading" && this.interruptedPosition !== null) return;
+        this.setState(s);
+      }),
       this.adapter.onTimeUpdate((position, duration) => {
+        if (!this.queue.current()) return;
+        if (this.interruptedPosition !== null && this.state !== "playing") return;
+        if (this.state === "playing" && position > 0) {
+          this.lastPlayingPosition = position;
+          this.consecutiveFails = 0;
+          this.keepSelectionOnError = false;
+        }
         this.duration = duration;
         this.emit("time", { position, duration });
         const remaining = duration - position;
@@ -125,7 +166,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
         void this.maybeUpgradePreview(duration);
       }),
       this.adapter.onEnded(() => this.onTrackEnded()),
-      this.adapter.onError((message) => this.onLoadError(message, this.playSeq)),
+      this.adapter.onError((message) => {
+        if (this.recoveringSource === this.playSeq) return;
+        if (this.interruptedPosition !== null && !this.hasSource) return;
+        this.onLoadError(message, this.playSeq);
+      }),
     );
   }
 
@@ -158,10 +203,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   get snapshot(): PlayerSnapshot {
     const current = this.queue.current();
     return {
+      mode: this.mode,
       state: this.state,
       current,
-      position: this.adapter.getPosition(),
-      duration: current?.duration ?? this.duration,
+      position: current ? this.interruptedPosition ?? (this.restorePosTrackId === current.id ? this.restorePos : this.adapter.getPosition()) : 0,
+      duration: current ? current.duration ?? this.duration : 0,
       volume: this.volume,
       speed: this.speed,
        equalizer: [...this.equalizer],
@@ -177,8 +223,10 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   
-  async playTracks(tracks: Track[], startIndex = 0): Promise<void> {
+  async playTracks(tracks: Track[], startIndex = 0, mode: PlaybackMode = "normal", position = 0): Promise<void> {
     if (tracks.length === 0) return;
+    this.setMode(mode);
+    this.alternateAttemptedFor = null;
     this.queue.replace(tracks.map(this.prepareTrack), startIndex);
     
     this.preloadCache.clear();
@@ -187,15 +235,16 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.fallbackTrackId = null;
     this.upgradedTrackId = null;
     
-    this.restorePos = 0;
-    this.restorePosTrackId = null;
-    await this.playCurrent();
+    this.restorePos = Number.isFinite(position) ? Math.max(0, position) : 0;
+    this.restorePosTrackId = this.restorePos ? this.queue.current()?.id ?? null : null;
+    await this.playCurrent(true, true);
   }
 
   
 
-  async restoreQueue(queue: Track[], index: number, position = 0): Promise<void> {
+  async restoreQueue(queue: Track[], index: number, position = 0, mode: PlaybackMode = "normal"): Promise<void> {
     if (queue.length === 0) return;
+    this.setMode(mode);
     const clamped = Math.min(Math.max(index, 0), queue.length - 1);
     this.queue.replace(queue.map(this.prepareTrack), clamped);
     this.preloadCache.clear();
@@ -206,6 +255,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const track = this.queue.current();
     if (!track) return;
     const seq = ++this.playSeq;
+    this.interruptedPosition = null;
+    this.waitingForNetwork = false;
+    this.lastPlayingPosition = 0;
     this.hasSource = false;
     this.playRecorded = false;
     this.clearStallTimer();
@@ -265,6 +317,9 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const added = this.queue.insertNext(this.prepareTrack(track));
     this.emitQueue();
     if (!hasCurrent) {
+      const index = this.queue.tracksList.findIndex((t) => t.id === track.id);
+      const pos = this.queue.positionOf(index);
+      if (pos >= 0) this.queue.jumpToOrderPos(pos);
       await this.playCurrent();
     }
     return added;
@@ -273,10 +328,12 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   
   playVariant(track: Track, preservePosition = false): void {
     if (preservePosition) {
-      this.restorePos = this.adapter.getPosition();
+      this.restorePos = this.interruptedPosition ?? this.adapter.getPosition();
       this.restorePosTrackId = track.id;
     }
     if (!this.queue.replaceCurrent(track)) return;
+    this.interruptedPosition = null;
+    this.waitingForNetwork = false;
     this.emitQueue();
     if (preservePosition && this.state === "paused") {
       this.playSeq += 1;
@@ -289,6 +346,12 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   async play(): Promise<void> {
+    this.waitingForNetwork = false;
+    if (this.state === "ended" && this.mode === "album") {
+      this.queue.restart();
+      await this.playCurrent(true, true);
+      return;
+    }
     if (!this.queue.current()) {
       if (!this.queue.length) return;
       this.queue.restart();
@@ -297,31 +360,41 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (this.state === "paused") {
       this.setState("loading");
     }
+    const seq = this.playSeq;
     try {
       
       
-      if (this.hasSource) {
+      if (this.interruptedPosition !== null && !this.hasSource) {
+        this.retries = 0;
+        await this.startTrack(++this.playSeq);
+      } else if (this.hasSource) {
         await this.playWithGuard();
       } else {
-        await this.playCurrent();
+        await this.playCurrent(true, true);
       }
     } catch (err) {
       
       
-      this.onLoadError(err instanceof Error ? err.message : String(err), this.playSeq);
+      this.onLoadError(err instanceof Error ? err.message : String(err), seq);
     }
   }
 
   get playbackRevision(): number { return this.playSeq; }
 
+  async resumeAfterReconnect(): Promise<void> {
+    if (this.waitingForNetwork && this.state === "paused") await this.play();
+  }
+
   pause(): void {
     this.playSeq += 1;
+    this.waitingForNetwork = false;
+    if (this.interruptedPosition !== null) this.hasSource = false;
     this.setState("paused");
     this.adapter.pause();
   }
 
   async togglePlay(): Promise<void> {
-    if (this.state === "playing") {
+    if (this.state === "playing" || (this.state === "loading" && this.interruptedPosition !== null)) {
       this.pause();
     } else {
       await this.play();
@@ -339,20 +412,26 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     }
     const nextTrack = this.queue.next();
     if (nextTrack) {
-      await this.playCurrent();
+      await this.playCurrent(true, userInitiated);
     } else if (this.repeat === "all" && this.queue.length > 0) {
       this.queue.restart();
-      await this.playCurrent();
-    } else if (this.onQueueEnd) {
-      const oldLength = this.queue.length;
+      await this.playCurrent(true, userInitiated);
+    } else if (this.mode === "normal" && this.onQueueEnd) {
       try {
-        const more = await this.onQueueEnd();
+        const batch = await this.onQueueEnd();
         if (request !== this.playSeq || this.disposed) return;
+        const addedMeanwhile = this.queue.next();
+        if (addedMeanwhile) {
+          await this.playCurrent(true, userInitiated);
+          return;
+        }
+        const oldLength = this.queue.length;
+        const more = uniqueRecommendations(batch.map(this.prepareTrack), this.queue.tracksList);
         if (more.length > 0) {
-          for (const t of more) this.queue.append(this.prepareTrack(t));
+          for (const t of more) this.queue.append(t);
           const orderPos = this.queue.positionOf(oldLength);
           if (orderPos >= 0) this.queue.jumpToOrderPos(orderPos);
-          await this.playCurrent();
+          await this.playCurrent(true, userInitiated);
           return;
         }
       } catch {
@@ -366,12 +445,14 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private stopAtEnd(): void {
-    this.playSeq += 1;
-    this.clearStallTimer();
-    this.adapter.pause();
-    this.hasSource = false;
-    this.queue.clear();
-    this.emit("queue", { queue: [], index: -1, history: [] });
+    if (this.mode === "album") {
+      this.adapter.pause();
+      this.hasSource = false;
+      this.setState("ended");
+      this.emitQueue();
+      return;
+    }
+    this.clearQueue();
   }
 
   async previous(): Promise<void> {
@@ -384,6 +465,8 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   seek(seconds: number): void {
+    this.lastPlayingPosition = seconds;
+    if (this.interruptedPosition !== null) this.interruptedPosition = seconds;
     this.adapter.seek(seconds);
   }
 
@@ -400,33 +483,87 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   setEqualizer(gains: number[]): void {
-    this.equalizer = [...gains];
-    this.adapter.setEqualizer(this.equalizer);
+    this.equalizer = normalizeEqualizer(gains);
+    if (!this.effectsBypassed) this.adapter.setEqualizer(this.equalizer);
     this.emit("equalizer", this.equalizer);
   }
 
-  setLeveling(enabled: boolean, targetDb: number): void {
-    this.adapter.setLeveling(enabled, targetDb);
+  setLeveling(enabled: boolean, targetDb: number, mode: NormalizationMode = "adaptive"): void {
+    this.levelingEnabled = enabled;
+    this.levelingTargetDb = sanitizeAudioValue(targetDb, -30, -1, DEFAULT_LEVELING_OPTIONS.targetDb);
+    this.normalizationMode = mode;
+    this.updateLoudnessAnalysis();
+  }
+
+  private applyLeveling(): void {
+    const active = this.levelingEnabled && !this.effectsBypassed;
+    this.adapter.setLeveling(active && this.normalizationMode === "adaptive", this.levelingTargetDb);
+    const gain = active && this.measuredLevel !== null
+      ? dbToGain(desiredGainDb(this.measuredLevel, { ...DEFAULT_LEVELING_OPTIONS, targetDb: this.levelingTargetDb })) : 1;
+    this.adapter.setMeasuredGain?.(gain);
+  }
+
+  private updateLoudnessAnalysis(load = true): void {
+    const current = this.queue.current();
+    const tracks = !current || !this.levelingEnabled || this.normalizationMode === "adaptive" ? []
+      : this.normalizationMode === "track" ? [current] : this.mode === "album" ? this.queue.tracksList : [];
+    const key = tracks.length ? JSON.stringify([this.normalizationMode, tracks.map((track) => playbackSource(track).id)]) : "";
+    if (key !== this.measurementKey) {
+      this.loudnessAnalysis?.abort();
+      this.loudnessAnalysis = undefined;
+      this.measuredLevel = null;
+      this.measurementKey = key;
+    }
+    this.applyLeveling();
+    if (!load || !key || this.loudnessAnalysis || !this.measureLoudness || this.disposed) return;
+    const controller = this.loudnessAnalysis = new AbortController();
+    void this.measureLoudness(tracks, controller.signal).then((level) => {
+      if (controller.signal.aborted || this.disposed) return;
+      this.measuredLevel = level;
+      this.applyLeveling();
+      if (level === null) this.loudnessAnalysis = undefined;
+    }, () => {
+      if (this.loudnessAnalysis === controller) this.loudnessAnalysis = undefined;
+    });
   }
 
   setCrossfadeMs(ms: number): void {
-    this.adapter.setCrossfadeMs(ms);
+    this.crossfadeMs = ms;
+    if (this.mode === "normal") this.adapter.setCrossfadeMs(ms);
   }
 
-   setBassBoost(db: number): void {
-    this.bassBoost = db;
-    this.adapter.setBassBoost(db);
+  private setMode(mode: PlaybackMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.adapter.setAlbumMode?.(mode === "album");
+    if (mode === "album") {
+      this.setShuffle(false);
+      this.adapter.setCrossfadeMs(0);
+    } else if (this.crossfadeMs !== undefined) {
+      this.adapter.setCrossfadeMs(this.crossfadeMs);
+    }
+    this.updateLoudnessAnalysis(false);
+  }
+
+  setBassBoost(db: number): void {
+    this.bassBoost = sanitizeAudioValue(db, 0, 15);
+    if (!this.effectsBypassed) this.adapter.setBassBoost(this.bassBoost);
   }
 
   setReverb(mix: number): void {
-    this.reverb = mix;
-    this.adapter.setReverb(mix);
+    this.reverb = sanitizeAudioValue(mix, 0, 1);
+    if (!this.effectsBypassed) this.adapter.setReverb(this.reverb);
   }
 
-   setStereoWidth(pan: number): void {
-     this.stereoWidth = pan;
-     this.adapter.setStereoWidth(pan);
-   }
+  setStereoWidth(width: number): void {
+    this.stereoWidth = sanitizeAudioValue(width, -1, 1);
+    if (!this.effectsBypassed) this.adapter.setStereoWidth(this.stereoWidth);
+  }
+
+  setSpatialOrbit(amount: number): void {
+    this.spatialOrbit = sanitizeAudioValue(amount, 0, 1);
+    if (!this.effectsBypassed) this.adapter.setSpatialOrbit?.(this.spatialOrbit);
+  }
 
   setAutoGenerateThreshold(threshold: number): void {
     this.autoGenerateThreshold = Math.max(1, threshold);
@@ -451,21 +588,44 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
    
    setPauseAfterTrack(on: boolean): void {
     this.pauseAtEnd = on;
+    this.updateAlbumPreload();
+  }
+
+  setEffectsBypassed(bypassed: boolean): void {
+    this.effectsBypassed = bypassed;
+    this.applyAudioSettings();
   }
 
   private applyAudioSettings(): void {
-    this.adapter.setEqualizer(this.equalizer);
-    this.adapter.setBassBoost(this.bassBoost);
-    this.adapter.setReverb(this.reverb);
-    this.adapter.setStereoWidth(this.stereoWidth);
+    this.adapter.setEqualizer(this.effectsBypassed ? [] : this.equalizer);
+    this.adapter.setBassBoost(this.effectsBypassed ? 0 : this.bassBoost);
+    this.adapter.setReverb(this.effectsBypassed ? 0 : this.reverb);
+    this.adapter.setStereoWidth(this.effectsBypassed ? 0 : this.stereoWidth);
+    this.adapter.setSpatialOrbit?.(this.effectsBypassed ? 0 : this.spatialOrbit);
+    this.applyLeveling();
   }
 
   
+  getPlaybackPosition(): number | undefined {
+    if (!this.hasSource || this.disposed) return undefined;
+    const position = this.adapter.getPosition();
+    return Number.isFinite(position) ? position : undefined;
+  }
+
+  getLimiterReduction(): number | undefined {
+    return this.adapter.getLimiterReduction?.();
+  }
+
+  getAudioProcessingState(): AudioProcessingState {
+    return this.adapter.getAudioProcessingState?.() ?? "standby";
+  }
+
   getSpectrum(data: Uint8Array): void {
     this.adapter.getSpectrum(data);
   }
 
   setShuffle(on: boolean): void {
+    if (on && this.mode === "album") this.setMode("normal");
     this.queue.setShuffle(on);
     this.emit("shuffle", on);
     this.emitQueue();
@@ -473,6 +633,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   setRepeat(mode: RepeatMode): void {
     this.repeat = mode;
+    this.updateAlbumPreload();
     this.emit("repeat", mode);
   }
 
@@ -490,7 +651,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   addToQueue(track: Track, play = false): boolean {
     const added = this.queue.append(this.prepareTrack(track));
     if (play) {
-      const trackIndex = this.queue.length - 1;
+      const trackIndex = this.queue.tracksList.findIndex((t) => t.id === track.id);
       const pos = this.queue.positionOf(trackIndex);
       if (pos >= 0) this.queue.jumpToOrderPos(pos);
       void this.playCurrent();
@@ -500,8 +661,37 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     return added;
   }
 
+  async playQueueIndex(trackIndex: number): Promise<void> {
+    const position = this.queue.positionOf(trackIndex);
+    if (position < 0) return;
+    this.queue.jumpToOrderPos(position);
+    await this.playCurrent(true, true);
+  }
+
   removeFromQueue(trackIndex: number): void {
-    this.queue.removeAt(trackIndex);
+    const removingCurrent = trackIndex === this.queue.currentIndex();
+    const wasActive = this.state === "playing" || this.state === "loading";
+    if (!this.queue.removeAt(trackIndex)) return;
+    if (removingCurrent) {
+      if (!this.queue.current()) {
+        this.clearQueue();
+        return;
+      }
+      this.playSeq += 1;
+      this.clearStallTimer();
+      this.hasSource = false;
+      this.playRecorded = false;
+      this.restorePos = 0;
+      this.restorePosTrackId = null;
+      this.adapter.pause();
+      this.adapter.seek(0);
+      const track = this.queue.current()!;
+      this.duration = playbackSource(track).duration ?? track.duration ?? 0;
+      this.emit("track", track);
+      this.emit("time", { position: 0, duration: this.duration });
+      if (wasActive) void this.playCurrent();
+      else this.setState("paused");
+    }
     this.emitQueue();
   }
 
@@ -527,7 +717,14 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.queue.clear();
     this.hasSource = false;
     this.adapter.pause();
+    this.duration = 0;
+    this.restorePos = 0;
+    this.restorePosTrackId = null;
+    this.interruptedPosition = null;
+    this.waitingForNetwork = false;
+    this.lastPlayingPosition = 0;
     this.setState("idle");
+    this.emit("time", { position: 0, duration: 0 });
     this.emit("track", null);
     this.emitQueue();
   }
@@ -540,6 +737,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
   destroy(): void {
     this.disposed = true;
+    this.loudnessAnalysis?.abort();
     this.playSeq += 1;
     this.clearStallTimer();
     this.detach.forEach((d) => d());
@@ -548,10 +746,17 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.clear();
   }
 
-  private async playCurrent(usePreference = true): Promise<void> {
+  private async playCurrent(usePreference = true, keepSelectionOnError = false): Promise<void> {
     const selected = this.queue.current();
     if (!selected) return;
+    this.alternateAttemptedFor = null;
+    this.preloadedId = null;
+    this.interruptedPosition = null;
+    this.waitingForNetwork = false;
+    this.lastPlayingPosition = 0;
     if (usePreference) this.playRecorded = false;
+    this.keepSelectionOnError = keepSelectionOnError;
+    if (keepSelectionOnError) this.consecutiveFails = 0;
     const track = usePreference ? this.prepareTrack(selected) : selected;
     if (track !== selected) this.queue.replaceCurrent(track);
     if (track.id !== this.fallbackTrackId) {
@@ -560,7 +765,6 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.playSeq += 1;
     this.hasSource = false;
     this.retries = 0;
-    this.consecutiveFails = 0;
     void this.maybeRefillQueue();
     await this.startTrack(this.playSeq);
     void this.preloadNext();
@@ -572,7 +776,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     if (this.state === "paused") return;
 
     const isMediaError = message.startsWith("audio error code");
-    const isStreamError = message.includes("403") || message.includes("stream URL returned");
+    const isStreamError = /network error|audio decode error|stream stalled|HLS stream error|stream URL returned|\b403\b/i.test(message);
+    if (this.resolveUri && this.hasSource && this.playRecorded && (isMediaError || isStreamError)) {
+      this.interruptedPosition ??= this.adapter.getPosition() || this.lastPlayingPosition;
+      this.hasSource = false;
+    }
     if (isMediaError || isStreamError) {
       const track = this.queue.current();
       if (track && this.invalidateStream) {
@@ -582,7 +790,36 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
     if (this.resolveUri && this.retries < this.maxRetries) {
       this.retries += 1;
-      void this.startTrack(seq);
+      void this.startTrack(++this.playSeq);
+      return;
+    }
+
+    const selected = this.queue.current();
+    if (this.recoverSource && selected && this.alternateAttemptedFor !== selected.id
+      && (typeof navigator === "undefined" || navigator.onLine !== false)) {
+      this.alternateAttemptedFor = selected.id;
+      const recovery = ++this.playSeq;
+      this.recoveringSource = recovery;
+      this.clearStallTimer();
+      void this.recoverSource(selected).catch(() => null).then((alternative) => {
+        if (this.recoveringSource === recovery) this.recoveringSource = null;
+        if (recovery !== this.playSeq || this.disposed) return;
+        if (!alternative || !this.queue.replaceCurrent(alternative)) {
+          this.onLoadError(message, recovery);
+          return;
+        }
+        this.retries = 0;
+        this.hasSource = false;
+        void this.startTrack(recovery);
+      });
+      return;
+    }
+
+    if (this.interruptedPosition !== null) {
+      this.hasSource = false;
+      this.pause();
+      this.waitingForNetwork = typeof navigator !== "undefined" && navigator.onLine === false;
+      this.emit("error", this.waitingForNetwork ? "Network disconnected. Playback position was saved." : message);
       return;
     }
 
@@ -602,13 +839,19 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       const fb = this.fallback();
       if (fb && this.queue.replaceCurrent(fb)) {
         this.emitQueue();
-        void this.playCurrent(false);
+        void this.playCurrent(false, this.keepSelectionOnError);
         return;
       }
     }
     this.fallbackUsed = false;
     this.clearStallTimer();
     this.emit("error", message);
+    if (this.keepSelectionOnError) {
+      this.hasSource = false;
+      this.consecutiveFails = 0;
+      this.pause();
+      return;
+    }
     void this.next();
   }
 
@@ -616,6 +859,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     const track = this.queue.current();
     if (this.disposed || !track || seq !== this.playSeq) return;
     this.setState("loading");
+    this.updateLoudnessAnalysis(false);
     this.startStallTimer();
     this.emit("track", track);
     const timing = new StartupMeasurement(playbackSource(track).provider);
@@ -644,17 +888,25 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       void this.applyAudioSettings();
       
       
-      if (this.restorePosTrackId === track.id && this.restorePos > 0) {
+      const restoring = this.restorePosTrackId === track.id;
+      const resumeAt = this.interruptedPosition ?? (restoring ? this.restorePos : 0);
+      if (resumeAt > 0) {
         try {
-          this.adapter.seek(this.restorePos);
+          this.adapter.seek(resumeAt);
         } catch {
           
         }
-        this.restorePosTrackId = null;
-        this.restorePos = 0;
       }
       await timing.measure("play", () => this.playWithGuard());
-      if (seq === this.playSeq) outcome = "playing";
+      if (seq === this.playSeq) {
+        if (restoring) {
+          this.restorePosTrackId = null;
+          this.restorePos = 0;
+        }
+        this.interruptedPosition = null;
+        outcome = "playing";
+        this.updateLoudnessAnalysis();
+      }
     } catch (err) {
       if (seq === this.playSeq) outcome = "failed";
       this.onLoadError(err instanceof Error ? err.message : String(err), seq);
@@ -727,20 +979,32 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   
   private async preloadNext(): Promise<void> {
     if (!this.resolveUri) return;
+    if (this.mode === "album" && (this.pauseAtEnd || this.repeat === "one")) return;
     const queued = this.queue.peekNext();
     const next = queued ? this.prepareTrack(queued) : null;
-    if (!next || this.preloadedId === next.id || this.preloadCache.has(next.id)) return;
+    if (!next || this.preloadedId === next.id) return;
+    const seq = this.playSeq;
     if (next.uri) {
       this.preloadedId = next.id;
       try {
-        const uri = await this.resolveUri(next);
-        if (this.preloadedId === next.id) {
+        const uri = await this.preloadCache.get(next.id) || await this.resolveUri(next);
+        if (seq === this.playSeq && this.preloadedId === next.id && next.id === this.queue.peekNext()?.id) {
           this.preloadCache.set(next.id, uri);
           this.adapter.preload(uri);
         }
       } catch {
-        
+        if (seq === this.playSeq && this.preloadedId === next.id) this.preloadedId = null;
       }
+    }
+  }
+
+  private updateAlbumPreload(): void {
+    if (this.mode !== "album") return;
+    const next = this.pauseAtEnd || this.repeat === "one" ? null : this.queue.peekNext();
+    if (this.preloadedId !== (next?.id ?? null)) {
+      this.preloadedId = null;
+      this.adapter.cancelPreload?.();
+      if (next && this.state === "playing") void this.preloadNext();
     }
   }
 
@@ -801,6 +1065,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private maybeRefillQueue(): void {
+    if (this.mode === "album") return;
     const remaining = this.queue.remainingCount();
     if (remaining >= this.autoGenerateThreshold) return;
     if (!this.onQueueEnd) return;
@@ -810,10 +1075,11 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   private async refillQueue(): Promise<void> {
     const seq = this.playSeq;
     try {
-      const more = await this.onQueueEnd!();
-      if (seq !== this.playSeq) return;
+      const batch = await this.onQueueEnd!();
+      if (seq !== this.playSeq || this.disposed || this.mode === "album") return;
+      const more = uniqueRecommendations(batch.map(this.prepareTrack), this.queue.tracksList);
       if (more.length > 0) {
-        for (const t of more) this.queue.append(this.prepareTrack(t));
+        for (const t of more) this.queue.append(t);
         this.emitQueue();
         void this.preloadNext();
       }
@@ -823,6 +1089,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
   }
 
   private async onTrackEnded(): Promise<void> {
+    if (!this.queue.current() || this.disposed || this.interruptedPosition !== null) return;
     this.playRecorded = false;
     
     const stop = this.pauseAtEnd;
@@ -847,6 +1114,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.queueUpdateScheduled = true;
     queueMicrotask(() => {
       this.queueUpdateScheduled = false;
+      this.updateAlbumPreload();
       this.emit("queue", {
         queue: this.queue.tracksList,
         index: this.queue.currentIndex(),

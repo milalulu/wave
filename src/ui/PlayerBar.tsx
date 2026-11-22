@@ -1,3 +1,5 @@
+import { EqualizerControls } from "./EqualizerControls";
+import { trackCover } from "../core/cover/trackCover";
 import { playbackSource } from "../core/types";
 import { CastButton } from "./CastButton";
 import { isTauri } from "@tauri-apps/api/core";
@@ -5,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "../app/stores";
 import { openMiniPlayerWindow } from "../app/mini";
 import { useI18n } from "./I18nContext";
-import { EQ_PRESETS, EQ_FREQUENCIES } from "../core/player/equalizerPresets";
 import { Cover } from "./Cover";
 import { SeekBar } from "./SeekBar";
 import { VolumeSlider } from "./VolumeSlider";
@@ -19,7 +20,9 @@ import {
   ChartIcon,
   ExpandIcon,
   HeartIcon,
+  LyricsIcon,
   MiniPlayerIcon,
+  MoreIcon,
   NextIcon,
   PauseIcon,
   PlayIcon,
@@ -42,9 +45,10 @@ import { SleepControl } from "./SleepControl";
 interface PlayerBarProps {
   onOpenQueue: () => void;
   onOpenPlayer: () => void;
+  onOpenLyrics?: () => void;
 }
 
-export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
+export function PlayerBar({ onOpenQueue, onOpenPlayer, onOpenLyrics }: PlayerBarProps) {
   const { t } = useI18n();
   const snapshot = useApp((s) => s.snapshot);
   const likedIds = useApp((s) => s.likedIds);
@@ -55,7 +59,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const previous = useApp((s) => s.previous);
   const setVolume = useApp((s) => s.setVolume);
   const setSpeed = useApp((s) => s.setSpeed);
-  const setEqualizer = useApp((s) => s.setEqualizer);
+  const effectsBypassed = useApp((s) => s.effectsBypassed);
   const toggleShuffle = useApp((s) => s.toggleShuffle);
   const cycleRepeat = useApp((s) => s.cycleRepeat);
   const toggleLike = useApp((s) => s.toggleLike);
@@ -70,6 +74,9 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   const [eqOpen, setEqOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(toolsRef, toolsOpen, () => setToolsOpen(false));
   const speedRef = useRef<HTMLDivElement>(null);
   const eqRef = useRef<HTMLDivElement>(null);
   const variantsRef = useRef<HTMLDivElement>(null);
@@ -79,7 +86,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   usePopoverDismiss(variantsRef, variantsOpen, () => setVariantsOpen(false));
   usePopoverDismiss(spectrumRef, spectrumOpen, () => setSpectrumOpen(false));
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
-  const eqActive = snapshot.equalizer.some((g) => g !== 0);
+  const eqActive = !effectsBypassed && snapshot.equalizer.some((g) => g !== 0);
 
   const track = snapshot.current;
   const liked = track ? likedIds.has(track.id) : false;
@@ -112,11 +119,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
   if (compactPlayer) {
     return (
       <footer className="player-bar mini">
-        {track?.coverUrl ? (
-          <Cover className="player-mini-cover" src={track.coverUrl} alt="" />
-        ) : (
-          <div className="player-mini-cover-empty" />
-        )}
+        <Cover className="player-mini-cover" src={trackCover(track)} alt="" />
         <div className="player-mini-info">
           <span className="player-mini-title">{track?.title ?? t("common").unknown}</span>
           <span className="player-mini-artist">{track?.artist ?? ""}</span>
@@ -147,11 +150,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         </div>
       )}
       <div className="player-track" onClick={onOpenPlayer}>
-        {track?.coverUrl ? (
-          <Cover className="player-cover" src={track.coverUrl} alt="" />
-        ) : (
-          <div className="player-cover player-cover-empty" />
-        )}
+        <Cover className="player-cover" src={trackCover(track)} alt="" />
         <div className="player-track-info">
           {track && (
             <div className="player-variants-wrap" ref={variantsRef}>
@@ -272,7 +271,17 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         <SeekBar track={track} />
       </div>
 
-      <div className="player-side">
+      <div className="echoes-footer-tools" ref={toolsRef}>
+        <div className="echoes-footer-compact">
+          <button className="icon-btn" onClick={() => setVolume(snapshot.volume === 0 ? 100 : 0)} title={t("player").volume}>
+            {snapshot.volume === 0 ? <VolumeMuteIcon size={22} /> : <VolumeIcon size={22} />}
+          </button>
+          <VolumeSlider value={Math.round(snapshot.volume * 100)} onChange={setVolume} label={t("player").volume} />
+          <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}><QueueIcon size={22} /></button>
+          {onOpenLyrics && <button className="icon-btn" onClick={onOpenLyrics} disabled={!track} title={t("player").lyrics}><LyricsIcon size={20} /></button>}
+          <button className="icon-btn" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)} title={t("nav").settings}><MoreIcon size={20} /></button>
+        </div>
+      <div className={`player-side ${toolsOpen ? "echoes-tools-open" : ""}`}>
         <button
           className="icon-btn"
           onClick={() => {
@@ -302,6 +311,7 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
         <button className="icon-btn" onClick={onOpenQueue} title={t("nav").queue}>
           <QueueIcon size={18} />
         </button>
+        {onOpenLyrics && <button className="icon-btn" onClick={onOpenLyrics} disabled={!track} title={t("player").lyrics}><LyricsIcon size={18} /></button>}
         <div className="sleep-menu-wrap" ref={speedRef}>
           <button
             className={`icon-btn ${snapshot.speed !== 1 ? "active" : ""}`}
@@ -347,49 +357,12 @@ export function PlayerBar({ onOpenQueue, onOpenPlayer }: PlayerBarProps) {
           {eqOpen && (
             <div className="sleep-menu eq-popup" onClick={(e) => e.stopPropagation()}>
               <div className="sleep-menu-title">{t("player").equalizer}</div>
-              <div className="eq-presets">
-                {EQ_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    className={preset.gains.every((g, i) => g === (snapshot.equalizer[i] ?? 0)) ? "active" : ""}
-                    onClick={() => setEqualizer(preset.gains)}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
-              <div className="eq-sliders">
-                {EQ_FREQUENCIES.map((freq, i) => (
-                  <div key={freq} className="eq-slider-col">
-                    <span className="eq-val">{snapshot.equalizer[i] ?? 0}</span>
-                    <input
-                      type="range"
-                      className="eq-slider"
-                      min={-12}
-                      max={12}
-                      step={1}
-                      value={snapshot.equalizer[i] ?? 0}
-                      aria-label={`${freq >= 1000 ? `${freq / 1000}k` : freq} Hz`}
-                      onChange={(e) => {
-                        const next = [...snapshot.equalizer];
-                        while (next.length <= i) next.push(0);
-                        next[i] = Number(e.target.value);
-                        setEqualizer(next);
-                      }}
-                    />
-                    <span className="eq-label">{freq >= 1000 ? `${freq / 1000}k` : freq}</span>
-                  </div>
-                ))}
-              </div>
-              <button className="btn small" onClick={() => {
-                setEqualizer(new Array(EQ_FREQUENCIES.length).fill(0));
-              }}>
-                {t("player").sleepTimerOptions.off}
-              </button>
+              <EqualizerControls />
             </div>
           )}
         </div>
         <SleepControl />
+      </div>
       </div>
     </footer>
   );

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 900" preserveAspectRatio="none" fill="none">
+<defs>
+<linearGradient id="surface" x1="0" y1="0" x2="150" y2="700" gradientUnits="userSpaceOnUse"><stop stop-color="#17151a"/><stop offset=".5" stop-color="#100d14"/><stop offset="1" stop-color="#201728"/></linearGradient>
+<linearGradient id="edge" x1="146" y1="0" x2="100" y2="900" gradientUnits="userSpaceOnUse"><stop stop-color="#d9c4ff" stop-opacity=".28"/><stop offset=".3" stop-color="#ff6b64" stop-opacity=".55"/><stop offset=".7" stop-color="#d9c4ff" stop-opacity=".4"/><stop offset="1" stop-color="#b26bff" stop-opacity=".15"/></linearGradient>
+<radialGradient id="glow"><stop stop-color="#ff6b64" stop-opacity=".13"/><stop offset="1" stop-color="#ff6b64" stop-opacity="0"/></radialGradient>
+<clipPath id="rail"><path d="M0 0H146C140 112 94 220 103 350S125 469 111 593S96 779 100 900H0Z"/></clipPath>
+</defs>
+<path d="M0 0H146C140 112 94 220 103 350S125 469 111 593S96 779 100 900H0Z" fill="url(#surface)"/>
+<ellipse cx="70" cy="300" rx="80" ry="190" fill="url(#glow)" clip-path="url(#rail)"/>
+<path d="M146 0C140 112 94 220 103 350S125 469 111 593S96 779 100 900" stroke="url(#edge)" stroke-width="1.2"/>
+</svg>

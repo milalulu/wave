@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrashIcon, DownloadIcon, PlayIcon } from "./icons";
-import { downloadedFiles, unregisterDownload, downloadedTrackToTrack, type DownloadedFile } from "../app/offline";
+import { downloadedFiles, unregisterDownload, downloadedTrackToTrack, findMissingDownloads, type DownloadedFile } from "../app/offline";
+import { isStreamingProvider } from "../app/platformSettings";
 import { Cover } from "./Cover";
 import { tileStyle } from "./tileHue";
 import { EmptyState } from "./EmptyState";
+import type { Track } from "../core/types";
 
 const STATUS_LABEL: Record<string, "dlQueued" | "dlRunning" | "dlDone" | "dlFailed"> = {
   queued: "dlQueued",
@@ -14,19 +16,18 @@ const STATUS_LABEL: Record<string, "dlQueued" | "dlRunning" | "dlDone" | "dlFail
   error: "dlFailed",
 };
 
-function DownloadedTrackRow({ file, onRemove }: { file: DownloadedFile; onRemove: () => void }) {
-  const { t } = useI18n();
-  const play = useApp((s) => s.play);
+function DownloadedTrackRow({ track, missing, onRetry, onPlay, onRemove }: { track: Track; missing: boolean; onRetry?: () => void; onPlay: () => void; onRemove: () => void }) {
+  const { t, locale } = useI18n();
   const toggleLike = useApp((s) => s.toggleLike);
   const likedIds = useApp((s) => s.likedIds);
-  const track = downloadedTrackToTrack(file);
   const isLiked = likedIds.has(track.id);
 
   return (
     <div className="track-row">
       <button
         className="icon-btn"
-        onClick={() => void play([track], 0)}
+        onClick={onPlay}
+        disabled={missing}
         title={t("player").play}
       >
         <PlayIcon size={14} />
@@ -41,11 +42,16 @@ function DownloadedTrackRow({ file, onRemove }: { file: DownloadedFile; onRemove
       <div className="track-main">
         <span className="track-title">{track.title}</span>
         <span className="track-artist">{track.artist}</span>
+        {missing && <span className="muted">{locale === "ru" ? "Файл отсутствует" : "File missing"}</span>}
       </div>
       {track.album && <span className="track-album">{track.album}</span>}
       <span className="track-duration">{track.duration ? `${Math.floor(track.duration / 60)}:${String(Math.floor(track.duration % 60)).padStart(2, "0")}` : "—"}</span>
       <DownloadIcon size={12} className="track-downloaded" />
       <div className="track-actions">
+        {onRetry && <button type="button" className="icon-btn" onClick={onRetry}
+          title={locale === "ru" ? "Скачать заново" : "Download again"} aria-label={locale === "ru" ? "Скачать заново" : "Download again"}>
+          <DownloadIcon size={16} />
+        </button>}
         <button
           className={`icon-btn ${isLiked ? "liked" : ""}`}
           title={isLiked ? t("common").unlike : t("common").like}
@@ -64,25 +70,38 @@ function DownloadedTrackRow({ file, onRemove }: { file: DownloadedFile; onRemove
 }
 
 export function DownloadsView() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const downloads = useApp((s) => s.downloads);
   const clearDownloads = useApp((s) => s.clearDownloads);
   const retryDownload = useApp((s) => s.retryDownload);
-  const [, setTick] = useState(0);
+  const downloadTracks = useApp((s) => s.downloadTracks);
+  const play = useApp((s) => s.play);
 
   const finished = downloads.filter((d) => d.status === "done" || d.status === "error").length;
 
   const [savedFiles, setSavedFiles] = useState<DownloadedFile[]>(() => downloadedFiles());
-
-  const refresh = useCallback(() => { setSavedFiles(downloadedFiles()); setTick((n) => n + 1); }, []);
+  const [missing, setMissing] = useState(new Set<string>());
+  const tracks = useMemo(() => savedFiles.map(downloadedTrackToTrack), [savedFiles]);
+  const available = tracks.filter((_, index) => !missing.has(savedFiles[index].file));
+  const knownBytes = savedFiles.reduce((total, file) => total + (missing.has(file.file) ? 0 : file.bytes ?? 0), 0);
 
   useEffect(() => {
+    setSavedFiles(downloadedFiles());
+  }, [finished]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => void findMissingDownloads(savedFiles.map((file) => file.file)).then((paths) => {
+      if (active) setMissing(paths);
+    });
     refresh();
-  }, [finished, refresh]);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); };
+  }, [savedFiles]);
 
   const handleRemoveFile = (file: string) => {
     unregisterDownload(file);
-    refresh();
+    setSavedFiles(downloadedFiles());
   };
 
   return (
@@ -132,9 +151,15 @@ export function DownloadsView() {
       )}
 
       <section>
-        <h3>
-          <DownloadIcon size={16} /> {t("downloads").downloadedTracks}
-        </h3>
+        <div className="downloads-collection-header">
+          <h3><DownloadIcon size={16} /> {t("downloads").downloadedTracks}</h3>
+          {knownBytes > 0 && <span className="muted">{savedFiles.some((file) => !file.bytes) ? "≥ " : ""}
+            {new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(knownBytes / 1048576)} {locale === "ru" ? "МиБ" : "MiB"}
+          </span>}
+          {available.length > 0 && <button type="button" className="btn" onClick={() => void play(available, 0)}>
+            <PlayIcon size={16} /> {locale === "ru" ? "Играть все" : "Play all"}
+          </button>}
+        </div>
         {savedFiles.length === 0 ? (
           <EmptyState
             title={t("downloads").noDownloadedTracks}
@@ -144,10 +169,18 @@ export function DownloadsView() {
           />
         ) : (
           <div className="track-list">
-            {savedFiles.map((f) => (
+            {savedFiles.map((f, index) => (
               <DownloadedTrackRow
                 key={f.file}
-                file={f}
+                track={tracks[index]}
+                missing={missing.has(f.file)}
+                onRetry={missing.has(f.file) && f.trackId && f.provider && isStreamingProvider(f.provider) ? () => {
+                  const track = tracks[index];
+                  const sourceId = f.trackId!;
+                  const uri = f.provider === "youtube" ? `https://www.youtube.com/watch?v=${sourceId.split(":").pop()}` : sourceId;
+                  void downloadTracks([{ ...track, id: sourceId, uri, meta: undefined }], f.file);
+                } : undefined}
+                onPlay={() => void play(available, available.indexOf(tracks[index]))}
                 onRemove={() => handleRemoveFile(f.file)}
               />
             ))}

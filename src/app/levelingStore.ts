@@ -1,8 +1,11 @@
+import type { NormalizationMode } from "../core/player/leveling";
+
 const KEY = "wave:leveling";
 
 export interface LevelingSettings {
   enabled: boolean;
   targetDb: number;
+  mode?: NormalizationMode;
 }
 
 export const DEFAULT_LEVELING: LevelingSettings = { enabled: false, targetDb: -14 };
@@ -17,7 +20,7 @@ export function loadLeveling(): LevelingSettings {
       typeof parsed.targetDb === "number" && Number.isFinite(parsed.targetDb)
         ? Math.min(-1, Math.max(-30, parsed.targetDb))
         : DEFAULT_LEVELING.targetDb;
-    return { enabled, targetDb };
+    return { enabled, targetDb, ...(parsed.mode === "track" || parsed.mode === "album" ? { mode: parsed.mode } : {}) };
   } catch {
     return { ...DEFAULT_LEVELING };
   }

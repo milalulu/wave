@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, expect, it, vi } from "vitest";
 import type { AppServices } from "./compose";
 import { ApiBridge } from "./bridge";
@@ -9,10 +10,21 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 let handle: (event: { payload: { id: number; action: string; payload: unknown } }) => void;
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   vi.mocked(listen).mockImplementation(async (_event, callback) => {
     handle = callback as unknown as typeof handle;
     return () => {};
   });
+});
+
+it("can restore a source removed by an earlier HTTP settings change", async () => {
+  const configured = { providers: [] } as unknown as AppServices;
+  const bridge = new ApiBridge(configured);
+  await bridge.start();
+  handle({ payload: { id: 4, action: "sources.set", payload: { blocked: ["soundcloud", "deezer"] } } });
+  await vi.waitFor(() => expect(configured.providers.map((p) => p.id)).toEqual(["youtube"]));
+  handle({ payload: { id: 5, action: "sources.set", payload: { blocked: [] } } });
+  await vi.waitFor(() => expect(configured.providers.map((p) => p.id)).toEqual(["youtube", "soundcloud"]));
 });
 const station = {
   artist: "Artist", tracks: [{ id: "1", provider: "youtube", uri: "1", title: "Song" }],

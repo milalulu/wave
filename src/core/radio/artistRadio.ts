@@ -42,8 +42,6 @@ export function assembleArtistStation(
   const playable = candidates.filter((track) =>
     !track.id.startsWith("artist-radio:") && track.title.trim() && track.uri && !track.meta?.noPlay,
   );
-  // rankCandidates chooses the best provider before deduplicating.
-  const tracks = rankCandidates(seed, playable, limit);
   const seenArtists = new Set([name.toLowerCase()]);
   const cleanSimilar = similarArtists.map(normalizeArtistName).filter((artist) => {
     const key = artist.toLowerCase();
@@ -51,6 +49,9 @@ export function assembleArtistStation(
     seenArtists.add(key);
     return true;
   }).slice(0, 8);
+  const taste = [...cleanSimilar.map(artistSeedTrack),
+    ...seedTrackIds.map((id) => playable.find((track) => track.id === id) ?? { ...seed, id })];
+  const tracks = rankCandidates(seed, playable, limit, { strict: true, taste });
 
   return {
     artist: name,

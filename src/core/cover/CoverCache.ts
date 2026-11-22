@@ -29,7 +29,10 @@ function flushWrite(): void {
     const clean: Record<string, CoverEntry> = {};
     let size = 0;
     for (const [url, e] of memCache) {
-      if (now - e.at > TTL) continue;
+      if (now - e.at > TTL) {
+        memCache.delete(url);
+        continue;
+      }
       clean[url] = e;
       size += e.data.length;
     }
@@ -37,6 +40,7 @@ function flushWrite(): void {
       const sorted = Object.entries(clean).sort((a, b) => a[1].at - b[1].at);
       while (size > MAX_BYTES && sorted.length > 0) {
         const [url, e] = sorted.shift() as [string, CoverEntry];
+        memCache.delete(url);
         delete clean[url];
         size -= e.data.length;
       }
@@ -71,13 +75,30 @@ export function clearCoverCache(): void {
   }
 }
 
-export async function cacheCover(url: string): Promise<string | null> {  try {
-    const res = await fetch(url);
+const pending = new Map<string, Promise<string | null>>();
+
+export function invalidateCover(url: string): void {
+  ensureMemCache().delete(url);
+  scheduleWrite();
+}
+
+export function cacheCover(url: string): Promise<string | null> {
+  const cached = getCachedCover(url);
+  if (cached) return Promise.resolve(cached);
+  const existing = pending.get(url);
+  if (existing) return existing;
+  const request = fetchCover(url).finally(() => pending.delete(url));
+  pending.set(url, request);
+  return request;
+}
+
+async function fetchCover(url: string): Promise<string | null> { try {
+    const res = await fetch(url, { cache: "force-cache" });
     if (!res.ok) return null;
     const blob = await res.blob();
-    if (!blob.type.startsWith("image/")) return null;
+    if (!blob.type.startsWith("image/") || blob.size > MAX_BYTES * 0.75) return null;
     const data = await blobToDataUrl(blob);
-    if (data.length < 100) return null;
+    if (data.length < 100 || data.length > MAX_BYTES) return null;
     const cache = ensureMemCache();
     cache.set(url, { data, at: Date.now() });
     scheduleWrite();

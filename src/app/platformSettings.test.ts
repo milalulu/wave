@@ -175,8 +175,8 @@ describe("platformSettings preview filter", () => {
 
 describe("remote provider flags (kill-switch)", () => {
   it("parseProviderFlags принимает только известные id", () => {
-    expect(parseProviderFlags({ disabled: ["spotify", "vk"] })).toEqual(["spotify", "vk"]);
-    expect(parseProviderFlags({ disabled: ["spotify", "nope", 42, null] })).toEqual(["spotify"]);
+    expect(parseProviderFlags({ disabled: ["soundcloud", "youtube"] })).toEqual(["soundcloud", "youtube"]);
+    expect(parseProviderFlags({ disabled: ["soundcloud", "spotify", 42, null] })).toEqual(["soundcloud"]);
     expect(parseProviderFlags({})).toEqual([]);
     expect(parseProviderFlags(null)).toEqual([]);
     expect(parseProviderFlags({ disabled: "spotify" })).toEqual([]);
@@ -184,19 +184,19 @@ describe("remote provider flags (kill-switch)", () => {
 
   it("filterProviders объединяет локальные и удалённые блокировки", () => {
     setBlockedProviders(["youtube"]);
-    localStorage.setItem("wave-remote-disabled", JSON.stringify({ disabled: ["spotify"] }));
+    localStorage.setItem("wave-remote-disabled", JSON.stringify({ disabled: ["soundcloud"] }));
     expect(filterProviders(providers).map((p) => p.id)).toEqual(["deezer", "itunes", "local"]);
-    expect(isBlockedProvider("spotify")).toBe(true);
+    expect(isBlockedProvider("soundcloud")).toBe(true);
     expect(isBlockedProvider("deezer")).toBe(false);
   });
 
   it("refreshRemoteProviderFlags кеширует и уважает TTL", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ disabled: ["vk"] }),
+      json: async () => ({ disabled: ["soundcloud"] }),
     }));
     await refreshRemoteProviderFlags(fetchMock as never, 100_000_000);
-    expect(getRemoteDisabledCached()).toEqual(["vk"]);
+    expect(getRemoteDisabledCached()).toEqual(["soundcloud"]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // Повтор внутри TTL — без сети.
     await refreshRemoteProviderFlags(fetchMock as never, 100_000_001);

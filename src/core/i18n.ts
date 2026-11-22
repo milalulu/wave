@@ -28,6 +28,7 @@ export interface Translations {
     dlFailed: string;
     dlRetry: string;
     dlAlreadyQueued: string;
+    hlsDesktopOnly: string;
     downloadedTracks: string;
     noDownloadedTracks: string;
     noDownloadedHint: string;
@@ -245,9 +246,6 @@ export interface Translations {
     resetCaches: string;
     resetCachesDesc: string;
     testAll: string;
-    lastfmStatusEnabled: string;
-    lastfmStatusDisabled: string;
-    lastfmScrobbleToggle: string;
     test: string;
     testing: string;
     testOK: string;
@@ -325,6 +323,8 @@ export interface Translations {
     reverbDesc: string;
     stereoWidth: string;
     stereoWidthDesc: string;
+    spatialOrbit: string;
+    spatialOrbitDesc: string;
     lyrics: string;
     lyricsDesc: string;
     lyricsAutoOpen: string;
@@ -571,10 +571,11 @@ export const translations: Record<Locale, Translations> = {
       dlFailed: "Failed",
       dlRetry: "Retry",
       dlAlreadyQueued: "Already in the download queue",
+      hlsDesktopOnly: "This track uses HLS. You can download it in the desktop app.",
       downloadedTracks: "Downloaded tracks",
       noDownloadedTracks: "No downloaded tracks yet",
       noDownloadedHint: "Tap the download icon on any track to keep it offline",
-      removeFile: "Remove file",
+      removeFile: "Remove from downloads",
     },
     player: {
       play: "Play",
@@ -797,13 +798,10 @@ export const translations: Record<Locale, Translations> = {
       offlineMode: "Offline mode",
       offlineModeDesc: "Play from downloaded files instead of streaming",
       excludePreviews: "Exclude preview-only tracks from search",
-      excludePreviewsDesc: "Tracks that can only play as a short preview (iTunes, Deezer, Spotify) won't appear in search results.",
+      excludePreviewsDesc: "Tracks that can only play as a short preview won't appear in search results.",
       resetCaches: "Reset caches",
       resetCachesDesc: "Clear search, variants, covers and lyrics caches.",
       testAll: "Test all platforms",
-      lastfmStatusEnabled: "Last.fm scrobbling: enabled (now playing + scrobble)",
-      lastfmStatusDisabled: "Last.fm scrobbling: disabled. Set Key, Secret and Session Key.",
-      lastfmScrobbleToggle: "Send now-playing and scrobble plays to Last.fm",
       test: "Test",
       testing: "...",
       testOK: "✓ OK",
@@ -880,7 +878,9 @@ export const translations: Record<Locale, Translations> = {
       reverb: "Reverb",
       reverbDesc: "Add room ambiance (0–100%).",
       stereoWidth: "Stereo Width",
-      stereoWidthDesc: "Widen or narrow the stereo image.",
+      stereoWidthDesc: "0% is mono, 100% is the original stereo image. Higher values widen the sides while keeping the center.",
+      spatialOrbit: "8D orbit",
+      spatialOrbitDesc: "Slow movement across the stereo field, most noticeable with headphones.",
       lyrics: "Lyrics",
       lyricsDesc: "How the lyrics panel behaves when the track changes.",
       lyricsAutoOpen: "Auto-open lyrics",
@@ -1128,10 +1128,11 @@ export const translations: Record<Locale, Translations> = {
       dlFailed: "Ошибка",
       dlRetry: "Повторить",
       dlAlreadyQueued: "Уже в очереди загрузок",
+      hlsDesktopOnly: "Этот трек использует HLS. Его можно скачать в настольной версии.",
       downloadedTracks: "Скачанные треки",
       noDownloadedTracks: "Нет скачанных треков",
       noDownloadedHint: "Нажмите на иконку загрузки у трека, чтобы сохранить его офлайн",
-      removeFile: "Удалить файл",
+      removeFile: "Убрать из загрузок",
     },
     player: {
       play: "Играть",
@@ -1354,13 +1355,10 @@ export const translations: Record<Locale, Translations> = {
       offlineMode: "Оффлайн-режим",
       offlineModeDesc: "Играть из скачанных файлов вместо стриминга",
       excludePreviews: "Не искать треки-превью в поиске",
-      excludePreviewsDesc: "Треки, которые могут проигрываться только как короткое превью (iTunes, Deezer, Spotify), не будут попадать в результаты поиска.",
+      excludePreviewsDesc: "Треки, которые могут проигрываться только как короткое превью, не будут попадать в результаты поиска.",
       resetCaches: "Сбросить кеши",
       resetCachesDesc: "Очищает кеши поиска, вариантов, обложек и текстов.",
       testAll: "Проверить все площадки",
-      lastfmStatusEnabled: "Last.fm скробблинг: включён (now playing + scrobble)",
-      lastfmStatusDisabled: "Last.fm скробблинг: выключен. Укажите Key, Secret и Session Key.",
-      lastfmScrobbleToggle: "Отправлять now-playing и скробблить прослушивания на Last.fm",
       test: "Тест",
       testing: "...",
       testOK: "✓ OK",
@@ -1437,7 +1435,9 @@ export const translations: Record<Locale, Translations> = {
       reverb: "Реверберация",
       reverbDesc: "Добавить эффект пространства (0–100%).",
       stereoWidth: "Ширина стерео",
-      stereoWidthDesc: "Расширить или сузить стереообраз.",
+      stereoWidthDesc: "0% — моно, 100% — исходное стерео. При расширении центральный звук остаётся по центру.",
+      spatialOrbit: "8D-панорама",
+      spatialOrbitDesc: "Плавное движение звука между каналами. Эффект лучше слышен в наушниках.",
       lyrics: "Тексты песен",
       lyricsDesc: "Поведение панели текстов при смене трека.",
       lyricsAutoOpen: "Автооткрытие текстов",

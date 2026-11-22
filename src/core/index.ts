@@ -5,7 +5,6 @@ export * from "./player/WebAudioAdapter";
 export * from "./player/PlayerEngine";
 export * from "./queue/Queue";
 export * from "./providers/MusicProvider";
-export * from "./providers/iTunesProvider";
 export * from "./providers/LocalProvider";
 export * from "./database/Storage";
 export * from "./database/MemoryStorage";

@@ -4,11 +4,20 @@ import {
   Leveler,
   dbToGain,
   desiredGainDb,
+  measurePcmPower,
   rmsOfSamples,
   rmsToDb,
 } from "./leveling";
 
 describe("leveling math", () => {
+  it("gates silence and measures channel power without canceling opposite phases", () => {
+    const left = Float32Array.from({ length: 8000 }, (_, i) => i >= 4000 ? 0.25 : 0);
+    const right = left.map((sample) => -sample);
+    const audio = { numberOfChannels: 2, sampleRate: 8000, length: left.length, getChannelData: (i: number) => i ? right : left } as AudioBuffer;
+    const result = measurePcmPower(audio);
+    expect(result?.power).toBeCloseTo(0.05208333, 7);
+    expect(result?.seconds).toBeCloseTo(0.6, 2);
+  });
   it("rmsToDb/dbToGain согласованы", () => {
     expect(rmsToDb(1)).toBeCloseTo(0, 10);
     expect(rmsToDb(0.5)).toBeCloseTo(-6.02, 2);

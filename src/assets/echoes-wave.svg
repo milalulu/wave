@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 650" fill="none">
+  <defs><linearGradient id="flow"><stop stop-color="#ff796b"/><stop offset="1" stop-color="#b69ae5"/></linearGradient>
+  <path id="ribbon" d="M-100 200C90-100 250 420 440 190S650-40 810 100S1090 330 1300-60"/></defs>
+  <g stroke="url(#flow)" stroke-width="1" opacity=".6">
+    <use href="#ribbon"/><use href="#ribbon" transform="translate(0 8)"/><use href="#ribbon" transform="translate(0 16)"/><use href="#ribbon" transform="translate(0 24)"/><use href="#ribbon" transform="translate(0 32)"/><use href="#ribbon" transform="translate(0 40)"/><use href="#ribbon" transform="translate(0 48)"/><use href="#ribbon" transform="translate(0 56)"/><use href="#ribbon" transform="translate(0 64)"/><use href="#ribbon" transform="translate(0 72)"/><use href="#ribbon" transform="translate(0 80)"/><use href="#ribbon" transform="translate(0 88)"/>
+  </g>
+  <g stroke="url(#flow)" stroke-width="1.2" opacity=".3" transform="translate(0 250) scale(1 .65)">
+    <use href="#ribbon"/><use href="#ribbon" transform="translate(0 8)"/><use href="#ribbon" transform="translate(0 16)"/><use href="#ribbon" transform="translate(0 24)"/><use href="#ribbon" transform="translate(0 32)"/><use href="#ribbon" transform="translate(0 40)"/><use href="#ribbon" transform="translate(0 48)"/><use href="#ribbon" transform="translate(0 56)"/><use href="#ribbon" transform="translate(0 64)"/><use href="#ribbon" transform="translate(0 72)"/><use href="#ribbon" transform="translate(0 80)"/><use href="#ribbon" transform="translate(0 88)"/>
+  </g>
+</svg>

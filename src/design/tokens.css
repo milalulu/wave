@@ -1,0 +1,127 @@
+/* Canonical design tokens and compatibility aliases for existing views. */
+:root {
+  /* ── Surfaces ── */
+  --background: #0B0A0F;
+  --surface: #17141D;
+  --surface-elevated: #24202D;
+  --accent-coral: #FF6B64;
+  --accent-purple: #A66BFF;
+  --accent-lavender: #D9C4FF;
+  --text-primary: #F7F4FA;
+  --text-secondary: #A7A0B2;
+  --bg: var(--background);
+  --bg-elev: var(--surface);
+  --bg-elev-2: var(--surface-elevated);
+  --bg-elevated: var(--surface);
+  --bg-surface: #201c26;
+  --bg-surface-2: #2b2434;
+  --border: #3b3246;
+  --border-subtle: rgba(255,255,255,0.06);
+
+  /* ── Text ── */
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --text-muted: var(--text-secondary);
+  --text-dim: #64748B;
+  --text-inverse: #060914;
+
+  /* ── Accent ── */
+  --accent: var(--accent-coral);
+  --accent-2: var(--accent-purple);
+  --accent-muted: rgba(255,107,100,0.15);
+  --accent-2-muted: rgba(178,107,255,0.15);
+  --echoes-violet: #8f6cff;
+  --echoes-light: #d9c4ff;
+
+  /* ── Semantic ── */
+  --danger: #FF5D73;
+  --danger-muted: rgba(255,93,115,0.15);
+  --success: #34d399;
+  --success-muted: rgba(52,211,153,0.15);
+  --warning: #fbbf24;
+  --warning-muted: rgba(251,191,36,0.15);
+
+  /* ── Interaction ── */
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.10);
+  --focus-ring: rgba(255,121,107,0.55);
+
+  --rail-width: 100px;
+  --queue-width: 320px;
+  --control-size: 44px;
+  --playback-size: 64px;
+  --icon-size: 22px;
+  --glass-blur: 20px;
+  --glass-opacity: 92%;
+  --queue-row-height: 80px;
+
+  /* ── Spacing scale (4px base) ── */
+  --sp-0: 0;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ── Typography scale ── */
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-base: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 20px;
+  --font-2xl: 24px;
+  --font-3xl: 32px;
+  --font-4xl: 40px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.65;
+
+  /* ── Border radius ── */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* ── Shadows (dark theme) ── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.6);
+  --shadow-glow: 0 0 20px var(--accent-muted);
+
+  /* ── Z-index scale ── */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* ── Transitions ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 350ms;
+
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: var(--font-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --body-bg: radial-gradient(1000px 600px at 75% -20%, #30213e 0%, var(--bg) 65%);
+}

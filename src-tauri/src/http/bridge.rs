@@ -42,7 +42,10 @@ impl Bridge {
             "api-request",
             serde_json::json!({ "id": id, "action": action, "payload": payload }),
         );
-        match timeout(Duration::from_secs(10), rx).await {
+        // Provider search has a 20-second deadline in the frontend. Leave time
+        // for ranking and returning partial results before the bridge expires.
+        let response_timeout = if action == "search.query" { 25 } else { 10 };
+        match timeout(Duration::from_secs(response_timeout), rx).await {
             Ok(Ok(value)) => Ok(value),
             Ok(Err(_)) => {
                 self.remove(id);

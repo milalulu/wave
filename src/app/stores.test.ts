@@ -25,6 +25,8 @@ vi.mock("@tauri-apps/plugin-global-shortcut", () => ({
 
 import { useApp } from "./stores";
 import type { Track } from "../core/types";
+import { MemoryStorage } from "../core/database/MemoryStorage";
+import type { AppServices } from "./compose";
 
 afterEach(() => {
   useApp.setState({
@@ -68,6 +70,32 @@ const track = (id: string, title: string, artist = "Artist"): Track => ({
   duration: 180,
   provider: "deezer",
   coverUrl: "",
+});
+
+it("saves and selects an imported playlist, and discards a cancelled import", async () => {
+  const storage = new MemoryStorage();
+  const tracks = [track("second", "First in playlist"), track("first", "Second in playlist")];
+  let finish!: (playlist: { name: string; tracks: Track[] }) => void;
+  const importPlaylist = vi.fn().mockResolvedValueOnce({ name: "Album", tracks })
+    .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const previous = useApp.getState().services;
+  useApp.setState({ services: { storage, providers: [{ id: "youtube", importPlaylist }] } as unknown as AppServices });
+  try {
+    const link = "https://music.youtube.com/playlist?list=PL123";
+    expect(await useApp.getState().importPlaylistFromLink(link)).toBe(2);
+    const [saved] = await storage.getPlaylists();
+    expect(saved.trackIds).toEqual(["second", "first"]);
+    expect(useApp.getState().selectedPlaylistId).toBe(saved.id);
+    const controller = new AbortController();
+    const pending = useApp.getState().importPlaylistFromLink(link, controller.signal);
+    await vi.waitFor(() => expect(importPlaylist).toHaveBeenCalledTimes(2));
+    controller.abort();
+    finish({ name: "Cancelled album", tracks });
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(await storage.getPlaylists()).toHaveLength(1);
+  } finally {
+    useApp.setState({ services: previous });
+  }
 });
 
 it("unblocking is idempotent, including artist name casing", () => {

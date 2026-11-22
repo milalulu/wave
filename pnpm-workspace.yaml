@@ -1,4 +1,6 @@
 allowBuilds:
   esbuild: true
+# Windows exFAT workspaces cannot create symlinks.
+nodeLinker: hoisted
 onlyBuiltDependencies:
   - esbuild

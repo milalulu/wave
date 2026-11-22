@@ -239,6 +239,7 @@ pub(crate) async fn yt_search(
                 "id": id,
                 "title": title,
                 "uploader": e.get("uploader").and_then(|v| v.as_str()),
+                "channelId": e.get("channel_id").and_then(|v| v.as_str()),
                 "duration": duration,
                 "thumbnail": thumbnail,
             }))
@@ -378,6 +379,106 @@ pub(crate) async fn dl_stream(
     resolve_stream(&app, &url, quality.as_deref(), true).await
 }
 
+#[tauri::command]
+pub(crate) async fn yt_import_playlist(
+    app: tauri::AppHandle,
+    playlist_id: String,
+) -> Result<serde_json::Value, String> {
+    if cfg!(target_os = "android") {
+        return Err("YouTube playlist import is currently available on desktop".into());
+    }
+    if !(2..=100).contains(&playlist_id.len())
+        || !playlist_id.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+    {
+        return Err("Invalid YouTube playlist ID".into());
+    }
+    let result = load_youtube_collection(
+        &app,
+        format!("https://www.youtube.com/playlist?list={playlist_id}"),
+        5001,
+    )
+    .await?;
+    if result["entryCount"].as_u64().unwrap_or(0) > 5000 {
+        return Err("YouTube playlist import supports up to 5,000 entries".into());
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub(crate) async fn yt_artist_channel(
+    app: tauri::AppHandle,
+    channel_id: String,
+) -> Result<serde_json::Value, String> {
+    if cfg!(target_os = "android") {
+        return Err("YouTube artist pages are currently available on desktop".into());
+    }
+    if !channel_id.starts_with("UC")
+        || channel_id.len() != 24
+        || !channel_id.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+    {
+        return Err("Invalid YouTube channel ID".into());
+    }
+    load_youtube_collection(
+        &app,
+        format!("https://www.youtube.com/channel/{channel_id}/videos"),
+        30,
+    )
+    .await
+}
+
+async fn load_youtube_collection(
+    app: &tauri::AppHandle,
+    url: String,
+    limit: u32,
+) -> Result<serde_json::Value, String> {
+    let mut args = vec![
+        url,
+        "--yes-playlist".into(),
+        "--flat-playlist".into(),
+        "--dump-single-json".into(),
+        "--skip-download".into(),
+        "--playlist-end".into(),
+        limit.to_string(),
+        "--socket-timeout".into(),
+        "8".into(),
+    ];
+    args.extend(ytdlp_cookies_args(app));
+    let raw = run_ytdlp(app, args, 90)
+        .await
+        .map_err(|_| "Could not load the YouTube collection. Check access, connection and yt-dlp setup.")?
+        .ok_or("YouTube returned an empty collection response")?;
+    let info: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|_| "Could not read the YouTube playlist response")?;
+    let entries = info["entries"].as_array().ok_or("No entries returned for this YouTube playlist")?;
+    let entry_count = entries.len();
+    let entries: Vec<_> = entries.iter().filter_map(|entry| {
+        let id = entry["id"].as_str()?;
+        let title = entry["title"].as_str()?;
+        if id.len() != 11
+            || !id.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+            || title.trim().is_empty()
+            || matches!(title, "[Private video]" | "[Deleted video]")
+        {
+            return None;
+        }
+        Some(serde_json::json!({
+            "id": id,
+            "title": title,
+            "artist": entry["artist"].as_str().or_else(|| entry["uploader"].as_str()).or_else(|| entry["channel"].as_str()),
+            "duration": entry["duration"].as_f64(),
+        }))
+    }).collect();
+    if entries.is_empty() {
+        return Err("No accessible tracks found in this YouTube playlist".into());
+    }
+    Ok(serde_json::json!({
+        "title": info["title"],
+        "channel": info["channel"],
+        "entryCount": entry_count,
+        "entries": entries,
+    }))
+}
+
 /// Быстрый резолв YouTube-стрима: всего 2 попытки с жёстким таймаутом 10с.
 #[tauri::command]
 pub(crate) async fn yt_stream_fast(
@@ -398,7 +499,7 @@ pub(crate) async fn yt_stream_fast(
 
     let clients = ["android", "web_safari"];
 
-    let mut handles = Vec::with_capacity(clients.len());
+    let mut attempts = tokio::task::JoinSet::new();
     for client in clients {
         let mut args = vec![
             url_str.clone(),
@@ -414,13 +515,12 @@ pub(crate) async fn yt_stream_fast(
         ];
         args.extend(cookies.iter().cloned());
         let app2 = app.clone();
-        handles.push(tokio::spawn(async move { run_ytdlp(&app2, args, 7).await }));
+        attempts.spawn(async move { run_ytdlp(&app2, args, 7).await });
     }
 
-    let mut progressive_url: Option<String> = None;
     let mut hls_url: Option<String> = None;
-    for h in handles {
-        if let Ok(Ok(Some(stdout))) = h.await {
+    while let Some(result) = attempts.join_next().await {
+        if let Ok(Ok(Some(stdout))) = result {
             if let Some(u) = stdout
                 .lines()
                 .rev()
@@ -435,14 +535,10 @@ pub(crate) async fn yt_stream_fast(
                         hls_url = Some(u);
                     }
                 } else {
-                    progressive_url = Some(u);
-                    break;
+                    return Ok(u);
                 }
             }
         }
-    }
-    if let Some(u) = progressive_url {
-        return Ok(u);
     }
     if let Some(u) = hls_url {
         return Ok(u);
@@ -967,6 +1063,7 @@ pub(crate) async fn yt_search_innertube(
                 "id": id,
                 "title": title,
                 "uploader": channel,
+                "channelId": video["ownerText"]["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str(),
                 "duration": duration,
                 "thumbnail": thumbnail,
             }));
@@ -1071,6 +1168,7 @@ fn parse_innertube_search_full(
                     "id": id,
                     "title": title,
                     "uploader": channel,
+                    "channelId": video["ownerText"]["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str(),
                     "duration": duration,
                     "thumbnail": thumbnail,
                 }));

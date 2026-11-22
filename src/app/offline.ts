@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { playbackSource, type Track } from "../core/types";
 
 import { sameRecording } from "../core/recordings/matching";
@@ -16,6 +16,7 @@ export interface DownloadedFile {
   coverFile?: string;
   duration?: number;
   album?: string;
+  bytes?: number;
 }
 
 export function offlineEnabled(): boolean {
@@ -79,9 +80,11 @@ export function registerDownload(
   coverFile?: string,
   duration?: number,
   album?: string,
+  bytes?: number,
 ): void {
   const files = downloadedFiles().filter((f) => f.file !== file);
-  files.push({ file, trackId, provider, artist, title, coverUrl, coverFile, duration, album });
+  files.push({ file, trackId, provider, artist, title, coverUrl, coverFile, duration, album,
+    ...(typeof bytes === "number" && bytes > 0 ? { bytes } : {}) });
   persist(files);
 }
 
@@ -134,15 +137,26 @@ export function needsStreamResolve(url: string): boolean {
 }
 
 export function localUriFor(track: Track): string | null {
+  const file = findDownloadedFile(track, downloadedFiles());
+  return file?.file ? convertFileSrc(file.file) : null;
+}
+
+export async function findMissingDownloads(paths: string[]): Promise<Set<string>> {
+  const missing = new Set<string>();
+  for (let offset = 0; offset < paths.length; offset += 100) {
+    try {
+      const result = await invoke<string[]>("missing_download_files", { paths: paths.slice(offset, offset + 100) });
+      for (const path of result) missing.add(path);
+    } catch { /* Availability is unknown outside the native app. */ }
+  }
+  return missing;
+}
+
+export function findDownloadedFile(track: Track, files: readonly DownloadedFile[]): DownloadedFile | undefined {
   track = playbackSource(track);
-  const files = downloadedFiles();
-
   const byId = files.find((f) => f.trackId === track.id);
-  if (byId?.file) return convertFileSrc(byId.file);
-
-  const match = files.find((f) => sameRecording(track, {
+  return byId ?? files.find((f) => sameRecording(track, {
     id: f.trackId ?? "", provider: f.provider ?? "local", uri: f.file,
     title: f.title ?? "", artist: f.artist, duration: f.duration,
   }));
-  return match?.file ? convertFileSrc(match.file) : null;
 }

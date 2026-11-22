@@ -9,6 +9,7 @@ export interface YtSearchResult {
   id: string;
   title: string;
   uploader?: string;
+  channelId?: string | null;
   duration?: number;
   thumbnail?: string;
 }
@@ -37,6 +38,13 @@ export interface YtFullSearchResult {
 export interface YtDlpGateway {
   search(query: string, limit: number): Promise<YtSearchResult[]>;
   stream(videoId: string, quality?: YtQuality): Promise<string>;
+}
+
+interface YtCollection {
+  title?: string | null;
+  channel?: string | null;
+  entryCount?: number;
+  entries: Array<{ id: string; title: string; artist?: string | null; duration?: number | null }>;
 }
 
 function cover(thumb?: string): string | undefined {
@@ -133,7 +141,14 @@ export class YouTubeMusicProvider implements MusicProvider {
       meta: { ytId: e.id, searchIndex: i },
     }));
 
-    const artists: Artist[] = rawArtists.map((a) => ({
+    const channels = new Map(rawArtists.map((artist) => [artist.id, artist]));
+    for (const entry of entries) {
+      if (channels.size >= 8) break;
+      const id = entry.channelId;
+      if (!id || !/^UC[A-Za-z0-9_-]{22}$/.test(id) || !entry.uploader || channels.has(id)) continue;
+      channels.set(id, { id, name: entry.uploader });
+    }
+    const artists: Artist[] = [...channels.values()].map((a) => ({
       id: `youtube:artist:${a.id}`,
       provider: this.id,
       name: a.name,
@@ -203,8 +218,37 @@ export class YouTubeMusicProvider implements MusicProvider {
     }
   }
 
-  async getAlbum(_albumId: string): Promise<AlbumDetail> {
-    throw new Error("youtube provider: no albums");
+  async getAlbum(albumId: string): Promise<AlbumDetail> {
+    const playlistId = albumId.replace(/^youtube:album:/, "");
+    const { name, tracks } = await this.importPlaylist(playlistId);
+    return {
+      album: {
+        id: albumId, provider: this.id, title: name,
+        coverUrl: tracks[0]?.coverUrl, trackCount: tracks.length,
+        meta: { ytPlaylistId: playlistId },
+      },
+      tracks,
+    };
+  }
+
+  async importPlaylist(playlistId: string): Promise<{ name: string; tracks: Track[]; unavailable?: number }> {
+    const result = await invoke<YtCollection>("yt_import_playlist", { playlistId });
+    const tracks = this.collectionTracks(result);
+    const unavailable = Math.max(0, (result.entryCount ?? tracks.length) - tracks.length);
+    return { name: result.title || playlistId, tracks, ...(unavailable > 0 ? { unavailable } : {}) };
+  }
+
+  private collectionTracks(result: YtCollection): Track[] {
+    return result.entries.map((entry): Track => ({
+      id: `youtube:track:${entry.id}`,
+      provider: this.id,
+      uri: `https://www.youtube.com/watch?v=${entry.id}`,
+      title: entry.title,
+      artist: entry.artist ?? result.channel ?? undefined,
+      duration: entry.duration ?? undefined,
+      coverUrl: `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`,
+      meta: { ytId: entry.id },
+    }));
   }
 
   /**
@@ -234,8 +278,25 @@ export class YouTubeMusicProvider implements MusicProvider {
     return { name: `${author_name ?? ""} - ${title}`.trim(), tracks: [track] };
   }
 
-  async getArtist(_artistId: string): Promise<ArtistDetail> {
-    throw new Error("youtube provider: no artists");
+  async getArtist(artistId: string): Promise<ArtistDetail> {
+    const channelId = artistId.replace(/^youtube:artist:/, "");
+    const result = await invoke<YtCollection>("yt_artist_channel", { channelId });
+    let cached: Artist | undefined;
+    for (const { results } of this.searchCache.values()) {
+      cached = results.artists.find((artist) => artist.meta?.ytChannelId === channelId);
+      if (cached) break;
+    }
+    return {
+      artist: {
+        ...cached,
+        id: artistId,
+        provider: this.id,
+        name: result.channel || cached?.name || result.title || channelId,
+        meta: { ...cached?.meta, ytChannelId: channelId, recentUploads: true },
+      },
+      topTracks: this.collectionTracks(result),
+      albums: [],
+    };
   }
 
   async getSimilarTracks(artist: string, track: string, options?: import("./MusicProvider").MoodRecommendOptions, seed?: Track): Promise<Track[]> {
@@ -246,7 +307,7 @@ export class YouTubeMusicProvider implements MusicProvider {
       try {
         const related = await invoke<YtSearchResult[]>("yt_related_videos", { videoId: ytId, limit: 15 });
         if (related.length > 0) {
-          const tracks = this.entriesToSimilar(related);
+          const tracks = this.entriesToSimilar(related, seed?.id);
           this.relatedCache.set(ytId, { tracks, at: Date.now() });
           return tracks;
         }
@@ -271,7 +332,7 @@ export class YouTubeMusicProvider implements MusicProvider {
     }
   }
 
-  private entriesToSimilar(entries: YtSearchResult[]): Track[] {
+  private entriesToSimilar(entries: YtSearchResult[], relatedTo?: string): Track[] {
     return entries
       .filter((e) => {
         const title = (e.title ?? "").toLowerCase();
@@ -279,8 +340,8 @@ export class YouTubeMusicProvider implements MusicProvider {
         if (e.duration && e.duration < 30) return false;
         return true;
       })
-      .slice(0, 10)
-      .map((e) => ({
+      .slice(0, 15)
+      .map((e, relatedRank) => ({
         id: `youtube:track:${e.id}`,
         provider: this.id,
         uri: `https://www.youtube.com/watch?v=${e.id}`,
@@ -288,7 +349,7 @@ export class YouTubeMusicProvider implements MusicProvider {
         artist: e.uploader,
         coverUrl: cover(e.thumbnail),
         duration: e.duration ?? undefined,
-        meta: { ytId: e.id },
+        meta: { ytId: e.id, relatedTo, relatedRank },
       }));
   }
 

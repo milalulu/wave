@@ -1,6 +1,6 @@
 import { playbackSource, type Track, type TrackSource } from "../types";
 import type { Storage } from "../database/Storage";
-import { sameRecording } from "./matching";
+import { sameRecording, verifiedRecordingMatch } from "./matching";
 
 export interface RecordingGroup {
   original: TrackSource;
@@ -13,7 +13,7 @@ export function sourceOnly(track: Track): TrackSource {
   return source;
 }
 
-/** Explicit source associations, persisted atomically; no title-based global merges. */
+/** Source associations, persisted atomically. Automatic matches require known durations. */
 export class RecordingCatalog {
   private groups: RecordingGroup[] = [];
   private index = new Map<string, RecordingGroup>();
@@ -46,22 +46,29 @@ export class RecordingCatalog {
     const group = this.index.get(track.id);
     if (!group) return track;
     const source = usePreference ? group.sources.find((s) => s.id === group.preferredId)! : playbackSource(track);
-    return { ...group.original, playbackSource: sourceOnly(source) };
+    const reason = track.meta?.recommendationReason;
+    return { ...group.original, playbackSource: sourceOnly(source),
+      ...(typeof reason === "string" ? { meta: { ...group.original.meta, recommendationReason: reason } } : {}) };
   }
   withSource(track: Track, source: TrackSource): Track {
     if (!sameRecording(track, source)) throw new Error("This source is a different recording");
     return { ...this.resolve(track), playbackSource: sourceOnly(source) };
   }
   select(track: Track, source: TrackSource): Promise<Track> {
+    return this.associate(track, source, true);
+  }
+  associate(track: Track, source: TrackSource, preferSource = false): Promise<Track> {
     const work = this.writes.then(async () => {
       if (!sameRecording(track, source)) throw new Error("This source is a different recording");
       const existing = this.index.get(track.id), target = this.index.get(source.id);
+      if (!preferSource && (!verifiedRecordingMatch(track, source) || (existing && existing === target))) return this.resolve(track);
       // Preserve the caller's already established library identity when groups join.
-      const original = existing?.original ?? sourceOnly(track);
-      const candidates = [...(existing?.sources ?? [original]), ...(target?.sources ?? []), sourceOnly(source)];
+      const original = existing?.original ?? (!preferSource ? target?.original : undefined) ?? sourceOnly(track);
+      const candidates = [...(existing?.sources ?? [sourceOnly(track)]), ...(target?.sources ?? []), sourceOnly(source)];
       const sources = [...new Map(candidates.map((s) => [s.id, s])).values()];
       if (!sources.every((s) => sameRecording(original, s))) throw new Error("Conflicting recording versions");
-      const group = { original, sources, preferredId: source.id };
+      const preferredId = preferSource ? source.id : existing?.preferredId ?? target?.preferredId ?? original.id;
+      const group = { original, sources, preferredId };
       const next = [...this.groups.filter((g) => g !== existing && g !== target), group];
       await this.storage.saveRecordingGroups(next);
       this.replace(next);

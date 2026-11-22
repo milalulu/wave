@@ -41,5 +41,5 @@ it("continuation discovers from the current song and excludes queued recordings 
   const app = { engine: { snapshot: { current: track, queue: [track] } } } as unknown as AppServices;
   const station = { artist: "Artist", tracks: [track], similarArtists: [], seedTrackIds: [], generatedAt: 0 };
   expect(await nextArtistRadioTracks(app, station)).toEqual([next]);
-  expect(radioTracks).toHaveBeenCalledWith(app, track);
+  expect(radioTracks).toHaveBeenCalledWith(app, track, [track]);
 });

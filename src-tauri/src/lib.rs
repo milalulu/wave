@@ -10,7 +10,6 @@ mod database_backup;
 mod diag;
 pub mod discord_rpc;
 mod http;
-pub mod lastfm;
 #[cfg(target_os = "linux")]
 pub mod mpris;
 mod plugin_host;
@@ -32,13 +31,6 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 struct AppConfig {
     ytdlp_path: Option<String>,
     ytdlp_cookies: Option<String>,
-    spotify_client_id: Option<String>,
-    spotify_client_secret: Option<String>,
-    vk_token: Option<String>,
-    lastfm_api_key: Option<String>,
-    lastfm_api_secret: Option<String>,
-    lastfm_session_key: Option<String>,
-    lastfm_scrobble_enabled: bool,
     proxy_url: Option<String>,
     proxy_mode: Option<String>,
 }
@@ -87,18 +79,6 @@ fn config(app: &tauri::AppHandle) -> AppConfig {
             .or_else(|| tools::resolve_ytdlp(app)),
         ytdlp_cookies: env("WAVE_YTDLP_COOKIES")
             .or_else(|| get_string(&persisted, "WAVE_YTDLP_COOKIES")),
-        spotify_client_id: env("WAVE_SPOTIFY_CLIENT_ID")
-            .or_else(|| get_string(&persisted, "WAVE_SPOTIFY_CLIENT_ID")),
-        spotify_client_secret: env("WAVE_SPOTIFY_CLIENT_SECRET")
-            .or_else(|| get_string(&persisted, "WAVE_SPOTIFY_CLIENT_SECRET")),
-        vk_token: env("WAVE_VK_TOKEN").or_else(|| get_string(&persisted, "WAVE_VK_TOKEN")),
-        lastfm_api_key: env("WAVE_LASTFM_API_KEY")
-            .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_KEY")),
-        lastfm_api_secret: env("WAVE_LASTFM_API_SECRET")
-            .or_else(|| get_string(&persisted, "WAVE_LASTFM_API_SECRET")),
-        lastfm_session_key: env("WAVE_LASTFM_SESSION_KEY")
-            .or_else(|| get_string(&persisted, "WAVE_LASTFM_SESSION_KEY")),
-        lastfm_scrobble_enabled: lastfm::scrobble_enabled(app),
         proxy_url: env("WAVE_PROXY_URL").or_else(|| get_string(&persisted, "WAVE_PROXY_URL")),
         proxy_mode: env("WAVE_PROXY_MODE").or_else(|| get_string(&persisted, "WAVE_PROXY_MODE")),
     }
@@ -321,47 +301,6 @@ async fn http_fetch_text(
     Ok(serde_json::json!({ "status": status, "text": text }))
 }
 
-#[tauri::command]
-async fn vk_search(
-    app: tauri::AppHandle,
-    query: String,
-    count: u32,
-) -> Result<serde_json::Value, String> {
-    let token = config(&app)
-        .vk_token
-        .ok_or("VK token not set: вставьте его в Настройках")?;
-    let count_str = count.to_string();
-    let form = [
-        ("act", "search"),
-        ("al", "1"),
-        ("access_token", token.as_str()),
-        ("q", query.as_str()),
-        ("count", count_str.as_str()),
-        ("type", "track"),
-        ("v", "5.131"),
-        ("offset", "0"),
-        ("is_regular", "1"),
-        ("need_album_info", "1"),
-    ];
-    let client = crate::http::client();
-    let res = client
-        .post("https://vk.com/al_audio.php")
-        .header("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .form(&form)
-        .send()
-        .await
-        .map_err(|e| format!("vk search: {e}"))?;
-    let text = res.text().await.map_err(|e| format!("vk read: {e}"))?;
-    let cleaned = text.strip_prefix("<!--").unwrap_or(&text);
-    let json: serde_json::Value = serde_json::from_str(cleaned).map_err(|e| {
-        format!(
-            "vk json: {e}: {}",
-            cleaned.chars().take(160).collect::<String>()
-        )
-    })?;
-    Ok(json)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let bridge = http::bridge::Bridge::new();
@@ -498,6 +437,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            android::set_playback,
+            android::consume_media_action,
+            android::pick_local_audio,
+            android::share_text,
+            android::schedule_alarm,
+            android::cancel_alarm,
+            android::recognize_speech,
             #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
             agent_model::agent_model_begin,
             #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
@@ -516,6 +462,8 @@ pub fn run() {
             log_frontend,
             app_config,
             youtube::yt_search,
+            youtube::yt_import_playlist,
+            youtube::yt_artist_channel,
             youtube::yt_stream,
             youtube::yt_stream_fast,
             youtube::dl_stream,
@@ -529,12 +477,10 @@ pub fn run() {
             soundcloud::sc_search_users,
             soundcloud::sc_related_tracks,
             soundcloud::sc_resolve_url,
+            soundcloud::sc_import_likes,
             proxy_test,
-            vk_search,
             http_fetch_json,
             http_fetch_text,
-            lastfm_update_now_playing,
-            lastfm_scrobble,
             read_text_file,
             write_text_file,
             backup_database,
@@ -542,6 +488,7 @@ pub fn run() {
             restore_database,
             yt_update,
             yt_download,
+            missing_download_files,
             download_cover,
             app_download_dir,
             tools_status,
@@ -725,40 +672,6 @@ fn api_respond(
 }
 
 #[tauri::command]
-async fn lastfm_update_now_playing(
-    app: tauri::AppHandle,
-    title: String,
-    artist: Option<String>,
-    album: Option<String>,
-    duration: Option<u32>,
-) -> Result<(), String> {
-    let creds =
-        lastfm::creds(&app).ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
-    lastfm::lfm_post(
-        "track.updateNowPlaying",
-        &lastfm::track_params(title, artist, album, duration),
-        &creds,
-    )
-    .await
-}
-
-#[tauri::command]
-async fn lastfm_scrobble(
-    app: tauri::AppHandle,
-    title: String,
-    artist: Option<String>,
-    album: Option<String>,
-    duration: Option<u32>,
-    timestamp: i64,
-) -> Result<(), String> {
-    let creds =
-        lastfm::creds(&app).ok_or("lastfm: not configured (set Key, Secret and Session Key)")?;
-    let mut params = lastfm::track_params(title, artist, album, duration);
-    params.push(("timestamp".to_string(), timestamp.to_string()));
-    lastfm::lfm_post("track.scrobble", &params, &creds).await
-}
-
-#[tauri::command]
 fn read_text_file(path: String, app: tauri::AppHandle) -> Result<String, String> {
     let safe = resolve_safe_path(&app, &path, false)?;
     std::fs::read_to_string(&safe).map_err(|e| format!("read {path}: {e}"))
@@ -920,12 +833,19 @@ async fn yt_download(
     url: String,
     output_path: String,
     job_id: Option<String>,
-) -> Result<(), String> {
-    // Прямые ссылки на аудио (iTunes-превью, Deezer, SoundCloud, локальные)
+) -> Result<u64, String> {
+    // Прямые ссылки на аудио (SoundCloud, локальные)
     // качаем минуя yt-dlp: быстрее и работает даже без установленного бинаря
     // (важно для Android, где yt-dlp обычно недоступен).
-    if !is_youtube_page_url(&url) && (url.starts_with("http://") || url.starts_with("https://")) {
-        return download_direct(&url, &output_path).await;
+    let hls = reqwest::Url::parse(&url)
+        .map(|url| url.path().to_ascii_lowercase().ends_with(".m3u8"))
+        .unwrap_or(false);
+    if hls && cfg!(target_os = "android") {
+        return Err("Offline download of HLS streams is currently available on desktop".into());
+    }
+    if !hls && !is_youtube_page_url(&url) && (url.starts_with("http://") || url.starts_with("https://")) {
+        download_direct(&url, &output_path).await?;
+        return downloaded_audio_size(&output_path).await;
     }
 
     let binary = config(&app)
@@ -966,7 +886,32 @@ async fn yt_download(
             retry_args.splice(..0, ytdlp_proxy_args(&app, true));
             yt_download_once(&app, &binary, retry_args, job_id).await
         }
+    }?;
+    downloaded_audio_size(&output_path).await
+}
+
+async fn downloaded_audio_size(path: &str) -> Result<u64, String> {
+    let metadata = tokio::fs::metadata(path).await.map_err(|e| format!("Downloaded file: {e}"))?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err("Downloaded media is empty".into());
     }
+    Ok(metadata.len())
+}
+
+#[tauri::command]
+async fn missing_download_files(paths: Vec<String>) -> Vec<String> {
+    let mut missing = Vec::new();
+    for path in paths.into_iter().take(100) {
+        if !std::path::Path::new(&path).is_absolute() {
+            continue;
+        }
+        match tokio::fs::metadata(&path).await {
+            Ok(meta) if !meta.is_file() || meta.len() == 0 => missing.push(path),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => missing.push(path),
+            _ => {}
+        }
+    }
+    missing
 }
 
 async fn yt_download_once(
@@ -1084,26 +1029,29 @@ async fn download_direct(url: &str, output_path: &str) -> Result<(), String> {
     if !res.status().is_success() {
         return Err(format!("download {redacted}: HTTP {}", res.status()));
     }
-    if let Some(dir) = std::path::Path::new(output_path).parent() {
-        let _ = std::fs::create_dir_all(dir);
+    let content_type = res.headers().get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    if content_type.contains("mpegurl") || content_type.contains("dash+xml")
+        || content_type.starts_with("text/html") || content_type.starts_with("application/json")
+    {
+        return Err("Server returned a playlist or web page instead of a media file".into());
     }
-    let tmp = format!("{output_path}.part");
-    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("create {tmp}: {e}"))?;
+    let target = std::path::Path::new(output_path);
+    let dir = target.parent().filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    std::fs::create_dir_all(dir).map_err(|e| format!("create download directory: {e}"))?;
+    let mut file = tempfile::NamedTempFile::new_in(dir).map_err(|e| format!("create download file: {e}"))?;
     let mut stream = res.bytes_stream();
     let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("download {redacted}: {e}"))?;
-        std::io::Write::write_all(&mut file, &chunk).map_err(|e| format!("write {tmp}: {e}"))?;
+        std::io::Write::write_all(&mut file, &chunk).map_err(|e| format!("write download file: {e}"))?;
         total += chunk.len() as u64;
     }
     if total == 0 {
-        let _ = std::fs::remove_file(&tmp);
         return Err(format!("download {redacted}: empty response"));
     }
-    if std::path::Path::new(output_path).exists() {
-        std::fs::remove_file(output_path).map_err(|e| format!("remove {output_path}: {e}"))?;
-    }
-    std::fs::rename(&tmp, output_path).map_err(|e| format!("rename to {output_path}: {e}"))?;
+    file.persist(target).map_err(|e| format!("save completed download: {e}"))?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-const state = vi.hoisted(() => ({ position: 12, duration: 30, seek: vi.fn() }));
+const state = vi.hoisted(() => ({ position: 12, duration: 30, snapshot: { state: "paused", speed: 1 }, seek: vi.fn() }));
 vi.mock("../app/stores", () => ({ useApp: (select: (s: unknown) => unknown) => select(state) }));
 import { SeekBar } from "./SeekBar";
 import { I18nProvider } from "./I18nContext";

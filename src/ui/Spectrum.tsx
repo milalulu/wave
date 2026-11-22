@@ -21,13 +21,22 @@ export function Spectrum({ engine }: { engine: PlayerEngine }) {
     const g = canvas.getContext("2d");
     if (!g) return;
 
-    const cssColor = getComputedStyle(canvas).color || "#7c5cff";
+    const css = getComputedStyle(canvas);
+    const gradient = g.createLinearGradient(0, 0, canvas.width, 0);
+    gradient.addColorStop(0, css.getPropertyValue("--accent-coral").trim() || "#ff6b64");
+    gradient.addColorStop(1, css.getPropertyValue("--accent-purple").trim() || "#a66bff");
     const data = new Uint8Array(128);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let raf = 0;
-    const draw = (): void => {
-      raf = requestAnimationFrame(draw);
-      if (state !== "playing") return;
-      engine.getSpectrum(data);
+    let previousFrame = -Infinity;
+    const draw = (time = 0): void => {
+      cancelAnimationFrame(raf);
+      if (document.hidden) return;
+      if (state === "playing" && !reducedMotion.matches) raf = requestAnimationFrame(draw);
+      if (time - previousFrame < 1000 / 30) return;
+      previousFrame = time;
+      if (state === "playing") engine.getSpectrum(data);
+      else data.fill(0);
       g.clearRect(0, 0, canvas.width, canvas.height);
       const bins = data.length;
       for (let b = 0; b < BARS; b++) {
@@ -40,9 +49,9 @@ export function Spectrum({ engine }: { engine: PlayerEngine }) {
         const h = Math.max(2, (v / 255) * HEIGHT);
         const x = b * (BAR_W + BAR_GAP) * dpr;
         const barH = h * dpr;
-        const y = (HEIGHT - h) * dpr;
+        const y = (HEIGHT - h) / 2 * dpr;
         const radius = Math.min(BAR_W * dpr * 0.5, barH * 0.4);
-        g.fillStyle = cssColor;
+        g.fillStyle = gradient;
         g.globalAlpha = 0.4 + (v / 255) * 0.6;
         g.beginPath();
         g.roundRect(x, y, BAR_W * dpr, barH, radius);
@@ -50,8 +59,15 @@ export function Spectrum({ engine }: { engine: PlayerEngine }) {
       }
       g.globalAlpha = 1;
     };
-    draw();
-    return () => cancelAnimationFrame(raf);
+    const restart = () => { previousFrame = -Infinity; draw(); };
+    restart();
+    document.addEventListener("visibilitychange", restart);
+    reducedMotion.addEventListener("change", restart);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", restart);
+      reducedMotion.removeEventListener("change", restart);
+    };
   }, [engine, state]);
 
   return (

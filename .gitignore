@@ -34,3 +34,5 @@ training/wave-agent/exports/
 training/wave-agent/private/
 __pycache__/
 *.py[cod]
+# Local vendor fonts obtained from Fontshare; do not redistribute font files in Git.
+/public/fonts/fontshare-local/

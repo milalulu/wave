@@ -215,41 +215,7 @@ pub(crate) async fn sc_search(query: String, limit: u32) -> Result<Vec<serde_jso
         .as_array()
         .ok_or("soundcloud search: no collection")?;
 
-    let mut out = Vec::new();
-    for t in collection
-        .iter()
-        .filter(|t| t["kind"].as_str() == Some("track"))
-    {
-        let Some(tid) = t["id"].as_u64() else {
-            continue;
-        };
-        let title = t["title"].as_str().unwrap_or("").to_string();
-        let uploader = t["user"]["username"].as_str().unwrap_or("").to_string();
-        let duration_ms = t["duration"].as_u64().unwrap_or(0);
-        let thumbnail = t["artwork_url"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .or_else(|| t["user"]["avatar_url"].as_str().filter(|s| !s.is_empty()))
-            .map(|s| s.to_string());
-        let permalink = t["permalink_url"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
-
-        out.push(serde_json::json!({
-            "id": tid.to_string(),
-            "title": title,
-            "uploader": uploader,
-            "duration": if duration_ms > 0 { Some(duration_ms / 1000) } else { None },
-            "thumbnail": thumbnail,
-            "permalinkUrl": permalink,
-        }));
-        if out.len() >= limit {
-            break;
-        }
-    }
-
-    Ok(out)
+    Ok(sc_collection_to_items(collection, limit, false))
 }
 
 fn sc_collection_to_items(
@@ -311,6 +277,10 @@ fn sc_collection_to_items(
             "uploader": uploader,
             "duration": if duration_ms > 0 { Some(duration_ms / 1000) } else { None },
             "thumbnail": thumbnail,
+            "genre": t["genre"].as_str().filter(|value| !value.is_empty()),
+            "tagList": t["tag_list"].as_str().filter(|value| !value.is_empty()),
+            "creditedArtist": t["publisher_metadata"]["artist"].as_str().filter(|value| !value.is_empty()),
+            "downloadable": t["downloadable"].as_bool() == Some(true) && t["has_downloads_left"].as_bool() != Some(false),
             "permalinkUrl": permalink,
         }));
         if out.len() >= limit {
@@ -462,4 +432,80 @@ pub(crate) async fn sc_resolve_url(page_url: String) -> Result<serde_json::Value
         return Err(format!("soundcloud resolve HTTP {}", status));
     }
     Ok(body)
+}
+
+#[tauri::command]
+pub(crate) async fn sc_import_likes(profile: String) -> Result<serde_json::Value, String> {
+    if profile.is_empty()
+        || profile.len() > 100
+        || !profile.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
+        return Err("SoundCloud: invalid profile name".into());
+    }
+    let user = sc_resolve_url(format!("https://soundcloud.com/{profile}")).await?;
+    let id = user["id"]
+        .as_u64()
+        .filter(|_| user["kind"].as_str() == Some("user"))
+        .ok_or("SoundCloud: no public profile at this URL")?;
+    let name = user["username"].as_str().unwrap_or(&profile);
+    let client_id = sc_extract_client_id().await?;
+    let path = format!("/users/{id}/likes");
+    let root = format!("https://api-v2.soundcloud.com{path}");
+    let mut url = reqwest::Url::parse(&root).map_err(|e| e.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("limit", "100")
+        .append_pair("linked_partitioning", "true")
+        .append_pair("client_id", &client_id);
+    let mut seen = std::collections::HashSet::new();
+    let mut visited = std::collections::HashSet::new();
+    let mut tracks = Vec::new();
+    const MAX_TRACKS: usize = 1000;
+    for _ in 0..30 {
+        if !visited.insert(url.as_str().to_owned()) {
+            return Err("SoundCloud: likes pagination repeated".into());
+        }
+        let response = tokio::time::timeout(std::time::Duration::from_secs(8), async {
+            let resp = crate::http::send_auto(|http| http.get(url.clone())).await?;
+            resp.error_for_status()?.json::<serde_json::Value>().await
+        })
+        .await
+        .map_err(|_| "SoundCloud: likes request timed out".to_owned())?
+        .map_err(|e| {
+            e.status().map_or_else(
+                || "SoundCloud: could not read likes".to_owned(),
+                |status| format!("SoundCloud likes HTTP {status}"),
+            )
+        })?;
+        let entries = response["collection"]
+            .as_array()
+            .ok_or("SoundCloud: invalid likes response")?;
+        let page: Vec<_> = entries
+            .iter()
+            .filter_map(|entry| entry.get("track"))
+            .filter(|track| track["policy"].as_str() != Some("BLOCK") && track["sharing"].as_str() != Some("private"))
+            .filter(|track| track["id"].as_u64().is_some_and(|id| seen.insert(id)))
+            .filter(|track| track["title"].as_str().is_some_and(|title| !title.trim().is_empty()))
+            .cloned()
+            .collect();
+        tracks.extend(sc_collection_to_items(&page, MAX_TRACKS - tracks.len(), false));
+        if tracks.len() >= MAX_TRACKS {
+            break;
+        }
+        let Some(next) = response["next_href"].as_str().filter(|value| !value.is_empty()) else {
+            break;
+        };
+        let mut next = reqwest::Url::parse(next).map_err(|_| "SoundCloud: invalid likes cursor")?;
+        if next.scheme() != "https" || next.host_str() != Some("api-v2.soundcloud.com")
+            || next.path() != path || next.port().is_some() || !next.username().is_empty() || next.password().is_some()
+        {
+            return Err("SoundCloud: unexpected likes cursor".into());
+        }
+        let query: Vec<_> = next.query_pairs().into_owned().filter(|(key, _)| key != "client_id").collect();
+        next.query_pairs_mut()
+            .clear()
+            .extend_pairs(query)
+            .append_pair("client_id", &client_id);
+        url = next;
+    }
+    Ok(serde_json::json!({ "name": format!("{name} · SoundCloud Likes"), "tracks": tracks }))
 }

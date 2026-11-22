@@ -1,4 +1,4 @@
-import type { AudioAdapter } from "./PlayerAdapter";
+import type { AudioAdapter, AudioProcessingState } from "./PlayerAdapter";
 import type { PlayerState } from "../types";
 
 /** Stable engine-facing adapter; output changes and loads are serialized. */
@@ -147,8 +147,17 @@ export class OutputRouter implements AudioAdapter {
   setCrossfadeMs(v: number): void {
     if (!this.disposed) this.local.setCrossfadeMs(v);
   }
+  setAlbumMode(enabled: boolean): void {
+    if (!this.disposed) this.local.setAlbumMode?.(enabled);
+  }
+  cancelPreload(): void {
+    if (!this.disposed) this.active.cancelPreload?.();
+  }
   setLeveling(a: boolean, b: number): void {
     if (!this.disposed) this.local.setLeveling(a, b);
+  }
+  setMeasuredGain(gain: number): void {
+    if (!this.disposed) this.local.setMeasuredGain?.(gain);
   }
   setBassBoost(v: number): void {
     if (!this.disposed) this.local.setBassBoost(v);
@@ -159,12 +168,23 @@ export class OutputRouter implements AudioAdapter {
   setStereoWidth(v: number): void {
     if (!this.disposed) this.local.setStereoWidth(v);
   }
+  setSpatialOrbit(value: number): void {
+    if (!this.disposed) this.local.setSpatialOrbit?.(value);
+  }
   getPosition(): number {
     return this.active.getPosition();
   }
   getDuration(): number {
     return this.active.getDuration();
   }
+  getLimiterReduction(): number | undefined {
+    return this.active.getLimiterReduction?.();
+  }
+
+  getAudioProcessingState(): AudioProcessingState {
+    return this.active === this.local ? this.local.getAudioProcessingState?.() ?? "standby" : "remote";
+  }
+
   getSpectrum(data: Uint8Array): void {
     this.active.getSpectrum(data);
   }

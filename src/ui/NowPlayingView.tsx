@@ -1,14 +1,17 @@
+import { trackCover } from "../core/cover/trackCover";
+import { PlaybackControls } from "./PlaybackControls";
 import { playbackSource } from "../core/types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ViewKey } from "./Sidebar";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { providerLabel } from "./providers";
+import { isStreamingProvider } from "../app/platformSettings";
 import { useSwipeDown } from "./gestures";
 import { SleepControl } from "./SleepControl";
 import { tileStyle } from "./tileHue";
-import { HeartIcon, ChevronDownIcon, LyricsIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon, SearchIcon, WaveIcon, ChartIcon, ShuffleIcon, RepeatIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, SpinnerIcon, FullscreenIcon, FullscreenExitIcon } from "./icons";
+import { HeartIcon, ChevronDownIcon, LyricsIcon, SearchIcon, WaveIcon, ChartIcon, VolumeIcon, VolumeMuteIcon, QueueIcon, FullscreenIcon, FullscreenExitIcon } from "./icons";
 
 import { Spectrum } from "./Spectrum";
 import { extractDominantColor, preloadDominantColor } from "./extractColor";
@@ -16,13 +19,25 @@ import { SeekBar } from "./SeekBar";
 import { VolumeSlider } from "./VolumeSlider";
 import { LyricsBody } from "./LyricsBody";
 import { ElapsedTime } from "./ElapsedTime";
+import { QueueView } from "./QueueView";
 
 interface NowPlayingViewProps {
   onNavigate: (view: ViewKey) => void;
+  lyricsRequest?: number;
 }
 
-export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
-  const { t, tf } = useI18n();
+export function NowPlayingView({ onNavigate, lyricsRequest }: NowPlayingViewProps) {
+  const lyricsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!lyricsRequest) return;
+    const frame = requestAnimationFrame(() => {
+      lyricsRef.current?.scrollIntoView({ block: "start" });
+      lyricsRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [lyricsRequest]);
+  const { t, tf, locale } = useI18n();
+  const lyricsFile = useRef<HTMLInputElement>(null);
   const swipeDownRef = useSwipeDown<HTMLDivElement>(() => onNavigate("home"));
   const snapshot = useApp((s) => s.snapshot);
   const likedIds = useApp((s) => s.likedIds);
@@ -30,9 +45,6 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const lyricsLoading = useApp((s) => s.lyricsLoading);
   const lyricsOpen = useApp((s) => s.lyricsOpen);
   const lyricsAutoscroll = useApp((s) => s.lyricsAutoscroll);
-  const togglePlay = useApp((s) => s.togglePlay);
-  const next = useApp((s) => s.next);
-  const previous = useApp((s) => s.previous);
   const toggleLike = useApp((s) => s.toggleLike);
   const toggleLyrics = useApp((s) => s.toggleLyrics);
   const reloadLyrics = useApp((s) => s.reloadLyrics);
@@ -44,9 +56,14 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   const loadAlbum = useApp((s) => s.loadAlbum);
   const setView = useApp((s) => s.setView);
   const setVolume = useApp((s) => s.setVolume);
-  const toggleShuffle = useApp((s) => s.toggleShuffle);
-  const cycleRepeat = useApp((s) => s.cycleRepeat);
   const [spectrumOpen, setSpectrumOpen] = useState(false);
+  const [wide, setWide] = useState(() => window.matchMedia("(min-width: 1200px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1200px)");
+    const update = () => setWide(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => {
@@ -92,7 +109,10 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
   }, [domColor]);
 
   return (
-    <div className="home np-dynamic-bg" ref={swipeDownRef} style={npStyle}>
+    <div className="home np-dynamic-bg echoes-stage" ref={swipeDownRef} style={npStyle}>
+      <div className="echoes-wordmark" aria-hidden="true">wave</div>
+      <div className="echoes-layout">
+      <div className="echoes-main">
       <div className="np-collapse">
         <button
           className="icon-btn"
@@ -105,15 +125,15 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
       {track ? (
         <div className="hero">
           <div className="hero-cover">
-            {track.coverUrl ? (
-              <Cover src={track.coverUrl} alt="" />
+            {trackCover(track) ? (
+              <Cover src={trackCover(track)} alt="" />
             ) : (
               <div className="hero-cover-empty" style={tileStyle(track.title)}>{track.title?.charAt(0) ?? "W"}</div>
             )}
           </div>
           <div className="hero-info">
             <span className="hero-label">{t("app").nowPlaying}</span>
-            <h1>{track.title}</h1>
+            <h1 title={track.title}>{track.title}</h1>
             <p className="hero-artist">{track.artist}</p>
             <div className="hero-meta">
               {track.album && track.meta?.albumId != null && (
@@ -136,32 +156,17 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
                   {track.genre}
                 </span>
               )}
-              <span className="hero-meta-item">
-                <span className={`provider-badge provider-${track.provider}`}>
+              {isStreamingProvider(playbackSource(track).provider) && <span className="hero-meta-item">
+                <span className={`provider-badge provider-${playbackSource(track).provider}`}>
                   {providerLabel(playbackSource(track).provider)}
                 </span>
-              </span>
+              </span>}
             </div>
             <div className="hero-meta">
               <ElapsedTime speed={snapshot.speed} />
             </div>
             <div className="hero-actions">
-              <button className="btn btn-primary" onClick={() => void togglePlay()} disabled={snapshot.state === "loading"}>
-                {snapshot.state === "loading" ? (
-                  <SpinnerIcon size={18} />
-                ) : snapshot.state === "playing" ? (
-                  <PauseIcon size={18} />
-                ) : (
-                  <PlayIcon size={18} />
-                )}
-                {snapshot.state === "loading" ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
-              </button>
-              <button className="btn" onClick={() => void previous()}>
-                <PreviousIcon size={18} />
-              </button>
-              <button className="btn" onClick={() => void next()}>
-                <NextIcon size={18} />
-              </button>
+              <PlaybackControls onPickTrack={() => onNavigate("search")} />
               <button
                 className={`btn ${liked ? "liked" : ""}`}
                 onClick={() => void toggleLike()}
@@ -194,20 +199,6 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
             </div>
             <SeekBar track={track} className="np-seek" />
             <div className="np-extras">
-              <button
-                className={`icon-btn ${snapshot.shuffle ? "active" : ""}`}
-                onClick={toggleShuffle}
-                title={t("player").shuffle}
-              >
-                <ShuffleIcon size={16} />
-              </button>
-              <button
-                className={`icon-btn ${snapshot.repeat !== "off" ? "active" : ""}`}
-                onClick={cycleRepeat}
-                title={snapshot.repeat === "one" ? t("player").repeatOne : t("player").repeat}
-              >
-                <RepeatIcon size={16} />
-              </button>
               <button className="icon-btn" onClick={() => onNavigate("queue" as ViewKey)} title={t("nav").queue}>
                 <QueueIcon size={16} />
               </button>
@@ -255,10 +246,29 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
       )}
 
       {lyricsOpen && track && (
-        <div className="lyrics">
+        <div className="lyrics" ref={lyricsRef} tabIndex={-1} aria-label={t("player").lyrics}>
           <div className="lyrics-header">
             <span>{t("player").lyrics}</span>
-            {lyrics?.source && <span className="lyrics-source">{tf("home").lyricsSource(lyrics.source)}</span>}
+            {lyrics?.source && lyrics.source !== "none" && <span className="lyrics-source">
+              {lyrics.source === "local" ? (locale === "ru" ? "Из файла" : "From file") : tf("home").lyricsSource(lyrics.source)}
+            </span>}
+            <button className="btn secondary lyrics-retry" onClick={() => lyricsFile.current?.click()}>
+              {locale === "ru" ? "Загрузить текст" : "Import lyrics"}
+            </button>
+            <input ref={lyricsFile} type="file" hidden accept=".lrc,.txt" onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              const services = useApp.getState().services;
+              if (!file || !services) return;
+              void (async () => {
+                if (file.size > 128 * 1024) throw new Error("Lyrics file is too large");
+                services.lyrics.importLocalLyrics(track, await file.text());
+                const app = useApp.getState();
+                if (app.services === services && app.snapshot.current?.id === track.id) await app.loadLyrics(track);
+              })().catch(() => useApp.getState().notify(locale === "ru"
+                ? "Не удалось загрузить текст. Выбери непустой файл LRC или TXT до 128 КБ."
+                : "Could not import lyrics. Choose a non-empty LRC or TXT file up to 128 KB."));
+            }} />
             {lyrics && lyrics.lines.length === 0 && (
               <button
                 className="btn secondary lyrics-retry"
@@ -293,6 +303,13 @@ export function NowPlayingView({ onNavigate }: NowPlayingViewProps) {
           <span>{t("home").radio}</span>
           <small>{track ? t("home").radioDesc : t("home").radioNoTrack}</small>
         </button>
+      </div>
+      </div>
+      {wide && (
+        <aside className="echoes-queue content" aria-label={t("nav").queue}>
+          <QueueView />
+        </aside>
+      )}
       </div>
     </div>
   );

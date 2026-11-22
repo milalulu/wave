@@ -158,4 +158,16 @@ describe("Queue", () => {
     expect(q.dedupe()).toBe(0);
     expect(q.tracksList).toHaveLength(3);
   });
+
+  it("dedupe removes versions and reuploads but keeps the playing source in the same relative order", () => {
+    const queue = new Queue();
+    const original = { ...tracks[0], title: "mansion", artist: "zombiqe - Topic", provider: "youtube" };
+    const playing = { ...original, id: "current", artist: "zombiqe #delsagate", title: "mansion (Remix)", provider: "soundcloud" };
+    const repost = { ...original, id: "mirror", title: "mansion [Reupload]" };
+    queue.replace([original, tracks[1], playing, repost, tracks[2]], 2);
+    expect(queue.dedupe()).toBe(2);
+    expect(queue.tracksList).toEqual([tracks[1], playing, tracks[2]]);
+    expect(queue.current()).toBe(playing);
+    expect(queue.next()).toBe(tracks[2]);
+  });
 });

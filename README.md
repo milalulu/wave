@@ -75,23 +75,17 @@
 <tr>
   <td align="center">
 
-[`.msi`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.6.0_x64_en-US.msi)
-&middot;
-[`.exe`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.6.0_x64-setup.exe)
+[Установщики Windows](https://github.com/milalulu/wave/releases)
 
   </td>
   <td align="center">
 
-[`.deb`](https://github.com/milalulu/wave/releases/latest/download/Wave_0.6.0_amd64.deb)
-&middot;
-[`.rpm`](https://github.com/milalulu/wave/releases/latest/download/Wave-0.6.0-1.x86_64.rpm)
-&middot;
-[AppImage](https://github.com/milalulu/wave/releases/latest/download/Wave_0.6.0_amd64.AppImage)
+[Пакеты Linux](https://github.com/milalulu/wave/releases)
 
   </td>
   <td align="center">
 
-[APK (universal)](https://github.com/milalulu/wave/releases/latest/download/wave-android.apk)
+[APK по архитектуре устройства](https://github.com/milalulu/wave/releases)
 
   </td>
 </tr>
@@ -116,7 +110,7 @@
 
 ## Что это
 
-**Wave** — музыкальный плеер, который агрегирует источники в один интерфейс: нативный поиск и стрим **SoundCloud** (api-v2) и **YouTube Music** (innertube) без yt-dlp на Android, плюс iTunes, Deezer, Spotify, Last.fm, MusicBrainz, VK и локальные файлы. Умное радио продолжает очередь реальными related/automix-треками, а «Моя волна» миксует по твоим вкусам.
+**Wave** объединяет **SoundCloud**, **YouTube Music** и локальные файлы. Радио продолжает очередь похожими треками, а «Моя волна» собирает подборки по истории и лайкам.
 
 **Стек:** Tauri 2 (Rust) &middot; React 19 &middot; TypeScript &middot; Zustand &middot; SQLite &middot; axum HTTP API
 
@@ -132,9 +126,6 @@
 |---|:---:|:---:|---|
 | YouTube Music | :white_check_mark: | :white_check_mark: полные треки | нативный innertube (без yt-dlp), стримы с авто-перерезолвом |
 | SoundCloud | :white_check_mark: | :white_check_mark: прямой mp3 | нативный api-v2 через Rust, без yt-dlp |
-| Spotify | :white_check_mark: | :white_check_mark: превью / YT-фолбэк | выживший после чисток API 2024–2026 |
-| iTunes / Deezer | :white_check_mark: | :white_check_mark: превью 30с | официальные API |
-| Last.fm / MusicBrainz | :white_check_mark: | :x: метаданные | скробблинг, теги, похожее |
 | Локальные файлы | :white_check_mark: | :white_check_mark: полные файлы | ID3/FLAC/MP4 через lofty |
 
 Локальное автодополнение (лайки + история + недавнее), голосовой поиск, импорт плейлистов по ссылке и из M3U/JSON.
@@ -168,7 +159,7 @@
 <br>
 
 - Плейлисты: папки, свои обложки, M3U/JSON импорт-экспорт, шаринг, умные плейлисты
-- Загрузки с докачкой (сетевые треки резолвятся без yt-dlp), авто-офлайн при обрыве сети
+- Ручные загрузки и отдельный автокэш для разрешённых к скачиванию треков SoundCloud
 - Лайки / история / статистика в SQLite, бэкап БД
 - Тексты песен (синхронизированный LRC), редактор тегов локальных файлов
 
@@ -178,7 +169,8 @@
 <summary><b>Android</b></summary>
 <br>
 
-- Виджет homescreen, Android Auto (медиасессия), нотификация с управлением
+- Виджет homescreen и уведомление с управлением. Android Auto пока проходит проверку.
+- Импорт плейлиста YouTube Music и скачивание HLS доступны в настольной версии.
 - Экономия трафика: качество отдельно для Wi-Fi и мобильных данных
 - Шаринг треков, голосовой поиск, foreground service, MediaSession
 
@@ -188,7 +180,7 @@
 <summary><b>Синхронизация и интеграции</b></summary>
 <br>
 
-- Supabase-синк: лайки, плейлисты, настройки + «продолжить на устройстве» (очередь/позиция)
+- Экспериментальная синхронизация аккаунта и позиции требует отдельной сборки с `VITE_WAVE_CLOUD_BETA=1` и настроенным Supabase. Локальное удаление лайка или плейлиста пока хранится на устройстве.
 - HTTP REST API (30+ эндпоинтов) для скриптов и голосовых ассистентов
 - Тёмная / светлая / AMOLED темы, свой акцент, English / Русский
 
@@ -204,7 +196,7 @@ src/
 │   ├── player/           # PlayerEngine, WebAudioAdapter, leveling, gapless
 │   ├── queue/            # Queue (shuffle/repeat/history)
 │   ├── library/          # WaveEngine, rankCandidates, wrapped, m3u, рекомендации
-│   ├── providers/        # youtube, soundcloud, spotify, deezer, itunes, vk...
+│   ├── providers/        # YouTube Music, SoundCloud и локальные файлы
 │   ├── lyrics/           # LRCLIB (в т.ч. синхронные)
 │   ├── search/           # нормализация, автодополнение
 │   ├── import/           # импорт плейлистов по ссылке
@@ -410,7 +402,7 @@ curl -H "X-Api-Token: $TOKEN" -X POST -d '{"query":"Daft Punk"}' \
 
 ## Roadmap
 
-- [x] Music Core, SQLite, HTTP API, провайдеры (YT/SC/Spotify/Deezer/iTunes/VK/Local)
+- [x] Music Core, SQLite, HTTP API, YouTube Music, SoundCloud и локальные файлы
 - [x] Нативные YT/SC без yt-dlp на Android, радио-продолжение, ранжирование
 - [x] Gapless, автогейн, офлайн-загрузки, leveling UI
 - [x] Плейлисты (папки, импорт по ссылке/M3U, шаринг), Итоги, виджет, Auto
@@ -444,7 +436,7 @@ cd src-tauri && cargo fmt --check && cargo clippy && cargo build
 
 Apache 2.0 License — см. [LICENSE](LICENSE).
 
-**Disclaimer:** проект использует недокументированные API (SoundCloud, VK, YouTube innertube) и yt-dlp как фолбэк. Авторы не несут ответственности за нарушение ToS сторонних сервисов.
+**Disclaimer:** проект использует недокументированные API SoundCloud и YouTube, а также yt-dlp как дополнительный источник потока на поддерживаемых настольных платформах.
 
 ---
 

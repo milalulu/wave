@@ -7,6 +7,8 @@ import { AuthProvider } from "./ui/AuthContext";
 import { initLocale, t } from "./core/i18n";
 import { useApp } from "./app/stores";
 import "./styles.css";
+import "./design/components.css";
+import "./echoes-shell.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -65,3 +67,8 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+import "./design/art-direction.css";
+
+import "./design/screens.css";
+import "./design/polish.css";

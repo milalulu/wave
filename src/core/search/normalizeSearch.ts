@@ -209,6 +209,13 @@ function trackScore(t: Track, queryNorm: string): number {
   score += Math.round(wordPrefixScore(haystack, queryNorm) * 30);
   score += Math.round(fuzzyWordScore(haystack, queryNorm) * 15);
 
+  // Prefer an artist and title match over an uploader quoting the full query.
+  const unprefixedTitle = titleNorm.startsWith(artistNorm + " ") ? titleNorm.slice(artistNorm.length + 1) : titleNorm;
+  const creditedTitle = unprefixedTitle.split(/\s+(?:feat\.?|ft\.?)\s+/i)[0];
+  const namedArtistMatch = artistNorm && queryNorm === `${artistNorm} ${creditedTitle}`;
+  if (namedArtistMatch) score += 100;
+  const alternateVersion = /\b(remix|mix|edit|cover|karaoke|reaction|nightcore|slowed|sped up)\b/i;
+  if (alternateVersion.test(t.title) && !alternateVersion.test(queryNorm)) score -= 35;
   // Популярное выше при равной текстовой похожести.
   score += Math.round(popularity01(t.provider, t.meta) * 20);
 

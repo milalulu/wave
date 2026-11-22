@@ -1,4 +1,4 @@
-import type { Track } from "../core/types";
+import type { PlaybackMode, Track } from "../core/types";
 
 const KEY = "wave:queue-restore";
 const TTL = 7 * 24 * 3600 * 1000;
@@ -10,6 +10,7 @@ export interface RestoreState {
   index: number;
   position: number;
   savedAt: number;
+  mode?: PlaybackMode;
 }
 
 export function loadRestore(): RestoreState | null {
@@ -24,13 +25,13 @@ export function loadRestore(): RestoreState | null {
     if (!Number.isInteger(data.index) || data.index < 0 || data.index >= data.queue.length) return null;
     if (!Number.isFinite(data.position) || data.position < 0) return null;
     if (!Number.isFinite(data.savedAt) || Date.now() - data.savedAt > TTL) return null;
-    return data;
+    return data.mode === "album" ? data : { queue: data.queue, index: data.index, position: data.position, savedAt: data.savedAt };
   } catch {
     return null;
   }
 }
 
-export function saveRestore(queue: Track[], index: number, position: number): void {
+export function saveRestore(queue: Track[], index: number, position: number, mode: PlaybackMode = "normal"): void {
   try {
     if (queue.length === 0) { clearRestore(); return; }
     const current = Number.isFinite(index) ? Math.max(0, Math.min(Math.trunc(index), queue.length - 1)) : 0;
@@ -39,13 +40,13 @@ export function saveRestore(queue: Track[], index: number, position: number): vo
     const slice = queue.slice(start, start + MAX_TRACKS);
     
     
-    const compact: Track[] = slice.map((t) =>
-      t.coverUrl ? { ...t, coverUrl: undefined } : t,
-    );
+    // Artwork URLs are metadata, not image bytes. Keep them across restarts.
+    const compact = slice;
     localStorage.setItem(
       KEY,
       JSON.stringify({ queue: compact, index: current - start,
-        position: Number.isFinite(position) ? Math.max(0, position) : 0, savedAt: Date.now() }),
+        position: Number.isFinite(position) ? Math.max(0, position) : 0, savedAt: Date.now(),
+        ...(mode === "album" ? { mode } : {}) }),
     );
   } catch {
     

@@ -1,9 +1,10 @@
+import { sameRecording, uniqueRecommendations } from "../core/recordings/matching";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { RecordingCatalog } from "../core/recordings/RecordingCatalog";
 import { RecordingStorage } from "../core/recordings/RecordingStorage";
 import { playbackSource } from "../core/types";
-import { pickStorage } from "./storage";
+import { pickStorage, type StorageBackend } from "./storage";
 import type { Storage } from "../core/database/Storage";
 import { HistoryService } from "../core/library/HistoryService";
 import { LibraryService } from "../core/library/LibraryService";
@@ -14,15 +15,8 @@ import { createStreamResolver } from "./streamResolver";
 import { OutputRouter } from "../core/player/OutputRouter";
 import { StreamPrewarmer } from "../core/player/streamPrewarm";
 import { LyricsService } from "../core/lyrics/LyricsService";
-import { LastFmScrobbler } from "../core/lastfm/LastFmScrobbler";
-import { iTunesProvider } from "../core/providers/iTunesProvider";
 import { YouTubeMusicProvider, type YtDlpGateway } from "../core/providers/YouTubeMusicProvider";
 import { SoundCloudProvider } from "../core/providers/SoundCloudProvider";
-import { DeezerProvider } from "../core/providers/DeezerProvider";
-import { LastFmProvider } from "../core/providers/LastFmProvider";
-import { MusicBrainzProvider } from "../core/providers/MusicBrainzProvider";
-import { SpotifyProvider } from "../core/providers/SpotifyProvider";
-import { VkProvider, type VkGateway } from "../core/providers/VkProvider";
 import type { HttpJsonGateway } from "../core/providers/HttpGateway";
 import type { LocalSource } from "../core/providers/LocalProvider";
 import { LocalProvider } from "../core/providers/LocalProvider";
@@ -31,31 +25,24 @@ import type { SearchResults, Track } from "../core/types";
 import { activeProviders, refreshRemoteProviderFlags } from "./platformSettings";
 import { filterPreviewResults, isExcludePreviewsEnabled } from "./platformSettings";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
-import { resolveYtQuality } from "./ytQuality";
 import { loadCrossfadeMs } from "./crossfade";
 import { loadDiscoveryRate } from "./discoveryRate";
 import { loadHistoryDecayDays } from "./historyDecay";
 import { loadAutoGenerateThreshold } from "./autoGenerateThreshold";
+import { loadPreferredLanguages } from "./preferredLanguages";
+import { loadOnboardingArtists } from "./onboarding";
 import { findTrackVariants } from "./trackVariants";
-import { enrichTrack } from "../core/library/trackEnricher";
 import { streamCache } from "../core/player/streamCache";
 import { normalizeSearchResults } from "../core/search/normalizeSearch";
 import { withDeadline } from "../core/util/deadline";
 import { rankCandidates } from "../core/recommendations/rankCandidates";
+import { offlineEnabled } from "./offline";
+import { getRecommendationFeedback } from "./recommendationFeedback";
+import { cachePlayedAudio } from "./offlineCache";
+import { measureLocalLoudness } from "./measureLoudness";
+import { verifiedRecordingMatch } from "../core/recordings/matching";
 
 const FULL_PLAYBACK_PROVIDERS = new Set(["youtube", "soundcloud"]);
-
-interface AppConfig {
-  ytdlpPath?: string | null;
-  ytdlpCookies?: string | null;
-  spotifyClientId?: string | null;
-  spotifyClientSecret?: string | null;
-  vkToken?: string | null;
-  lastfmApiKey?: string | null;
-  lastfmApiSecret?: string | null;
-  lastfmSessionKey?: string | null;
-  lastfmScrobbleEnabled?: boolean;
-}
 
 const IS_ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
@@ -91,10 +78,6 @@ const httpGateway: HttpJsonGateway = {
     }),
 };
 
-const vkGateway: VkGateway = {
-  search: (query, count) => invoke("vk_search", { query, count }),
-};
-
 export interface AppServices {
   engine: PlayerEngine;
   providers: MusicProvider[];
@@ -102,24 +85,16 @@ export interface AppServices {
   output?: OutputRouter;
   local: LocalProvider;
   storage: Storage;
+  storageBackend?: StorageBackend;
   recordings?: RecordingCatalog;
   library: LibraryService;
   history: HistoryService;
   wave: WaveEngine;
   lyrics: LyricsService;
-  scrobbler: LastFmScrobbler | null;
 }
 
-function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: LocalProvider } {
+function buildProviders(): MusicProvider[] {
   const providers: MusicProvider[] = [];
-  const itunes = new iTunesProvider(httpGateway);
-  const deezer = new DeezerProvider(httpGateway);
-  const musicbrainz = new MusicBrainzProvider(httpGateway);
-  const local = new LocalProvider(localSource);
-  providers.push(itunes, deezer, musicbrainz, local);
-  
-  
-  const hasYtDlp = !IS_ANDROID || Boolean(cfg.ytdlpPath);
   // YouTube и SoundCloud работают и без yt-dlp (innertube / SoundCloud API),
   // yt-dlp используется только как фолбэк на десктопе.
   providers.push(new YouTubeMusicProvider(ytGateway));
@@ -136,52 +111,39 @@ function buildProviders(cfg: AppConfig): { providers: MusicProvider[]; local: Lo
       },
     }),
   );
-  if (cfg.lastfmApiKey) {
-    providers.push(new LastFmProvider(httpGateway, cfg.lastfmApiKey));
-  }
-  if (cfg.spotifyClientId && cfg.spotifyClientSecret) {
-    providers.push(
-      new SpotifyProvider(httpGateway, {
-        clientId: cfg.spotifyClientId,
-        clientSecret: cfg.spotifyClientSecret,
-        ytFallback: hasYtDlp
-          ? async (artist, title) => {
-              const results = await ytGateway.search(`${artist} ${title}`.trim(), 5);
-              const first = results[0];
-              if (!first) throw new Error("spotify: no youtube fallback");
-              return ytGateway.stream(first.id, resolveYtQuality());
-            }
-          : undefined,
-      }),
-    );
-  }
-  if (cfg.vkToken) {
-    providers.push(new VkProvider(vkGateway));
-  }
-  return { providers: activeProviders(providers), local };
+  return activeProviders(providers);
 }
 
 export async function composeServices(): Promise<AppServices> {
-  const cfg = await invoke<AppConfig>("app_config");
   // Удалённые флаги (kill-switch сломанных провайдеров): ждём не дольше
   // 1.5с, дальше — кеш (fail-open, холодный старт не страдает).
-  await Promise.race([
-    refreshRemoteProviderFlags().catch(() => undefined),
-    new Promise((r) => setTimeout(r, 1500)),
-  ]);
-  const { providers, local } = buildProviders(cfg);
+  const loadStorage = async () => {
+    const { storage, backend } = await pickStorage();
+    const recordings = new RecordingCatalog(storage);
+    await recordings.init();
+    return { storage, recordings, backend };
+  };
+  let flagTimeout: ReturnType<typeof setTimeout> | undefined;
+  const refreshFlags = Promise.race([
+    refreshRemoteProviderFlags(),
+    new Promise<void>((resolve) => { flagTimeout = setTimeout(resolve, 1500); }),
+  ]).finally(() => clearTimeout(flagTimeout));
+  const [{ storage: baseStorage, recordings, backend: storageBackend }] = await Promise.all([loadStorage(), refreshFlags]);
+  const providers = buildProviders();
+  const local = new LocalProvider(localSource);
 
   // eslint-disable-next-line prefer-const
   let wave: WaveEngine;
-  const baseStorage = (await pickStorage()).storage;
-  const recordings = new RecordingCatalog(baseStorage);
-  await recordings.init();
   const storage = new RecordingStorage(baseStorage, recordings);
-  const resolveUri = createStreamResolver(providers);
+  const resolveUri = createStreamResolver(providers, async (track) =>
+    (await findTrackVariants(providers, track)).map((variant) => variant.track),
+  );
   const prewarmer = new StreamPrewarmer((track) => resolveUri(recordings.resolve(track)));
   const output = new OutputRouter(new WebAudioAdapter(loadCrossfadeMs()));
   const engine: PlayerEngine = new PlayerEngine(output, {
     autoGenerateThreshold: loadAutoGenerateThreshold(),
+    crossfadeMs: loadCrossfadeMs(),
+    measureLoudness: measureLocalLoudness,
     prepareTrack: (track) => recordings.resolve(track),
     resolveUri,
     invalidateStream: (trackId) => {
@@ -190,6 +152,16 @@ export async function composeServices(): Promise<AppServices> {
       if (!match) return;
       const provider = providers.find((p) => p.id === match[1]);
       provider?.invalidateStream?.(trackId);
+    },
+    recoverSource: async (track) => {
+      if (offlineEnabled()) return null;
+      const source = playbackSource(track);
+      const stored = recordings.sources(track).find((candidate) =>
+        candidate.provider !== source.provider && providers.some((provider) => provider.id === candidate.provider),
+      );
+      if (stored) return recordings.withSource(track, stored);
+      const match = (await findTrackVariants(providers, track)).find((variant) => verifiedRecordingMatch(source, variant.track));
+      return match && !offlineEnabled() ? recordings.withSource(track, match.track) : null;
     },
     
     
@@ -203,35 +175,19 @@ export async function composeServices(): Promise<AppServices> {
       }
     },
     onQueueEnd: async () => {
-      const last = engine.snapshot.current;
-      if (!last) return [];
-      const services = { engine, providers, local, storage, library, history, wave, lyrics, scrobbler };
-
-      // Если у последнего трека есть настоящий seed (scId/ytId), сначала пробуем
-      // реальную похожесть (related/automix). Wave используем как дозаполнение или фолбэк.
-      if (last.meta?.scId || last.meta?.ytId) {
-        try {
-          const related = await radioTracks(services, last);
-          if (related.length >= 4) return related;
-        } catch {
-          // fall through to wave
-        }
-      }
-
-      if (wave) {
-        try {
-          const waveTracks = await wave.generateWave(20);
-          if (waveTracks.length > 0) return waveTracks;
-        } catch {
-          // fall through to radio
-        }
-      }
-
-      try {
-        return await radioTracks(services, last);
-      } catch {
-        return [];
-      }
+      if (offlineEnabled()) return [];
+      const snapshot = engine.snapshot;
+      const seed = snapshot.shuffle ? snapshot.current : snapshot.queue[snapshot.queue.length - 1] ?? snapshot.current;
+      if (!seed) return [];
+      const services = { engine, providers, local, storage, library, history, wave, lyrics };
+      const recent = await storage.getHistory(35).catch(() => []);
+      const queue = [...snapshot.queue, ...recent.map(({ track }) => track)];
+      const related = await radioTracks(services, seed, queue).catch(() => []);
+      if (offlineEnabled()) return [];
+      if (related.length >= 6 || !wave) return related;
+      const extras = await wave.generateWave(12 - related.length, [...queue, ...related], seed).catch(() => []);
+      if (offlineEnabled()) return [];
+      return uniqueRecommendations([...related, ...extras], engine.snapshot.queue).slice(0, 12);
     },
   });
 
@@ -240,41 +196,25 @@ export async function composeServices(): Promise<AppServices> {
    wave = new WaveEngine(storage, providers, new SmartWaveSource());
    wave.setHistoryDecayDays(loadHistoryDecayDays());
    wave.setDiscoveryRate(loadDiscoveryRate());
-   const { loadPreferredLanguages } = await import("./preferredLanguages");
    wave.setPreferredLanguages(loadPreferredLanguages());
-   const { loadOnboardingArtists } = await import("./onboarding");
+   wave.setFeedbackSource(getRecommendationFeedback);
    wave.setOnboardingArtists(loadOnboardingArtists());
-  const lyrics = new LyricsService(httpGateway);
-  const scrobbler = cfg.lastfmScrobbleEnabled ? new LastFmScrobbler(engine) : null;
-
-  const mbProvider = providers.find((p) => p.id === "musicbrainz") as MusicBrainzProvider | undefined;
-  const dzProvider = providers.find((p) => p.id === "deezer") as DeezerProvider | undefined;
-
+  const lyrics = new LyricsService(httpGateway, async (track) =>
+    (await findTrackVariants(providers, track)).map((variant) => variant.track),
+  );
   engine.on("played", (track) => {
     void history.recordPlay(track).catch((error: unknown) => console.error("History write failed", error));
-    if (mbProvider && dzProvider) {
-      void enrichTrack(track, mbProvider, dzProvider);
-    }
+    if (!offlineEnabled()) void cachePlayedAudio(track, resolveUri).catch(() => {});
   });
-  return { engine, providers, prewarmer, output, local, storage, recordings, library, history, wave, lyrics, scrobbler };
+  return { engine, providers, prewarmer, output, local, storage, storageBackend, recordings, library, history, wave, lyrics };
 }
 
 export async function reconfigureServices(services: AppServices): Promise<AppServices> {
   services.prewarmer?.cancel();
   streamCache.clear();
-  const cfg = await invoke<AppConfig>("app_config");
-  const { providers: next, local: nextLocal } = buildProviders(cfg);
+  const next = buildProviders();
   services.providers.length = 0;
   services.providers.push(...next);
-  services.local = nextLocal;
-
-  if (cfg.lastfmScrobbleEnabled && !services.scrobbler) {
-    services.scrobbler = new LastFmScrobbler(services.engine);
-  } else if (!cfg.lastfmScrobbleEnabled && services.scrobbler) {
-    services.scrobbler.stop();
-    services.scrobbler = null;
-  }
-
   return { ...services };
 }
 
@@ -299,11 +239,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export async function searchAll(
   providers: MusicProvider[],
   query: string,
+  recordings?: RecordingCatalog,
 ): Promise<SearchResults[]> {
-  return (await searchAllDetailed(providers, query)).results;
+  return (await searchAllDetailed(providers, query, undefined, recordings)).results;
 }
 
-export async function searchAllDetailed(providers: MusicProvider[], query: string, signal?: AbortSignal): Promise<{
+export async function searchAllDetailed(providers: MusicProvider[], query: string, signal?: AbortSignal, recordings?: RecordingCatalog): Promise<{
   results: SearchResults[]; incomplete: boolean; available: boolean;
 }> {
   signal?.throwIfAborted();
@@ -319,15 +260,39 @@ export async function searchAllDetailed(providers: MusicProvider[], query: strin
       .map((r) => r.value),
     isExcludePreviewsEnabled(),
   );
-  return { results: normalizeSearchResults(filtered, query), incomplete: results.some((r) => r.status === "rejected"),
+  if (recordings && filtered.length > 1) {
+    const tracks = filtered.flatMap((result) => result.tracks.slice(0, 30));
+    const used = new Set<string>();
+    for (const track of tracks) {
+      if (used.has(track.id)) continue;
+      const matches = tracks.filter((candidate) => verifiedRecordingMatch(track, candidate));
+      const match = matches.length === 1 ? matches[0] : undefined;
+      if (!match || used.has(match.id) || tracks.filter((candidate) => verifiedRecordingMatch(match, candidate)).length !== 1) continue;
+      used.add(track.id);
+      used.add(match.id);
+      await recordings.associate(track, match).catch(() => {});
+    }
+  }
+  const normalized = normalizeSearchResults(filtered, query);
+  if (recordings && filtered.length > 1) {
+    for (const result of normalized) {
+      const unique = new Map<string, Track>();
+      for (const track of result.tracks) {
+        const resolved = recordings.resolve(track);
+        if (!unique.has(resolved.id)) unique.set(resolved.id, resolved);
+      }
+      result.tracks = [...unique.values()];
+    }
+  }
+  return { results: normalized, incomplete: results.some((r) => r.status === "rejected"),
     available: results.some((r) => r.status === "fulfilled") };
 }
 
-export async function radioTracks(services: AppServices, seed: Track): Promise<Track[]> {
-  seed = playbackSource(seed);
+export async function radioTracks(services: AppServices, seed: Track, excluded: readonly Track[] = []): Promise<Track[]> {
+  if (offlineEnabled()) return [];
+  const source = playbackSource(seed);
   const { detectMoods, getSpotifyGenres, getMoodProfile } = await import("../core/recommendations/moodTaxonomy");
-  const seedGenres = seed.genre ? [seed.genre] : [];
-  const moods = detectMoods(seedGenres, seed.title, seed.artist);
+  const moods = detectMoods(source.genre ? [source.genre] : [], source.title, source.artist);
   const spotifyGenres = getSpotifyGenres(moods);
   const moodProfile = getMoodProfile(moods);
   const moodOptions = {
@@ -337,61 +302,32 @@ export async function radioTracks(services: AppServices, seed: Track): Promise<T
     targetValence: (moodProfile.valence[0] + moodProfile.valence[1]) / 2,
     targetAcousticness: (moodProfile.acousticness[0] + moodProfile.acousticness[1]) / 2,
   };
-
-  const similar = await Promise.allSettled(
-    services.providers
-      .filter((p) => typeof p.getSimilarTracks === "function")
-      .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "", moodOptions, seed) ?? Promise.resolve([])),
+  const options = { strict: true, excluded: [seed, source, ...excluded], feedback: getRecommendationFeedback(), annotate: true };
+  const providers = services.providers.filter((provider) => FULL_PLAYBACK_PROVIDERS.has(provider.id));
+  const available = (tracks: Track[]) => tracks.filter((track) =>
+    !isTrackBlocked(track.id) && !isArtistBlocked(track.artist) && !track.meta?.preview,
   );
-  let candidates = similar.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  
-  if (candidates.length < 6 && seed.artist) {
-    const top = await Promise.allSettled(
-      services.providers
-        .filter((p) => typeof p.getArtistTopTracks === "function")
-        .map((p) => p.getArtistTopTracks?.(seed.artist ?? "") ?? Promise.resolve([])),
-    );
-    const extra = top.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-    if (extra.length > 0) candidates = [...candidates, ...extra];
+  const collect = async (request: (provider: MusicProvider) => Promise<Track[]> | undefined) =>
+    (await Promise.allSettled(providers.map((provider) => withDeadline(
+      Promise.resolve().then(() => request(provider) ?? []), 9_000,
+    )))).flatMap((result) => result.status === "fulfilled" ? result.value : []);
+
+  const similar = await collect((provider) => provider.getSimilarTracks?.(source.artist ?? "", source.title, moodOptions, source));
+  let shortlist = rankCandidates(source, available(similar), 18, options);
+  if (shortlist.length < 6 && source.artist) {
+    const top = await collect((provider) => provider.getArtistTopTracks?.(source.artist!));
+    shortlist = rankCandidates(source, available([...shortlist, ...top]), 18, options);
   }
 
-  const audioProviders = services.providers
-    .filter((p) => p.id !== "lastfm" && p.id !== "musicbrainz" && p.id !== "local");
-  // Полноценное воспроизведение — первым батчем, остальное — только при промахе.
-  // Раньше искали сразу по всем провайдерам ради первого совпадения.
-  const fullProviders = audioProviders.filter((p) => FULL_PLAYBACK_PROVIDERS.has(p.id));
-  const restProviders = audioProviders.filter((p) => !FULL_PLAYBACK_PROVIDERS.has(p.id));
-
-  async function resolveCandidate(c: Track): Promise<Track | null> {
-    if (c.meta?.noPlay !== true && c.uri) return c;
-    const query = `${c.artist ?? ""} ${c.title}`.trim();
-    if (!query) return null;
-    for (const group of [fullProviders, restProviders]) {
-      if (group.length === 0) continue;
-      const providerResults = await Promise.allSettled(
-        group.map((p) => p.search(query)),
-      );
-      for (const r of providerResults) {
-        if (r.status !== "fulfilled") continue;
-        const match = r.value.tracks[0];
-        if (match && match.uri) return match;
-      }
-    }
-    return null;
-  }
-
-  // Ранжируем до резолва: дорогие сетевые поиски — только для топ-кандидатов.
-  const shortlist = rankCandidates(seed, candidates, 18);
-  const resolved = await Promise.allSettled(shortlist.map(resolveCandidate));
-  const seen = new Set<string>([seed.id]);
-  const resolvedOut: Track[] = [];
-  for (const r of resolved) {
-    if (r.status !== "fulfilled" || !r.value) continue;
-    const track = r.value;
-    if (seen.has(track.id)) continue;
-    if (isTrackBlocked(track.id) || isArtistBlocked(track.artist)) continue;
-    seen.add(track.id);
-    resolvedOut.push(track);
-  }
-  return rankCandidates(seed, resolvedOut, 12);
+  const resolved = await Promise.allSettled(shortlist.map(async (candidate) => {
+    if (candidate.meta?.noPlay !== true && candidate.uri) return candidate;
+    const query = `${candidate.artist ?? ""} ${candidate.title}`.trim();
+    const tracks = await collect(async (provider) => (await provider.search(query)).tracks);
+    const exact = available(tracks).find((match) => match.uri && !match.meta?.noPlay && sameRecording(candidate, match));
+    return exact ? { ...exact, meta: { ...exact.meta, relatedTo: candidate.meta?.relatedTo, relatedRank: candidate.meta?.relatedRank } } : null;
+  }));
+  if (offlineEnabled()) return [];
+  return rankCandidates(source, available(resolved.flatMap((result) =>
+    result.status === "fulfilled" && result.value ? [result.value] : [],
+  )), 12, options);
 }

@@ -8,7 +8,34 @@ env:
   NODE_VERSION: 24
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify tag and package versions
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          test "$GITHUB_REF_NAME" = "v$version"
+          grep -Fx "version = \"$version\"" src-tauri/Cargo.toml
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Verify upgrade from the previous release
+        run: python3 scripts/check-library-upgrade.py
+
   publish:
+    needs: verify
     permissions:
       contents: write
     strategy:
@@ -84,12 +111,19 @@ jobs:
           releaseBody: "Подробности: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md"
           generateReleaseNotes: true
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           # Манифест автообновлений (latest.json) генерируем только при заданном ключе подписи.
           uploadUpdaterJson: ${{ env.TAURI_SIGNING_PRIVATE_KEY != '' }}
           args: ${{ matrix.args }}
 
+      - name: Verify Windows installation and upgrade
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-upgrade.ps1
+
   android:
+    needs: verify
+    if: ${{ !contains(github.ref_name, '-') }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -202,7 +236,9 @@ jobs:
         run: |
           set -e
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --draft --title "Wave $RELEASE_TAG" --generate-notes || gh release view "$RELEASE_TAG"
+            flags=(--draft --title "Wave $RELEASE_TAG" --generate-notes)
+            if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" "${flags[@]}" || gh release view "$RELEASE_TAG"
           fi
           cd src-tauri/gen/android/app/build/outputs/apk
           find . -path '*/release/*.apk' -print0 | while IFS= read -r -d '' apk; do
@@ -218,6 +254,7 @@ jobs:
           done
 
   macos-publish:
+    needs: verify
     permissions:
       contents: write
     runs-on: macos-latest
@@ -279,6 +316,6 @@ jobs:
           releaseBody: "Подробности: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md"
           generateReleaseNotes: true
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           uploadUpdaterJson: ${{ env.TAURI_SIGNING_PRIVATE_KEY != '' }}
           args: --target universal-apple-darwin

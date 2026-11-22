@@ -166,8 +166,7 @@ export const HomeIcon = (p: IconProps) => (
 
 export const QueueIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M4 6h16M4 12h10M4 18h7" />
-    <path d="M16 16l3 2 3-4" />
+    <path d="M4 6h16M4 12h10M4 18h7m5-4 5 4-5 4z" />
   </Svg>
 );
 
@@ -236,8 +235,7 @@ export const BackIcon = (p: IconProps) => (
 
 export const LyricsIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M4 5h16M4 12h10M4 19h7" />
-    <path d="M16 16l3 2 3-4" />
+    <path d="M8.5 7C6 8.1 5 10 5 12v4h5v-5H7.4M17.5 7C15 8.1 14 10 14 12v4h5v-5h-2.6" />
   </Svg>
 );
 

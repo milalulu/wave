@@ -9,7 +9,11 @@ const targetPlatform = process.env.TAURI_ENV_PLATFORM;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
-  define: { __WAVE_DESKTOP_AGENT__: JSON.stringify(["linux", "windows", "darwin", "macos"].includes(targetPlatform)) },
+  resolve: { alias: [{ find: /^hls\.js$/, replacement: "hls.js/light" }] },
+  define: {
+    __WAVE_DESKTOP_AGENT__: JSON.stringify(["linux", "windows", "darwin", "macos"].includes(targetPlatform)),
+    __WAVE_BUILD_REVISION__: JSON.stringify(process.env.WAVE_BUILD_REVISION || process.env.GITHUB_SHA || ""),
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

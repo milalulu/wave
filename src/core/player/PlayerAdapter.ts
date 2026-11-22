@@ -1,5 +1,7 @@
 import type { PlayerState } from "../types";
 
+export type AudioProcessingState = "active" | "standby" | "direct" | "remote";
+
 export interface AudioAdapter {
   
   /** Refresh is bound to this source and rechecks policy/expiry on output changes. */
@@ -7,6 +9,8 @@ export interface AudioAdapter {
   
   preload(src: string): void;
   
+  getLimiterReduction?(): number | undefined;
+  getAudioProcessingState?(): AudioProcessingState;
   getSpectrum(data: Uint8Array): void;
   play(): Promise<void>;
   pause(): void;
@@ -16,10 +20,14 @@ export interface AudioAdapter {
   setEqualizer(gains: number[]): void;
   
   setCrossfadeMs(ms: number): void;
+  setAlbumMode?(enabled: boolean): void;
+  cancelPreload?(): void;
   setLeveling(enabled: boolean, targetDb: number): void;
+  setMeasuredGain?(gain: number): void;
   setBassBoost(db: number): void;
   setReverb(mix: number): void;
-  setStereoWidth(pan: number): void;
+  setStereoWidth(width: number): void;
+  setSpatialOrbit?(amount: number): void;
   getPosition(): number;
   getDuration(): number;
   onStateChange(cb: (state: PlayerState) => void): () => void;
@@ -100,6 +108,8 @@ export class MockAudioAdapter implements AudioAdapter {
   setStereoWidth(_pan: number): void {
     
   }
+
+  setSpatialOrbit(_amount: number): void {}
 
   getPosition(): number {
     return this.position;

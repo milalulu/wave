@@ -7,14 +7,18 @@ import type { HistoryEntry, Track } from "../core/types";
 import type { SmartPlaylist, SmartPlaylistType } from "../core/library/SmartPlaylistGenerator";
 import { generateSmartPlaylists } from "../core/library/SmartPlaylistGenerator";
 import { buildM3U } from "../core/library/m3u";
+import { DownloadsView } from "./DownloadsView";
+import { PlaylistLinkImport } from "./PlaylistLinkImport";
+import type { ViewKey } from "./Sidebar";
 import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { DownloadIcon, SearchIcon } from "./icons";
 
-type Tab = "liked" | "history" | "local" | "stats" | "smart";
+type Tab = "liked" | "history" | "local" | "stats" | "smart" | "downloads";
 
-export function LibraryView() {
+export function LibraryView({onNavigate}: {onNavigate?: (view: ViewKey) => void} = {}) {
   const { t } = useI18n();
+  const openLocalDirectory = useApp((s) => s.openLocalDirectory);
   const services = useApp((s) => s.services);
   const likedIds = useApp((s) => s.likedIds);
   const localTracks = useApp((s) => s.localTracks);
@@ -53,7 +57,14 @@ export function LibraryView() {
 
   return (
     <div className="view">
+      <div className="library-actions">
+        <PlaylistLinkImport onImported={onNavigate ? () => onNavigate("playlist") : undefined} />
+        <button className="btn" onClick={() => void openLocalDirectory()}>{t("settings").choose}: {t("nav").localFiles}</button>
+        {onNavigate && <button className="btn" onClick={() => onNavigate("wrapped")}>{t("nav").wrapped}</button>}
+        {onNavigate && __WAVE_DESKTOP_AGENT__ && <button className="btn" onClick={() => onNavigate("agent")}>Agent</button>}
+      </div>
       <div className="tabs">
+        <button className={`tab ${tab === "downloads" ? "active" : ""}`} onClick={() => setTab("downloads")}>{t("nav").downloads}</button>
         <button className={`tab ${tab === "liked" ? "active" : ""}`} onClick={() => setTab("liked")}>
           {t("library").liked}
         </button>
@@ -71,6 +82,7 @@ export function LibraryView() {
         </button>
       </div>
 
+      {tab === "downloads" && <DownloadsView />}
       {tab === "liked" && (
         <TrackList
           tracks={liked}
@@ -278,7 +290,11 @@ function StatsView() {
               key={artist}
               className="track-row"
               style={{ cursor: "pointer" }}
-              onClick={() => { if (artist && artist !== t("common").unknown) loadArtist("lastfm", artist); }}
+              onClick={() => {
+                if (artist && artist !== t("common").unknown) {
+                  void loadArtist("soundcloud", `soundcloud:artist:${encodeURIComponent(artist)}`);
+                }
+              }}
             >
               <span className="track-index">{i + 1}</span>
               <div className="track-main">

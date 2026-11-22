@@ -1,4 +1,5 @@
 export type RepeatMode = "off" | "all" | "one";
+export type PlaybackMode = "normal" | "album";
 
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "ended" | "error";
 
@@ -81,6 +82,7 @@ export interface Playlist {
 }
 
 export interface PlayerSnapshot {
+  mode?: PlaybackMode;
   state: PlayerState;
   current: Track | null;
   position: number;

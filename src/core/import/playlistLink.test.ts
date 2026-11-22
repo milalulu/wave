@@ -2,6 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (cmd: string) => {
+    if (cmd === "yt_search_innertube_full") {
+      return { albums: [], artists: [], tracks: [
+        { id: "ABCDEFGHIJK", title: "An upload", uploader: "An artist", channelId: "UC1234567890123456789012" },
+      ] };
+    }
+    if (cmd === "yt_artist_channel") {
+      return { title: "An artist - Videos", channel: "An artist", entries: [
+        { id: "ABCDEFGHIJK", title: "An upload" },
+      ] };
+    }
+    if (cmd === "yt_import_playlist") {
+      return { title: "Example album", entries: [
+        { id: "ZYXWVUTSRQP", title: "First track", artist: "Artist", duration: 125 },
+        { id: "ABCDEFGHIJK", title: "Second track", artist: null, duration: null },
+        { id: "ZYXWVUTSRQP", title: "First track", artist: "Artist", duration: 125 },
+      ] };
+    }
     if (cmd === "http_fetch_json") {
       return { status: 200, body: { title: "Vid Title", author_name: "Vid Author" } };
     }
@@ -15,65 +32,25 @@ vi.mock("@tauri-apps/api/core", () => ({
         artwork_url: null,
       };
     }
+    if (cmd === "sc_import_likes") {
+      return { name: "Public account · SoundCloud Likes", tracks: [
+        { id: "101", title: "First liked", uploader: "One", duration: 127 },
+        { id: "102", title: "Second liked", uploader: "Two", genre: "House", tagList: "\"deep house\" dance" },
+      ] };
+    }
     throw new Error(`unexpected invoke: ${cmd}`);
   }),
   convertFileSrc: (p: string) => p,
 }));
 
-import type { HttpJsonGateway } from "../providers/HttpGateway";
-import { SpotifyProvider } from "../providers/SpotifyProvider";
 import { YouTubeMusicProvider } from "../providers/YouTubeMusicProvider";
 import { SoundCloudProvider } from "../providers/SoundCloudProvider";
 import { detectPlaylistLink, importPlaylistLink } from "./playlistLink";
 import type { AppServices } from "../../app/compose";
 
-function routeHttp(routes: Record<string, (url: string) => unknown>): HttpJsonGateway {
-  return {
-    json: async (_method: string, url: string) => {
-      for (const [prefix, handler] of Object.entries(routes)) {
-        if (url.includes(prefix)) return { status: 200, body: handler(url) };
-      }
-      throw new Error(`no route for ${url}`);
-    },
-    text: async () => {
-      throw new Error("no text");
-    },
-  };
-}
-
-const spotifyHttp = () =>
-  routeHttp({
-    "/api/token": () => ({ access_token: "tok" }),
-    "/v1/tracks/": () => ({
-      id: "t1",
-      name: "Spot Song",
-      artists: [{ name: "Spot Artist" }],
-      album: { name: "Spot Album" },
-      duration_ms: 180000,
-    }),
-    "/v1/playlists/": () => ({
-      name: "Spot List",
-      tracks: {
-        items: [
-          {
-            track: {
-              id: "t2",
-              name: "List Song",
-              artists: [{ name: "List Artist" }],
-              album: { name: "A" },
-              duration_ms: 200000,
-            },
-          },
-          { track: null },
-        ],
-      },
-    }),
-  });
-
 function services(): AppServices {
   return {
     providers: [
-      new SpotifyProvider(spotifyHttp(), { clientId: "c", clientSecret: "s" }),
       new YouTubeMusicProvider({ search: async () => [], stream: async () => "" }),
       new SoundCloudProvider({ search: async () => [], stream: async () => "" }),
     ],
@@ -81,24 +58,6 @@ function services(): AppServices {
 }
 
 describe("detectPlaylistLink", () => {
-  it("распознаёт Spotify трек/альбом/плейлист", () => {
-    expect(detectPlaylistLink("https://open.spotify.com/track/abc123?si=x")).toEqual({
-      kind: "spotify",
-      sub: "track",
-      id: "abc123",
-    });
-    expect(detectPlaylistLink("https://open.spotify.com/intl-ru/album/xyz789")).toEqual({
-      kind: "spotify",
-      sub: "album",
-      id: "xyz789",
-    });
-    expect(detectPlaylistLink("https://open.spotify.com/playlist/pl000")).toEqual({
-      kind: "spotify",
-      sub: "playlist",
-      id: "pl000",
-    });
-  });
-
   it("распознаёт YouTube видео и плейлисты", () => {
     expect(detectPlaylistLink("https://www.youtube.com/watch?v=V9PVRfjEBTI")).toEqual({
       kind: "youtube-video",
@@ -112,6 +71,10 @@ describe("detectPlaylistLink", () => {
       kind: "youtube-playlist",
       id: "PL123",
     });
+    expect(detectPlaylistLink("https://music.youtube.com/playlist?list=PL123")).toEqual({
+      kind: "youtube-playlist", id: "PL123",
+    });
+    expect(detectPlaylistLink("https://example.com/youtube.com/watch?v=ABCDEFGHIJK&list=PL123")).toBeNull();
   });
 
   it("распознаёт SoundCloud и отбрасывает мусор", () => {
@@ -119,24 +82,36 @@ describe("detectPlaylistLink", () => {
       kind: "soundcloud",
       url: "https://soundcloud.com/artist/track-name",
     });
+    expect(detectPlaylistLink("https://open.spotify.com/track/abc123")).toBeNull();
+    expect(detectPlaylistLink("https://www.soundcloud.com/public-account/likes/?utm_source=share"))
+      .toEqual({ kind: "soundcloud-likes", profile: "public-account" });
+    expect(detectPlaylistLink("https://soundcloud.com.somewhere.test/public-account/likes")).toBeNull();
+    expect(detectPlaylistLink("https://someone@soundcloud.com/public-account/likes")).toBeNull();
     expect(detectPlaylistLink("not a url")).toBeNull();
     expect(detectPlaylistLink("https://example.com/foo")).toBeNull();
   });
 });
 
 describe("importPlaylistLink", () => {
-  it("импортирует Spotify-трек", async () => {
-    const out = await importPlaylistLink(services(), "https://open.spotify.com/track/t1");
-    expect(out.tracks).toHaveLength(1);
-    expect(out.tracks[0]).toMatchObject({ provider: "spotify", title: "Spot Song" });
+  it("opens YouTube artist details with playable uploads and a channel identity", async () => {
+    const provider = services().providers[0];
+    const { artists } = await provider.search("An artist");
+    expect(artists[0]).toMatchObject({ id: "youtube:artist:UC1234567890123456789012", name: "An artist" });
+    const detail = await provider.getArtist(artists[0].id);
+    expect(detail.artist).toMatchObject({ name: "An artist", meta: { recentUploads: true } });
+    expect(detail.topTracks[0]).toMatchObject({ title: "An upload", artist: "An artist", provider: "youtube" });
+  });
+  it("imports a YouTube Music playlist in order, preserving intentional repeats", async () => {
+    const out = await importPlaylistLink(services(), "https://music.youtube.com/playlist?list=PL123");
+    expect(out.name).toBe("Example album");
+    expect(out.tracks.map((track) => track.meta?.ytId)).toEqual(["ZYXWVUTSRQP", "ABCDEFGHIJK", "ZYXWVUTSRQP"]);
+    expect(out.tracks[1]).toMatchObject({ artist: undefined, duration: undefined });
   });
 
-  it("импортирует Spotify-плейлист без пустых слотов", async () => {
-    const out = await importPlaylistLink(services(), "https://open.spotify.com/playlist/pl1");
-    expect(out.name).toBe("Spot List");
-    expect(out.tracks.map((t) => t.title)).toEqual(["List Song"]);
+  it("opens an album result through the same playlist reader", async () => {
+    const album = await services().providers[0].getAlbum("youtube:album:PL123");
+    expect(album.album).toMatchObject({ id: "youtube:album:PL123", title: "Example album", trackCount: 3 });
   });
-
   it("импортирует YouTube-видео через oEmbed", async () => {
     const out = await importPlaylistLink(services(), "https://youtu.be/V9PVRfjEBTI");
     expect(out.tracks[0]).toMatchObject({
@@ -156,10 +131,16 @@ describe("importPlaylistLink", () => {
     });
   });
 
+  it("imports a public SoundCloud likes page as a playlist in source order", async () => {
+    const out = await importPlaylistLink(services(), "https://soundcloud.com/public-account/likes");
+    expect(out.name).toBe("Public account · SoundCloud Likes");
+    expect(out.tracks.map((track) => track.id)).toEqual(["soundcloud:track:101", "soundcloud:track:102"]);
+    expect(out.tracks[1]).toMatchObject({ genre: "House", meta: { tags: ["deep house", "dance"] } });
+  });
+
   it("бросает понятные ошибки", async () => {
-    await expect(importPlaylistLink(services(), "garbage")).rejects.toThrow("unsupported link");
-    await expect(
-      importPlaylistLink(services(), "https://music.youtube.com/watch?v=x&list=PL1"),
-    ).rejects.toThrow("not supported");
+    await expect(importPlaylistLink(services(), "garbage")).rejects.toThrow("Unsupported link");
+    await expect(importPlaylistLink({ providers: [] } as unknown as AppServices, "https://music.youtube.com/playlist?list=PL1"))
+      .rejects.toThrow("provider unavailable");
   });
 });

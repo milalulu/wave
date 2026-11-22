@@ -30,7 +30,20 @@ class PlaybackService : Service() {
   override fun onCreate() {
     super.onCreate()
     createChannel()
+    ContextCompat.registerReceiver(this, mediaButtonReceiver, IntentFilter().apply {
+      addAction(ACTION_PREV)
+      addAction(ACTION_PAUSE)
+      addAction(ACTION_PLAY)
+      addAction(ACTION_NEXT)
+    }, ContextCompat.RECEIVER_NOT_EXPORTED)
     mediaSession = MediaSessionCompat(this, "WavePlayback").apply {
+      setCallback(object : MediaSessionCompat.Callback() {
+        override fun onPlay() { MainActivity.pendingMediaActions.add("play") }
+        override fun onPause() { MainActivity.pendingMediaActions.add("pause") }
+        override fun onSkipToNext() { MainActivity.pendingMediaActions.add("next") }
+        override fun onSkipToPrevious() { MainActivity.pendingMediaActions.add("prev") }
+        override fun onSeekTo(pos: Long) { MainActivity.pendingMediaActions.add("seek:${pos.coerceAtLeast(0)}") }
+      })
       isActive = true
     }
   }
@@ -48,6 +61,7 @@ class PlaybackService : Service() {
   }
 
   override fun onDestroy() {
+    unregisterReceiver(mediaButtonReceiver)
     releaseWakeLock()
     mediaSession?.run {
       isActive = false
@@ -102,10 +116,6 @@ class PlaybackService : Service() {
       PendingIntent.FLAG_IMMUTABLE,
     )
 
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PREV), RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PAUSE), RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_PLAY), RECEIVER_NOT_EXPORTED)
-    registerReceiver(mediaButtonReceiver, IntentFilter(ACTION_NEXT), RECEIVER_NOT_EXPORTED)
 
     val displayTitle = title ?: getString(R.string.app_name)
     val displayArtist = artist ?: getString(R.string.playback_notification)
@@ -167,6 +177,7 @@ class PlaybackService : Service() {
   }
 
   private fun createChannel() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val manager = getSystemService(NotificationManager::class.java)
     val channel = NotificationChannel(
       CHANNEL_ID,
@@ -195,16 +206,14 @@ class PlaybackService : Service() {
   private val mediaButtonReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       val action = intent.action
-      val mainIntent = Intent(this@PlaybackService, MainActivity::class.java).apply {
-        when (action) {
-          ACTION_PREV -> putExtra("media_action", "prev")
-          ACTION_NEXT -> putExtra("media_action", "next")
-          ACTION_PLAY -> putExtra("media_action", "play")
-          ACTION_PAUSE -> putExtra("media_action", "pause")
-        }
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+      val command = when (action) {
+        ACTION_PREV -> "prev"
+        ACTION_NEXT -> "next"
+        ACTION_PLAY -> "play"
+        ACTION_PAUSE -> "pause"
+        else -> return
       }
-      startActivity(mainIntent)
+      MainActivity.pendingMediaActions.add(command)
     }
   }
 

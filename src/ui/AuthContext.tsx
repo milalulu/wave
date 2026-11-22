@@ -3,13 +3,14 @@ import type { ReactNode } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { signInOAuthDesktop, oauthSupported } from "../app/oauth";
 import { startSyncEngine, stopSyncEngine, pullRemoteData } from "../app/syncEngine";
+import { isSupabaseConfigured } from "../app/supabaseConfig";
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
   configured: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<{ confirmationRequired: boolean }>;
   signIn: (email: string, password: string) => Promise<void>;
   signInOAuth: (provider: "google" | "github") => Promise<void>;
   signOut: () => Promise<void>;
@@ -21,12 +22,36 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState(false);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
     let mounted = true;
     let unsub: (() => void) | undefined;
+    let activeUserId: string | null = null;
+    let syncRevision = 0;
+    let syncTimer: ReturnType<typeof setTimeout> | undefined;
+    const applySession = (next: Session | null) => {
+      if (!mounted) return;
+      setSession(next);
+      setUser(next?.user ?? null);
+      setLoading(false);
+      const userId = next?.user.id ?? null;
+      if (userId === activeUserId) return;
+      activeUserId = userId;
+      const revision = ++syncRevision;
+      clearTimeout(syncTimer);
+      stopSyncEngine();
+      if (!userId) return;
+      const isCurrent = () => mounted && revision === syncRevision;
+      // Run database requests after Supabase releases its auth callback lock.
+      syncTimer = setTimeout(() => {
+        if (!isCurrent()) return;
+        void pullRemoteData(userId, isCurrent).finally(() => {
+          if (isCurrent()) startSyncEngine(userId);
+        });
+      }, 0);
+    };
     void (async () => {
       // Supabase грузим лениво: 200+ КБ не должны тормозить холодный старт
       // для пользователей без аккаунта.
@@ -37,39 +62,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (w.requestIdleCallback) w.requestIdleCallback(() => resolve(), { timeout: 3000 });
         else setTimeout(resolve, 1500);
       });
-      const { supabase, isSupabaseConfigured, onAuthStateChange } = await import("../app/supabase");
       if (!mounted) return;
-      setConfigured(isSupabaseConfigured);
-      if (!isSupabaseConfigured) {
-        setLoading(false);
-        return;
-      }
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (mounted) {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setLoading(false);
-          if (session?.user) startSyncEngine();
-        }
-      });
-      const { data: { subscription } } = onAuthStateChange(async (_event, sess: Session | null) => {
-        if (mounted) {
-          setSession(sess);
-          setUser(sess?.user ?? null);
-          setLoading(false);
-          if (sess?.user) {
-            await pullRemoteData(sess.user.id);
-            startSyncEngine();
-          } else {
-            stopSyncEngine();
-          }
-        }
-      });
+      const { onAuthStateChange } = await import("../app/supabase");
+      if (!mounted) return;
+      const { data: { subscription } } = onAuthStateChange((_event, next) => applySession(next));
       unsub = () => subscription.unsubscribe();
-    })();
+    })().catch(() => { if (mounted) setLoading(false); });
     return () => {
       mounted = false;
+      clearTimeout(syncTimer);
       unsub?.();
+      stopSyncEngine();
     };
   }, []);
 
@@ -83,11 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       loading,
-      configured,
+      configured: isSupabaseConfigured,
       signUp: async (email, password) => {
         const { supabase } = await import("../app/supabase");
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) handleError(error, "Sign up");
+        return { confirmationRequired: !data.session };
       },
       signIn: async (email, password) => {
         const { supabase } = await import("../app/supabase");

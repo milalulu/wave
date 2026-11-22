@@ -1,5 +1,14 @@
 
 export const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+export const EQ_GAIN_LIMIT = 12;
+
+export function sanitizeAudioValue(value: unknown, min: number, max: number, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+export function normalizeEqualizer(gains: readonly number[]): number[] {
+  return EQ_FREQUENCIES.map((_, index) => sanitizeAudioValue(gains[index], -EQ_GAIN_LIMIT, EQ_GAIN_LIMIT));
+}
 
 export interface EqualizerPreset {
   id: string;

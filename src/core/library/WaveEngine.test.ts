@@ -124,3 +124,15 @@ describe("WaveEngine", () => {
     expect(wave.map((t) => t.id)).not.toContain("a");
   });
 });
+
+it("excludes provider copies of queued and played recordings across Wave batches", async () => {
+  const storage = new MemoryStorage();
+  const first = { ...tracks[0], artist: "Example Artist", title: "Example Song" };
+  const copy = { ...first, id: "other", provider: "youtube", title: "Example Song (Official Audio)" };
+  const remix = { ...copy, id: "remix", title: "Example Song (Remix)" };
+  const source = { generate: () => [first, copy, remix] };
+  const engine = new WaveEngine(storage, [], source);
+  expect(await engine.generateWave(10, [first])).toEqual([]);
+  engine.markPlayed(first);
+  expect(await engine.generateWave(10)).toEqual([]);
+});

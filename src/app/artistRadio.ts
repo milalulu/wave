@@ -7,6 +7,7 @@ import {
 } from "../core/radio/artistRadio";
 import { radioTracks, type AppServices } from "./compose";
 import { isArtistBlocked, isTrackBlocked } from "./platformSettings";
+import { uniqueRecommendations } from "../core/recordings/matching";
 
 const STATION_LIMIT = 20;
 
@@ -160,12 +161,10 @@ export async function nextArtistRadioTracks(
 ): Promise<Track[]> {
   const current = services.engine.snapshot.current;
   if (!current) return [];
-  const identity = (track: Track) => `${track.artist ?? ""}\0${track.title}`.toLowerCase().replace(/\s+/g, " ").trim();
-  const queued = new Set(services.engine.snapshot.queue.map(identity));
-  const related = await withDeadline(radioTracks(services, current), 10_000);
+  const related = await withDeadline(radioTracks(services, current, services.engine.snapshot.queue), 12_000);
   return assembleArtistStation(
     station.artist,
-    related.filter((track) => !queued.has(identity(track))),
+    uniqueRecommendations(related, services.engine.snapshot.queue),
     station.similarArtists,
   ).tracks;
 }

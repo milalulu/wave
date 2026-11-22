@@ -5,10 +5,9 @@ import { shareText, shareableUrl } from "./trackShare";
 const base: Track = { id: "x", provider: "youtube", uri: "", title: "Song", artist: "Artist" };
 
 describe("trackShare", () => {
-  it("предпочитает spotify-ссылку из meta", () => {
-    const t: Track = { ...base, meta: { spotifyUrl: "https://open.spotify.com/track/abc" } };
-    expect(shareableUrl(t)).toBe("https://open.spotify.com/track/abc");
-    expect(shareText(t)).toBe("Artist — Song\nhttps://open.spotify.com/track/abc");
+  it("берёт ссылку на трек SoundCloud из метаданных", () => {
+    const t: Track = { ...base, provider: "soundcloud", meta: { scUrl: "https://soundcloud.com/artist/song" } };
+    expect(shareText(t)).toBe("Artist — Song\nhttps://soundcloud.com/artist/song");
   });
 
   it("берёт youtube watch из uri", () => {

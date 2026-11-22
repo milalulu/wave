@@ -1,0 +1,38 @@
+/* Shared interaction language; legacy selectors remain as migration adapters. */
+.skip-content { position: fixed; top: 8px; left: 8px; transform: translateY(-150%); padding: var(--sp-3); z-index: var(--z-tooltip); background: var(--bg-elev); color: var(--text); border-radius: var(--radius-sm); }
+.skip-content:focus { transform: none; }
+.pulse-loading { display: grid; gap: var(--sp-4); justify-items: center; padding: var(--sp-12); color: var(--muted); }
+.pulse-loading-lines { display: grid; gap: var(--sp-3); width: min(500px, 100%); }
+.pulse-loading-lines i { height: 48px; border-radius: var(--radius-sm); background: linear-gradient(90deg,var(--bg-elev),var(--bg-elev-2),var(--bg-elev)); }
+.pulse-loading-lines i:last-child { width: 65%; }
+.pulse-shell[data-view='library'] .view > .tabs, .pulse-shell[data-view='search'] .filter-tabs { position: sticky; top: 0; background: var(--bg); z-index: var(--z-sticky); }
+.pulse-shell .confirm-dialog { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: var(--sp-6); box-shadow: var(--shadow-xl); max-width: min(440px, calc(100vw - 32px)); }
+.pulse-shell .album-card { background: transparent; box-shadow: none; border-radius: var(--radius-lg); }
+.app button, .app input, .app select, .app textarea { font: inherit; }
+.app :is(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--echoes-light); outline-offset: 3px; }
+.app :is(.icon-btn, .btn, .card-action, .nav-item) { transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), transform var(--duration-fast) var(--ease-out); }
+.app .icon-btn { min-height: 36px; min-width: 36px; border-radius: var(--radius-md); }
+.app button:not(:disabled):active { transform: translateY(1px); }
+.app button:disabled { cursor: not-allowed; opacity: .45; }
+.app .btn { border-radius: var(--radius-full); min-height: 40px; }
+.app .btn-primary { color: var(--text-inverse); background: var(--accent); }
+.app .view-header { gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-6); }
+.app .view-header h2 { font-size: var(--font-2xl); font-weight: var(--font-weight-medium); letter-spacing: -.03em; }
+.app .track-row { border-radius: var(--radius-md); }
+.app .track-current { background: var(--accent-muted); }
+.app :is(input:not([type='range']):not([type='checkbox']):not([type='radio']), textarea, select) { color: var(--text); background-color: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.app :is(.search-box, .settings-card, .dialog) { border-color: var(--border-subtle); background-color: var(--bg-elev); }
+.app .search-box { border-radius: var(--radius-full); }
+.app .settings-card { box-shadow: none; }
+.app .track-cover { border-radius: var(--radius-sm); }
+.app .tabs { border-bottom: 1px solid var(--border-subtle); }
+.app .tab.active { color: var(--accent); }
+@keyframes pulse-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.app > main > :first-child { animation: pulse-enter var(--duration-normal) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app :is(.echoes-dock, .sidebar, .player-bar) { backdrop-filter: none; background: var(--bg-elev); }
+}
+@media (pointer: coarse) { .app .icon-btn { min-height: var(--control-size); min-width: var(--control-size); } }

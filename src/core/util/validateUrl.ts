@@ -1,3 +1,5 @@
+import { isLocalMediaUri } from "./localMedia";
+
 const VALIDATE_TIMEOUT_MS = 3000;
 
 function isKnownStream(url: string): boolean {
@@ -9,6 +11,7 @@ function isKnownStream(url: string): boolean {
 }
 
 export async function validateStreamUrl(url: string): Promise<void> {
+  if (isLocalMediaUri(url)) return;
   if (!url.startsWith("http://") && !url.startsWith("https://")) return;
   if (isKnownStream(url)) return;
   if (url.includes("127.0.0.1:8299/audio")) return;

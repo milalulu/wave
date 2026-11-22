@@ -1,9 +1,7 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
-export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabaseConfig";
+export { isSupabaseConfigured } from "./supabaseConfig";
 
 function notConfigured(): never {
   throw new Error("Supabase not configured (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY missing)");
@@ -105,42 +103,16 @@ export function onAuthStateChange(callback: (event: string, session: import("@su
 }
 
 export async function syncLikes(userId: string, localLikes: string[], localTracks: Map<string, SyncedTrack>) {
-  const { data: remote } = await supabase
-    .from("user_likes")
-    .select("track_id, track, created_at")
-    .eq("user_id", userId);
-
-  const remoteMap = new Map((remote ?? []).map((r) => [r.track_id, r]));
-  const toUpsert: UserLikes[] = [];
-  const toDelete: string[] = [];
-
-  for (const trackId of localLikes) {
-    const track = localTracks.get(trackId);
-    if (!track) continue;
-    const remoteItem = remoteMap.get(trackId);
-    if (!remoteItem || remoteItem.track.updatedAt < track.updatedAt) {
-      
-      const createdAt = remoteItem ? new Date(remoteItem.created_at).getTime() : Date.now();
-      toUpsert.push({ trackId, track, createdAt });
-    }
-    remoteMap.delete(trackId);
-  }
-
-  for (const [, item] of remoteMap) {
-    if (!localLikes.includes(item.track_id)) toDelete.push(item.track_id);
-  }
-
-  if (toUpsert.length) {
-    await supabase.from("user_likes").upsert(toUpsert.map((t) => ({
-      user_id: userId,
-      track_id: t.trackId,
-      track: t.track,
-      created_at: new Date(t.createdAt).toISOString(),
-    })));
-  }
-  if (toDelete.length) {
-    await supabase.from("user_likes").delete().eq("user_id", userId).in("track_id", toDelete);
-  }
+  const rows = localLikes.flatMap((id) => {
+    const track = localTracks.get(id);
+    return track ? [{ user_id: userId, track_id: id, track }] : [];
+  });
+  if (!rows.length) return;
+  // Local absence cannot prove user intent to delete a row on another device.
+  const { error } = await supabase.from("user_likes").upsert(rows, {
+    onConflict: "user_id,track_id", ignoreDuplicates: true,
+  });
+  if (error) throw error;
 }
 
 export async function fetchRemoteLikes(userId: string): Promise<UserLikes[]> {
@@ -156,40 +128,31 @@ export async function fetchRemoteLikes(userId: string): Promise<UserLikes[]> {
 }
 
 export async function syncPlaylists(userId: string, local: SyncedPlaylist[]) {
-  const { data: remote } = await supabase
+  if (!local.length) return;
+  const { data: remote, error } = await supabase
     .from("user_playlists")
-    .select("id, name, track_ids, tracks, created_at, updated_at, cover_url")
+    .select("id, updated_at")
     .eq("user_id", userId);
-
-  const remoteMap = new Map((remote ?? []).map((p) => [p.id, p]));
-  const toUpsert: SyncedPlaylist[] = [];
-  const toDelete: string[] = [];
-
-  for (const pl of local) {
-    const r = remoteMap.get(pl.id);
-    
-    const remoteTs = r ? new Date(r.updated_at).getTime() : 0;
-    if (!r || remoteTs < pl.updatedAt) toUpsert.push(pl);
-    remoteMap.delete(pl.id);
+  if (error) throw error;
+  const versions = new Map((remote ?? []).map((row) => [row.id, row.updated_at]));
+  const encode = (p: SyncedPlaylist) => ({
+    id: p.id, user_id: userId, name: p.name, track_ids: p.trackIds, tracks: p.tracks ?? null,
+    created_at: new Date(p.createdAt).toISOString(), updated_at: new Date(p.updatedAt).toISOString(), cover_url: p.coverUrl ?? null,
+  });
+  const created = local.filter((playlist) => !versions.has(playlist.id)).map(encode);
+  if (created.length) {
+    const { error } = await supabase.from("user_playlists").upsert(created, {
+      onConflict: "id,user_id", ignoreDuplicates: true,
+    });
+    if (error) throw error;
   }
-
-  for (const [, item] of remoteMap) toDelete.push(item.id);
-
-  if (toUpsert.length) {
-    await supabase.from("user_playlists").upsert(toUpsert.map((p) => ({
-      id: p.id,
-      user_id: userId,
-      name: p.name,
-      track_ids: p.trackIds,
-      tracks: p.tracks ?? null,
-      created_at: new Date(p.createdAt).toISOString(),
-      updated_at: new Date(p.updatedAt).toISOString(),
-      cover_url: p.coverUrl ?? null,
-    })));
-  }
-  if (toDelete.length) {
-    await supabase.from("user_playlists").delete().eq("user_id", userId).in("id", toDelete);
-  }
+  await Promise.all(local.map(async (playlist) => {
+    const previous = versions.get(playlist.id);
+    if (!previous || playlist.updatedAt <= Date.parse(previous)) return;
+    const { error } = await supabase.from("user_playlists").update(encode(playlist))
+      .eq("user_id", userId).eq("id", playlist.id).eq("updated_at", previous);
+    if (error) throw error;
+  }));
 }
 
 export async function fetchRemotePlaylists(userId: string): Promise<SyncedPlaylist[]> {
@@ -209,21 +172,32 @@ export async function fetchRemotePlaylists(userId: string): Promise<SyncedPlayli
 }
 
 export async function syncSettings(userId: string, settings: UserSettings) {
-  await supabase.from("user_settings").upsert({
-    user_id: userId,
-    ...settings,
+  const { error } = await supabase.from("user_settings").upsert({
+    user_id: userId, crossfade_ms: settings.crossfadeMs, equalizer: settings.equalizer,
+    discovery_rate: settings.discoveryRate, history_decay_days: settings.historyDecayDays,
+    preferred_languages: settings.preferredLanguages, auto_generate_threshold: settings.autoGenerateThreshold,
+    theme: settings.theme, accent_enabled: settings.accentEnabled, auto_continue: settings.autoContinue,
+    lyrics_auto_open: settings.lyricsAutoOpen, lyrics_autoscroll: settings.lyricsAutoscroll,
+    yt_quality: settings.ytQuality, offline_mode: settings.offlineMode,
     updated_at: new Date(settings.updatedAt).toISOString(),
   });
+  if (error) throw error;
 }
 
 export async function fetchRemoteSettings(userId: string): Promise<UserSettings | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_settings")
     .select("*")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
+  if (error) throw error;
   return data ? {
-    ...data,
+    userId: data.user_id, crossfadeMs: data.crossfade_ms, equalizer: data.equalizer,
+    discoveryRate: data.discovery_rate, historyDecayDays: data.history_decay_days,
+    preferredLanguages: data.preferred_languages, autoGenerateThreshold: data.auto_generate_threshold,
+    theme: data.theme, accentEnabled: data.accent_enabled, autoContinue: data.auto_continue,
+    lyricsAutoOpen: data.lyrics_auto_open, lyricsAutoscroll: data.lyrics_autoscroll,
+    ytQuality: data.yt_quality, offlineMode: data.offline_mode,
     updatedAt: new Date(data.updated_at).getTime(),
   } : null;
 }
@@ -382,37 +356,28 @@ export async function fetchSharedPlaylists(userId: string): Promise<SyncedPlayli
   return results;
 }
 
-/*
- * Продолжить на устройстве: таблица playback_state (создать в Supabase):
- *   create table playback_state (
- *     user_id uuid primary key references auth.users(id),
- *     track jsonb, queue jsonb, track_index int, position double precision,
- *     updated_at timestamptz default now()
- *   );
- * Без таблицы функции тихо ничего не делают (catch → null).
- */
 export interface PlaybackStateSync {
   track: import("../core/types").Track | null;
   queue: import("../core/types").Track[];
   index: number;
   position: number;
   updatedAt: number;
+  mode?: import("../core/types").PlaybackMode;
 }
 
 export async function syncPlaybackState(
   userId: string,
   state: Omit<PlaybackStateSync, "updatedAt">,
 ): Promise<void> {
-  try {
-    await supabase.from("playback_state").upsert({
-      user_id: userId,
-      track: state.track,
-      queue: state.queue,
-      track_index: state.index,
-      position: state.position,
-      updated_at: new Date().toISOString(),
-    });
-  } catch {}
+  const { error } = await supabase.from("playback_state").upsert({
+    user_id: userId,
+    track: state.track && { ...state.track, sessionMode: state.mode },
+    queue: state.queue,
+    track_index: state.index,
+    position: state.position,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
 }
 
 export async function fetchPlaybackState(userId: string): Promise<PlaybackStateSync | null> {
@@ -423,8 +388,11 @@ export async function fetchPlaybackState(userId: string): Promise<PlaybackStateS
       .eq("user_id", userId)
       .single();
     if (!data) return null;
+    const stored = data.track as (NonNullable<PlaybackStateSync["track"]> & { sessionMode?: string }) | null;
+    const { sessionMode, ...track } = stored ?? {} as NonNullable<typeof stored>;
     return {
-      track: (data.track ?? null) as PlaybackStateSync["track"],
+      track: stored ? track : null,
+      mode: sessionMode === "album" ? "album" : "normal",
       queue: (data.queue ?? []) as PlaybackStateSync["queue"],
       index: data.track_index ?? 0,
       position: data.position ?? 0,

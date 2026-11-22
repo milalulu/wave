@@ -1,112 +1,8 @@
+@import "./design/tokens.css";
 @import "./home-hero.css";
+@import "./echoes.css";
 
-:root {
-  /* ── Surfaces ── */
-  --bg: #060914;
-  --bg-elev: #0D1326;
-  --bg-elev-2: #141C38;
-  --bg-elevated: #0D1326;
-  --bg-surface: #101830;
-  --bg-surface-2: #161F3A;
-  --border: #1E2950;
-  --border-subtle: rgba(255,255,255,0.06);
 
-  /* ── Text ── */
-  --text: #F1F5F9;
-  --muted: #94A3B8;
-  --text-muted: #94A3B8;
-  --text-dim: #64748B;
-  --text-inverse: #060914;
-
-  /* ── Accent ── */
-  --accent: #00F0FF;
-  --accent-2: #8B5CF6;
-  --accent-muted: rgba(0,240,255,0.15);
-  --accent-2-muted: rgba(139,92,246,0.15);
-
-  /* ── Semantic ── */
-  --danger: #FF5D73;
-  --danger-muted: rgba(255,93,115,0.15);
-  --success: #34d399;
-  --success-muted: rgba(52,211,153,0.15);
-  --warning: #fbbf24;
-  --warning-muted: rgba(251,191,36,0.15);
-
-  /* ── Interaction ── */
-  --hover: rgba(255, 255, 255, 0.06);
-  --active: rgba(255, 255, 255, 0.10);
-  --focus-ring: rgba(0,240,255,0.4);
-
-  /* ── Spacing scale (4px base) ── */
-  --sp-0: 0;
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
-  --sp-16: 64px;
-
-  /* ── Typography scale ── */
-  --font-xs: 11px;
-  --font-sm: 12px;
-  --font-base: 13px;
-  --font-md: 14px;
-  --font-lg: 16px;
-  --font-xl: 20px;
-  --font-2xl: 24px;
-  --font-3xl: 32px;
-  --font-4xl: 40px;
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-  --line-height-tight: 1.2;
-  --line-height-normal: 1.5;
-  --line-height-relaxed: 1.65;
-
-  /* ── Border radius ── */
-  --radius-xs: 6px;
-  --radius-sm: 9px;
-  --radius-md: 12px;
-  --radius: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
-  --radius-full: 999px;
-
-  /* ── Shadows (dark theme) ── */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
-  --shadow-xl: 0 16px 48px rgba(0,0,0,0.6);
-  --shadow-glow: 0 0 20px var(--accent-muted);
-
-  /* ── Z-index scale ── */
-  --z-base: 1;
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-overlay: 300;
-  --z-modal: 400;
-  --z-toast: 500;
-  --z-tooltip: 600;
-
-  /* ── Transitions ── */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-fast: 120ms;
-  --duration-normal: 200ms;
-  --duration-slow: 350ms;
-
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: var(--font-base);
-  line-height: var(--line-height-normal);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  --body-bg: radial-gradient(1400px 700px at 15% -10%, #101B3B 0%, var(--bg) 65%);
-}
 
 [data-theme="light"] {
   --bg: #f5f6fa;
@@ -1522,6 +1418,28 @@ input[type="range"]::-moz-range-track {
 }
 .queue-menu-item:hover {
   background: var(--bg-hover);
+}
+
+.queue-recommendation-reason {
+  margin: 4px 10px;
+  max-width: 22ch;
+  color: var(--text-muted, #aaa0b4);
+  font-size: 12px;
+}
+
+.audio-profiles {
+  display: grid;
+  gap: 8px;
+  margin-block: 0 16px;
+}
+
+.audio-profiles .setting-row {
+  flex-wrap: wrap;
+}
+
+.audio-profiles :is(input, select) {
+  min-width: 0;
+  max-width: 100%;
 }
 .wave-blocked-row {
   display: flex;
@@ -3494,6 +3412,7 @@ input[type="range"]::-moz-range-track {
 [data-theme="light"] .wave-title-dark { display: none; }
 [data-theme="light"] .wave-title-light { display: inline-block; }
 .settings-card {
+  min-width: 0;
   background: var(--bg-elev);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -4333,7 +4252,7 @@ input[type="range"]::-moz-range-track {
   min-width: 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-width: 1000px) and (max-height: 600px) and (pointer: coarse) {
   .app {
     display: flex;
     flex-direction: column;
@@ -4898,7 +4817,22 @@ input[type="range"]::-moz-range-track {
     flex-wrap: wrap;
   }
   .input-group {
+    min-width: 0;
     flex-wrap: wrap;
+  }
+  .input-group input {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .search-box {
+    flex-wrap: wrap;
+  }
+  .search-box input {
+    min-width: 0;
+    flex: 1 1 90px;
+  }
+  .search-box > .btn {
+    flex: 1 0 100%;
   }
   .input-group .btn {
     flex: 1;
@@ -5780,7 +5714,7 @@ input[type="range"]::-moz-range-track {
   .content { padding-inline: var(--sp-10); }
   .content > .view, .artist-radio-view { max-width: 1360px; }
 }
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-width: 1000px) and (max-height: 600px) and (pointer: coarse) {
   .app { grid-template-columns: minmax(0, 1fr); }
 }
 

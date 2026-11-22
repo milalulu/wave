@@ -71,6 +71,18 @@ beforeEach(() => {
 });
 
 describe("pullRemoteData", () => {
+  it("ignores remote data if the account changes while a pull is in flight", async () => {
+    useApp.setState({ playlists: [], likedIds: new Set() });
+    let active = true;
+    fetchRemotePlaylistsMock.mockResolvedValue([remotePlaylist("old", "Old account", 100)]);
+    fetchPlaybackStateMock.mockImplementationOnce(async () => {
+      active = false;
+      return null;
+    });
+    await pullRemoteData("u1", () => active);
+    expect(useApp.getState().playlists).toEqual([]);
+  });
+
   it("merges remote playlists that do not exist locally", async () => {
     useApp.setState({ playlists: [], likedIds: new Set() });
     fetchRemotePlaylistsMock.mockResolvedValue([remotePlaylist("r1", "Remote", 100)]);

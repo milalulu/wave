@@ -4,6 +4,7 @@ import { AVAILABLE_LANGUAGES } from "../app/preferredLanguages";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { TrackRow } from "./TrackRow";
+import { SidebarIcon } from "./SidebarIcon";
 import {
   WaveIcon,
   HeartIcon,
@@ -27,7 +28,9 @@ function GenreBar({ label, count, max }: { label: string; count: number; max: nu
 }
 
 export function WaveView() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [starting, setStarting] = useState(false);
+  const play = useApp((s) => s.play);
   const startWave = useApp((s) => s.startWave);
   const previewWave = useApp((s) => s.previewWave);
   const previewTracks = useApp((s) => s.previewTracks);
@@ -102,46 +105,23 @@ export function WaveView() {
   const maxMoodCount = sortedMoods[0]?.[1] ?? 0;
 
   return (
-    <div className="view wave-view">
-      {/* ── Hero ── */}
-      <div className="wave-hero">
-        <div className="wave-hero-bg">
-          <div className="wave-hero-orb wave-hero-orb-1" />
-          <div className="wave-hero-orb wave-hero-orb-2" />
-          <div className="wave-hero-orb wave-hero-orb-3" />
-          <svg className="wave-hero-svg" viewBox="0 0 1200 200" preserveAspectRatio="none">
-            <path className="wave-hero-path wave-hero-path-1" d="M0,100 C200,150 400,50 600,100 C800,150 1000,50 1200,100 L1200,200 L0,200Z" />
-            <path className="wave-hero-path wave-hero-path-2" d="M0,120 C300,80 500,160 700,110 C900,60 1100,140 1200,120 L1200,200 L0,200Z" />
-            <path className="wave-hero-path wave-hero-path-3" d="M0,140 C150,110 350,170 600,130 C850,90 1050,160 1200,140 L1200,200 L0,200Z" />
-          </svg>
-        </div>
-        <div className="wave-hero-inner">
-          <div className="wave-hero-icon">
-            <WaveIcon size={40} />
-          </div>
-          <h1 className="wave-hero-title">{t("wave").title}</h1>
-          <p className="wave-hero-desc">{t("wave").empty}</p>
-          <div className="wave-hero-actions">
-            <button
-              className="btn btn-primary btn-lg wave-start-btn"
-              onClick={() => void startWave()}
-            >
-              <WaveIcon size={20} />
-              {t("wave").start}
+    <div className="view wave-view wave-studio">
+      <header className="wave-station">
+        <div className="wave-station-art" aria-hidden="true"><span/><SidebarIcon name="wave" size={64}/></div>
+        <div className="wave-station-copy">
+          <span className="wave-eyebrow">PULSE / PERSONAL RADIO</span>
+          <h1>{locale === "ru" ? "Твоя волна." : "Your frequency."}</h1>
+          <p>{locale === "ru" ? "Знакомое, любимое и то, что ещё предстоит открыть. Музыка, которая движется вместе с тобой." : "Old favorites and your next discovery. Music that moves with you."}</p>
+          <div className="wave-station-actions">
+            <button className="btn btn-primary" disabled={starting || !services} onClick={() => { setStarting(true); void startWave().finally(() => setStarting(false)); }}>
+              {starting ? <RefreshCwIcon size={20} className="spin"/> : <WaveIcon size={20}/>}{starting ? t("common").loading : t("wave").start}
             </button>
-            <button
-              className="btn btn-hero-secondary wave-preview-btn"
-              onClick={() => void previewWave()}
-              disabled={previewLoading}
-            >
-              {previewLoading ? <RefreshCwIcon size={18} className="spin" /> : <ChartIcon size={18} />}
-              {t("wave").preview}
-            </button>
+            <button className="btn" disabled={previewLoading || !services} onClick={() => void previewWave()}><ShuffleIcon size={18}/>{previewLoading ? t("common").loading : t("wave").preview}</button>
           </div>
-          <p className="wave-hero-hint">{t("wave").hint}</p>
+          <span className="wave-station-note">{t("wave").hint}</span>
         </div>
-      </div>
-
+      </header>
+      <div className="wave-tuning-heading"><span className="wave-eyebrow">01 / {locale === "ru" ? "НАСТРОЙ ЧАСТОТУ" : "TUNE YOUR FREQUENCY"}</span><h2>{locale === "ru" ? "Больше твоего. Больше нового." : "More you. More discovery."}</h2></div>
       {/* ── Stats Grid ── */}
       <div className="wave-stats-grid">
         <div className="wave-stat-card">
@@ -187,6 +167,7 @@ export function WaveView() {
           <input
             type="range"
             className="wave-slider"
+            aria-label={t("settings").discoveryRate}
             min={0}
             max={100}
             value={discoveryRate}
@@ -209,6 +190,7 @@ export function WaveView() {
           <input
             type="range"
             className="wave-slider"
+            aria-label={t("settings").discoveryRate}
             min={7}
             max={90}
             value={historyDecayDays}
@@ -297,7 +279,7 @@ export function WaveView() {
           </div>
           <button
             className="btn btn-primary wave-play-preview-btn"
-            onClick={() => void startWave()}
+            onClick={() => void play(previewTracks)}
           >
             <WaveIcon size={18} />
             {t("wave").playPreview}

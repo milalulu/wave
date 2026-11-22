@@ -5,8 +5,9 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createArtistRadioSlice, type ArtistRadioSlice } from "./artistRadioSlice";
 import { listen } from "@tauri-apps/api/event";
 
-import type { Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
+import type { PlaybackMode, Playlist, PlayerSnapshot, RepeatMode, Track } from "../core/types";
 import type { LyricsResult } from "../core/lyrics/LyricsService";
+import { uniqueRecommendations } from "../core/recordings/matching";
 import type { SmartPlaylistType } from "../core/library/SmartPlaylistGenerator";
 import { generateSmartPlaylists } from "../core/library/SmartPlaylistGenerator";
 import { composeServices, radioTracks, reconfigureServices, type AppServices } from "./compose";
@@ -21,8 +22,10 @@ import { bindPlugins } from "./plugins";
 import { clearRestore, loadRestore, saveRestore } from "./queueRestore";
 import { type SyncedPlaylist, type PlaylistShare } from "./supabase";
 import { loadSavedEqualizer, saveEqualizer } from "./equalizerStore";
+import { sanitizeAudioValue } from "../core/player/equalizerPresets";
 import { loadSavedSpeed, saveSpeed } from "./speedStore";
 import { loadLeveling, saveLeveling } from "./levelingStore";
+import type { NormalizationMode } from "../core/player/leveling";
 import { loadAlarm, saveAlarm, nextAlarmTimestamp, type AlarmDef } from "./alarm";
 import { watchConnectivity, currentConnectivity } from "./connectivity";
 import { loadCrossfadeMs, saveCrossfadeMs } from "./crossfade";
@@ -108,7 +111,7 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   setSelectedPlaylist: (id: string | null) => void;
   loadPlaylists: () => Promise<void>;
   createPlaylist: (name: string, tracks?: Track[], signal?: AbortSignal) => Promise<Playlist | null>;
-  importPlaylistFromLink: (url: string) => Promise<number>;
+  importPlaylistFromLink: (url: string, signal?: AbortSignal) => Promise<number>;
   deletePlaylist: (id: string) => Promise<void>;
   addToPlaylist: (playlistId: string, track: Track, signal?: AbortSignal) => Promise<boolean | null>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
@@ -124,7 +127,7 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   completeOnboarding: (artistNames: string[]) => void;
   init: () => Promise<void>;
   refreshLibrary: () => Promise<void>;
-  play: (tracks: Track[], index?: number) => Promise<void>;
+  play: (tracks: Track[], index?: number, mode?: PlaybackMode, position?: number) => Promise<void>;
   togglePlay: () => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
@@ -132,9 +135,12 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   setVolume: (percent: number) => void;
   setSpeed: (rate: number) => void;
   setEqualizer: (gains: number[]) => void;
+  effectsBypassed: boolean;
+  setEffectsBypassed: (bypassed: boolean) => void;
   levelingEnabled: boolean;
   levelingTargetDb: number;
-  setLeveling: (enabled: boolean, targetDb?: number) => void;
+  levelingMode: NormalizationMode;
+  setLeveling: (enabled: boolean, targetDb?: number, mode?: NormalizationMode) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   addToQueue: (track: Track) => boolean;
@@ -215,6 +221,8 @@ export interface AppState extends VariantsSlice, DownloadsSlice, ArtistRadioSlic
   setReverb: (mix: number) => void;
   stereoWidth: number;
   setStereoWidth: (pan: number) => void;
+  spatialOrbit: number;
+  setSpatialOrbit: (amount: number) => void;
 }
 
 const emptySnapshot: PlayerSnapshot = {
@@ -330,12 +338,17 @@ export const useApp = create<AppState>()((set, get, api) => ({
     await get().loadPlaylists();
     return playlist;
   },
-  importPlaylistFromLink: async (url) => {
+  importPlaylistFromLink: async (url, signal) => {
+    signal?.throwIfAborted();
     const { services } = get();
     if (!services) throw new Error("not ready");
     const { importPlaylistLink } = await import("../core/import/playlistLink");
     const { name, tracks } = await importPlaylistLink(services, url);
-    await get().createPlaylist(name, tracks);
+    signal?.throwIfAborted();
+    if (!tracks.length) throw new Error("No accessible tracks found in this playlist");
+    const playlist = await get().createPlaylist(name, tracks, signal);
+    if (!playlist) throw new Error("Could not save the imported playlist");
+    get().setSelectedPlaylist(playlist.id);
     return tracks.length;
   },
   deletePlaylist: async (id) => {
@@ -545,7 +558,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
     set({ likedIds: new Set(liked.map((t) => t.id)) });
   },
 
-  play: async (tracks, index = 0) => {
+  play: async (tracks, index = 0, mode, position) => {
     get().cancelArtistRadio();
     const { services } = get();
     services?.prewarmer?.cancel();
@@ -554,7 +567,8 @@ export const useApp = create<AppState>()((set, get, api) => ({
       services.engine.setAutoFill(get().autoContinue ? null : async () => []);
       set({ radioActive: false });
     }
-    await services.engine.playTracks(tracks, index);
+    if (mode === undefined && position === undefined) await services.engine.playTracks(tracks, index);
+    else await services.engine.playTracks(tracks, index, mode, position);
   },
 
   togglePlay: async () => {
@@ -588,18 +602,24 @@ export const useApp = create<AppState>()((set, get, api) => ({
     get().services?.engine.setPlaybackRate(rate);
   },
 
+  effectsBypassed: false,
+  setEffectsBypassed: (bypassed) => {
+    get().services?.engine.setEffectsBypassed(bypassed);
+    set({ effectsBypassed: bypassed });
+  },
   setEqualizer: (gains) => {
     get().services?.engine.setEqualizer(gains);
   },
 
-  setLeveling: (enabled, targetDb) => {
+  setLeveling: (enabled, targetDb, mode = get().levelingMode) => {
     const next = {
       enabled,
-      targetDb: targetDb ?? get().levelingTargetDb,
+      mode,
+      targetDb: sanitizeAudioValue(targetDb ?? get().levelingTargetDb, -30, -1, get().levelingTargetDb),
     };
     saveLeveling(next);
-    set({ levelingEnabled: next.enabled, levelingTargetDb: next.targetDb });
-    get().services?.engine.setLeveling(next.enabled, next.targetDb);
+    set({ levelingEnabled: next.enabled, levelingTargetDb: next.targetDb, levelingMode: mode });
+    get().services?.engine.setLeveling(next.enabled, next.targetDb, mode);
   },
 
   toggleShuffle: () => {
@@ -847,6 +867,7 @@ export const useApp = create<AppState>()((set, get, api) => ({
   })(),
   levelingEnabled: savedLeveling.enabled,
   levelingTargetDb: savedLeveling.targetDb,
+  levelingMode: savedLeveling.mode ?? "adaptive",
   setOfflineMode: (enabled) => {
     setOfflineEnabled(enabled);
     set({ offlineMode: enabled });
@@ -872,9 +893,10 @@ export const useApp = create<AppState>()((set, get, api) => ({
     try {
       set({ radioActive: true });
       services.engine.setAutoFill(async () => {
-        const last = services.engine.snapshot.current;
+        const queue = services.engine.snapshot;
+        const last = queue.current;
         if (!last) return [];
-        return radioTracks(services, last);
+        return radioTracks(services, last, queue.queue);
       });
       const seed = await radioTracks(services, track);
       await services.engine.playTracks([track, ...seed]);
@@ -892,7 +914,9 @@ export const useApp = create<AppState>()((set, get, api) => ({
     const track = snapshot.current;
     if (!services || !track) return;
     try {
-      const similar = await radioTracks(services, track);
+      const similar = uniqueRecommendations(
+        await radioTracks(services, track, snapshot.queue), services.engine.snapshot.queue,
+      );
       if (similar.length === 0) {
         get().notify(t("toasts").similarEmpty);
         return;
@@ -1070,27 +1094,38 @@ export const useApp = create<AppState>()((set, get, api) => ({
       bassBoost: fx.bassBoost,
       reverb: fx.reverb,
       stereoWidth: fx.stereoWidth,
+      spatialOrbit: fx.spatialOrbit,
     };
   })(),
   setBassBoost: (db) => {
-    const clamped = Math.min(Math.max(db, 0), 15);
+    const clamped = sanitizeAudioValue(db, 0, 15);
     set({ bassBoost: clamped });
     get().services?.engine.setBassBoost(clamped);
-    saveAudioEffects({ bassBoost: clamped, reverb: get().reverb, stereoWidth: get().stereoWidth });
+    saveAudioEffects(getAudioEffects(get()));
   },
   setReverb: (mix) => {
-    const clamped = Math.min(Math.max(mix, 0), 1);
+    const clamped = sanitizeAudioValue(mix, 0, 1);
     set({ reverb: clamped });
     get().services?.engine.setReverb(clamped);
-    saveAudioEffects({ bassBoost: get().bassBoost, reverb: clamped, stereoWidth: get().stereoWidth });
+    saveAudioEffects(getAudioEffects(get()));
   },
-  setStereoWidth: (pan) => {
-    const clamped = Math.min(Math.max(pan, -1), 1);
+  setStereoWidth: (width) => {
+    const clamped = sanitizeAudioValue(width, -1, 1);
     set({ stereoWidth: clamped });
     get().services?.engine.setStereoWidth(clamped);
-    saveAudioEffects({ bassBoost: get().bassBoost, reverb: get().reverb, stereoWidth: clamped });
+    saveAudioEffects(getAudioEffects(get()));
+  },
+  setSpatialOrbit: (amount) => {
+    const spatialOrbit = sanitizeAudioValue(amount, 0, 1);
+    set({ spatialOrbit });
+    get().services?.engine.setSpatialOrbit(spatialOrbit);
+    saveAudioEffects(getAudioEffects(get()));
   },
 }));
+
+function getAudioEffects({ bassBoost, reverb, stereoWidth, spatialOrbit }: AppState) {
+  return { bassBoost, reverb, stereoWidth, spatialOrbit };
+}
 
 let sleepKickTimer: number | undefined;
 let lyricsToken = 0;
@@ -1170,6 +1205,10 @@ async function doInit(
         case "play": void engine.play(); break;
         case "pause": engine.pause(); break;
         default:
+          if (action.startsWith("seek:")) {
+            const milliseconds = Number(action.slice(5));
+            if (Number.isFinite(milliseconds) && milliseconds >= 0) engine.seek(milliseconds / 1000);
+          }
           if (action.startsWith("alarm:")) void get().fireAlarm();
           break;
       }
@@ -1264,7 +1303,7 @@ async function doInit(
 
   const restore = loadRestore();
   if (restore) {
-    await services.engine.restoreQueue(restore.queue, restore.index, restore.position);
+    await services.engine.restoreQueue(restore.queue, restore.index, restore.position, restore.mode);
     void get().loadVariants(services.engine.snapshot.current);
   }
 
@@ -1277,9 +1316,11 @@ async function doInit(
   });
 
   const savedFx = loadAudioEffects();
+  services.engine.setEffectsBypassed(get().effectsBypassed);
   if (savedFx.bassBoost > 0) services.engine.setBassBoost(savedFx.bassBoost);
   if (savedFx.reverb > 0) services.engine.setReverb(savedFx.reverb);
   if (savedFx.stereoWidth !== 0) services.engine.setStereoWidth(savedFx.stereoWidth);
+  if (savedFx.spatialOrbit > 0) services.engine.setSpatialOrbit(savedFx.spatialOrbit);
 
   const savedSpeed = loadSavedSpeed();
   if (savedSpeed !== null && savedSpeed !== 1) {
@@ -1290,7 +1331,7 @@ async function doInit(
   });
 
   if (savedLeveling.enabled) {
-    services.engine.setLeveling(true, savedLeveling.targetDb);
+    services.engine.setLeveling(true, savedLeveling.targetDb, savedLeveling.mode);
   }
 
   // Нативные будильники слетают при перезагрузке — перевзводим на старте.
@@ -1312,6 +1353,7 @@ async function doInit(
       }
     } else {
       get().notify(t("toasts").backOnline);
+      if (!get().offlineMode) void services.engine.resumeAfterReconnect();
     }
   });
   if (currentConnectivity() === "offline" && !get().offlineMode) {
@@ -1345,11 +1387,21 @@ async function doInit(
     window.clearTimeout(queueSaveTimer);
     queueSaveTimer = window.setTimeout(() => {
       const snap = services.engine.snapshot;
-      if (snap.queue.length > 0) saveRestore(snap.queue, snap.queueIndex, snap.position);
+      if (snap.queue.length > 0) saveRestore(snap.queue, snap.queueIndex, snap.position, snap.mode);
       else clearRestore();
     }, 600);
   };
   services.engine.on("queue", scheduleQueueSave);
+  const saveCurrentQueue = (): void => {
+    const snap = services.engine.snapshot;
+    if (snap.queue.length && (snap.state === "playing" || snap.state === "paused")) {
+      saveRestore(snap.queue, snap.queueIndex, snap.position, snap.mode);
+    }
+  };
+  services.engine.on("state", (state) => {
+    if (state === "paused") saveCurrentQueue();
+  });
+  window.addEventListener("pagehide", saveCurrentQueue);
   let lastPosSave = 0;
   services.engine.on("time", () => {
     const now = Date.now();

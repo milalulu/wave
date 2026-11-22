@@ -376,3 +376,9 @@ describe("artist ranking", () => {
     expect(artistScore(b, "mona")).toBeGreaterThan(artistScore(a, "mona"));
   });
 });
+
+it("ranks an artist's official recording above a popular remix for an exact artist and song query", () => {
+  const original = track({ id: "original", provider: "youtube", artist: "Daft Punk", title: "Daft Punk - Instant Crush (Official Video) ft. Julian Casablancas" });
+  const remix = track({ id: "remix", provider: "soundcloud", artist: "Daft Punk Club", title: "Daft Punk - Instant Crush (Atlantis Mix)", meta: { followers: "1M" } });
+  expect(rankTracks([remix, original], "Daft Punk Instant Crush")[0].id).toBe("original");
+});

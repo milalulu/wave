@@ -33,10 +33,6 @@ class FakeConvolver {
   buffer: unknown = null;
   connect(): void {}
 }
-class FakeStereoPanner {
-  pan = new FakeParam(0);
-  connect(): void {}
-}
 class FakeDecodedBuffer {
   duration = 120;
   private channels: Float32Array[] = [new Float32Array(0), new Float32Array(0)];
@@ -87,9 +83,8 @@ class FakeAudioContext {
   createConvolver(): FakeConvolver {
     return new FakeConvolver();
   }
-  createStereoPanner(): FakeStereoPanner {
-    return new FakeStereoPanner();
-  }
+  createChannelSplitter() { return { connect: () => undefined }; }
+  createChannelMerger() { return { connect: () => undefined }; }
   createBuffer(): FakeDecodedBuffer {
     return new FakeDecodedBuffer();
   }

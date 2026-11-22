@@ -1,3 +1,4 @@
+import { uniqueRecommendations } from "../recordings/matching";
 import type { Track } from "../types";
 
 export interface QueueOptions {
@@ -97,21 +98,13 @@ export class Queue {
 
   removeAt(trackIndex: number): Track | null {
     if (trackIndex < 0 || trackIndex >= this.tracks.length) return null;
-    const currentTrack = this.current();
-    const removingCurrent = trackIndex === this.currentIndex();
+    const removedOrderPos = this.order.indexOf(trackIndex);
     const [removed] = this.tracks.splice(trackIndex, 1);
-    this.rebuildOrder();
-    if (this.tracks.length === 0) {
-      this.pos = -1;
-      return removed;
-    }
-    const curIndex = currentTrack ? this.tracks.indexOf(currentTrack) : -1;
-    if (removingCurrent || curIndex < 0) {
-      this.pos = 0;
-    } else {
-      this.pos = this.order.indexOf(curIndex);
-      if (this.pos < 0) this.pos = 0;
-    }
+    // Removing one item must not reshuffle the remaining playback sequence.
+    this.order = this.order.filter((i) => i !== trackIndex).map((i) => i > trackIndex ? i - 1 : i);
+    if (this.order.length === 0) this.pos = -1;
+    else if (removedOrderPos < this.pos) this.pos -= 1;
+    else if (removedOrderPos === this.pos) this.pos = Math.min(this.pos, this.order.length - 1);
     return removed;
   }
 
@@ -161,34 +154,23 @@ export class Queue {
     this.pos = -1;
   }
 
-  /**
-   * Убирает повторы (по id), оставляя первые вхождения.
-   * Порядок, shuffle-перемешивание и текущий трек сохраняются.
-   * @returns число удалённых треков
-   */
+  /** Keep one version of a song and always preserve the playing entry. */
   dedupe(): number {
-    const seen = new Set<string>();
-    const oldToNew = new Map<number, number>();
-    const keep: number[] = [];
-    this.tracks.forEach((t, i) => {
-      if (seen.has(t.id)) return;
-      seen.add(t.id);
-      oldToNew.set(i, keep.length);
-      keep.push(i);
-    });
+    const currentIndex = this.currentIndex();
+    const indexed = this.tracks.map((track, index) => ({ ...track, index }));
+    const current = indexed[currentIndex];
+    const unique = uniqueRecommendations(indexed.filter(({ index }) => index !== currentIndex), current ? [current] : []);
+    const keep = unique.map(({ index }) => index);
+    if (current) keep.push(currentIndex);
+    keep.sort((a, b) => a - b);
     const removed = this.tracks.length - keep.length;
     if (removed === 0) return 0;
-    const cur = this.current();
+    const oldToNew = new Map(keep.map((index, newIndex) => [index, newIndex]));
     this.tracks = keep.map((i) => this.tracks[i]);
     this.order = this.order
       .map((o) => oldToNew.get(o))
       .filter((x): x is number => x !== undefined);
-    if (cur) {
-      const newIdx = this.tracks.findIndex((t) => t.id === cur.id);
-      this.pos = newIdx >= 0 ? this.order.indexOf(newIdx) : -1;
-    } else {
-      this.pos = -1;
-    }
+    this.pos = this.order.indexOf(oldToNew.get(currentIndex) ?? -1);
     return removed;
   }
 

@@ -43,6 +43,8 @@ data class CastDiscoveryArgs(var enabled: Boolean = false)
 
 class PlaybackPlugin(activity: Activity) : Plugin(activity) {
   private var castMulticastLock: android.net.wifi.WifiManager.MulticastLock? = null
+  private var coverUrl: String? = null
+  private var coverGeneration = 0L
 
   @Command
   fun castDiscoveryLock(invoke: Invoke) {
@@ -98,11 +100,7 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
       )
     }
     WaveWidgetProvider.saveState(activityRef, args.playing, args.title, args.artist)
-    if (args.coverUrl.isNullOrEmpty()) {
-      WaveWidgetProvider.clearCoverArt(activityRef)
-    } else {
-      fetchCoverArt(args.coverUrl!!)
-    }
+    updateCoverArt(args.coverUrl?.takeIf { it.isNotEmpty() })
     WaveWidgetProvider.refreshAll(activityRef)
     WaveAutoService.pushState(
       activityRef,
@@ -115,22 +113,42 @@ class PlaybackPlugin(activity: Activity) : Plugin(activity) {
     invoke.resolve()
   }
 
-  private fun fetchCoverArt(url: String) {
+  @Synchronized
+  private fun updateCoverArt(url: String?) {
+    if (coverUrl == url) return
+    coverUrl = url
+    val generation = ++coverGeneration
+    WaveWidgetProvider.clearCoverArt(activityRef)
+    if (url == null) return
     if (!url.startsWith("http://") && !url.startsWith("https://")) return
     Thread {
+      var conn: java.net.HttpURLConnection? = null
       try {
-        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 8000
         conn.readTimeout = 8000
         conn.instanceFollowRedirects = true
         conn.connect()
         if (conn.responseCode in 200..299) {
-          val bytes = conn.inputStream.use { it.readBytes() }
-          if (bytes.isNotEmpty()) {
-            WaveWidgetProvider.setCoverArt(activityRef.applicationContext, bytes)
+          val bytes = conn.inputStream.use { input ->
+            val output = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(8192)
+            while (output.size() <= 4 * 1024 * 1024) {
+              val count = input.read(chunk)
+              if (count < 0) break
+              output.write(chunk, 0, count)
+            }
+            output.toByteArray()
+          }
+          synchronized(this) {
+            if (generation == coverGeneration && bytes.isNotEmpty() && bytes.size <= 4 * 1024 * 1024) {
+              WaveWidgetProvider.setCoverArt(activityRef.applicationContext, bytes)
+            }
           }
         }
       } catch (_: Exception) {
+      } finally {
+        conn?.disconnect()
       }
     }.apply { isDaemon = true }.start()
   }

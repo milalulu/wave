@@ -1,0 +1,198 @@
+/* Artistic composition is independent of the scroll/grid geometry.
+   0 background / 1 ambient / 2 ribbons / 3 type / 4 content /
+   5 floating queue / 6 menus / 7 critical overlays. */
+.echoes-home {
+  --layer-background: 0; --layer-ambient: 1; --layer-waves: 2;
+  --layer-type: 3; --layer-content: 4; --layer-queue: 5;
+  --layer-menus: 6; --layer-critical: 7;
+  --composition-header: 88px;
+  --composition-inset: 24px;
+  --composition-shelf: clamp(88px, 15vh, 150px);
+  --composition-gap: clamp(20px, 2.5vw, 44px);
+  grid-template-rows: var(--composition-header) minmax(0,1fr);
+}
+.echoes-home-art {
+  z-index: var(--layer-background); opacity: 1; mask-image: none;
+  background: none; overflow: clip; isolation: isolate;
+}
+.echoes-art-waves {
+  position: absolute; inset: 0 0 20%; z-index: var(--layer-waves);
+  background: url('../assets/pulse-ribbon.svg') center top / 100% 75% no-repeat;
+  opacity: .85; transform-origin: 70% 12%;
+  animation: pulse-ribbon-drift 24s ease-in-out infinite alternate;
+  /* Fade belongs to SVG strokes; its viewBox includes every curve and a transparent gutter. */
+}
+.echoes-home-art .echoes-title {
+  position: absolute; top: -48px; left: 4%; z-index: var(--layer-type);
+  font-size: clamp(220px, 18vw, 300px); line-height: .88;
+  font-weight: 350; letter-spacing: -.085em; transform: skewX(-8deg);
+  color: #f7f4fa; text-shadow: 0 8px 32px #0003;
+}
+.echoes-header { position: relative; z-index: var(--layer-content); justify-content: flex-end; align-items: start; }
+.echoes-body { position: relative; z-index: var(--layer-content); padding-inline: var(--composition-inset); }
+.echoes-feature { grid-template-columns: minmax(0, 1.08fr) minmax(0,1fr); }
+.echoes-album {
+  justify-self: start; align-self: start;
+  box-shadow: 0 24px 65px #0008, 0 0 44px #b26bff0c;
+  border-color: #d9c4ff66; background: #120d16;
+}
+.echoes-song { align-self: center; padding-top: clamp(8px,3vh,32px); }
+.echoes-song h1 { font-size: clamp(30px,3.5vw,64px); letter-spacing: .035em; }
+.echoes-song > p:not(.echoes-empty-hint) { letter-spacing: .2em; }
+.echoes-shelf { align-self: end; padding-inline-start: 12px; }
+.echoes-tile:nth-child(2n) { transform: translateY(-8px); }
+.echoes-dock {
+  position: relative; isolation: isolate; z-index: var(--layer-queue);
+  align-self: center; height: calc(100% - 36px); margin-top: 12px;
+  background: linear-gradient(135deg,#302a36ca,#15131bdb);
+  border-color: #d9c4ff3b; border-radius: 34px;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 32px 55px #0009;
+  animation: pulse-glass-enter 400ms ease-out both;
+}
+.echoes-dock::before, .echoes-dock::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border: 1px solid #c4a2ff45; border-radius: inherit;
+}
+.echoes-dock::before { transform: rotate(-3deg) translate(-9px,-10px); background: linear-gradient(140deg,#a17ddd2b,#a17ddd05 65%); }
+.echoes-dock::after { display: none; transform: rotate(3deg) translate(-5px,8px); border-color: #d9c4ff1a; background: linear-gradient(120deg,#221b2c55,transparent); }
+.echoes-dock-tabs, .echoes-dock-scroll { position: relative; z-index: 1; }
+.echoes-home .queue-menu { z-index: var(--layer-menus); }
+.echoes-home .confirm-overlay { z-index: var(--layer-critical); }
+.echoes-album > img { animation: pulse-cover-reveal 420ms ease-out; }
+.echoes-home .echoes-tile { transition: filter 180ms ease, box-shadow 180ms ease; }
+.echoes-home .echoes-tile:hover { filter: brightness(1.1); box-shadow: 0 8px 26px #b26bff22; }
+@media (min-width:1200px) {
+  .echoes-album { width: min(100%, calc(100cqh - var(--composition-header) - var(--composition-shelf) - clamp(16px,2vh,28px) - var(--composition-gap))); }
+}
+@media (min-width:1400px) and (min-height:800px) {
+  .echoes-home { --composition-header: 100px; --composition-inset: 30px; }
+  .echoes-home-art .echoes-title { top: -48px; left: 6%; font-size: clamp(240px,20vw,300px); }
+  .echoes-song { padding-top: 40px; }
+  .echoes-dock { height: calc(100% - 66px); margin-top: 0; }
+}
+@media (min-width:1700px) and (min-height:950px) {
+  .echoes-home { --composition-header: 142px; --composition-inset: 48px; }
+  .echoes-home-art .echoes-title { font-size: 370px; top: -42px; left: 5%; }
+  .echoes-body { grid-template-columns: minmax(0,1fr) 370px; gap: 56px; }
+  .echoes-dock { height: calc(100% - 94px); margin-top: -24px; }
+  .echoes-song { align-self: end; padding-block: 0 54px; }
+}
+@media (min-width:721px) and (max-width:1199px) {
+  .echoes-home { --composition-header: 90px; --composition-inset: 12px; }
+  .echoes-home-art .echoes-title { font-size: 190px; top: -12px; left: 0; }
+  .echoes-feature { grid-template-columns: minmax(0,1fr); }
+  .echoes-album { justify-self: center; }
+  .echoes-song { padding: 0; }
+  .echoes-song h1 { font-size: clamp(22px,2.4vw,28px); }
+  .echoes-dock { height: calc(100% - 30px); margin-top: 0; }
+}
+@media (max-width: 720px), (max-width: 1000px) and (max-height: 600px) and (pointer: coarse) {
+  .echoes-home { --composition-header: 90px; --composition-inset: 0px; }
+  .echoes-home-art .echoes-title { font-size: clamp(110px,32vw,190px); top: 0; left: 0; }
+  .echoes-home-art { max-height: 540px; }
+  .echoes-feature { grid-template-columns: minmax(0,1fr); }
+  .echoes-song { padding: 0; }
+  .echoes-song h1 { font-size: clamp(26px,7vw,40px); }
+}
+@keyframes pulse-ribbon-drift { from { transform: scale(1) translateY(0); } to { transform: scale(1.025) translateY(-6px); } }
+@keyframes pulse-glass-enter { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@keyframes pulse-cover-reveal { from { opacity: .6; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .echoes-art-waves, .echoes-dock, .echoes-album > img { animation: none; }
+  .echoes-home .echoes-tile { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .echoes-dock { background: #1a1620; backdrop-filter: none; }
+}
+
+/* The rail's curved skin occupies a decorative grid sibling. The navigation
+   keeps its own scroll container, so the silhouette never clips its controls. */
+.pulse-rail-art { display: none; }
+@media (min-width: 721px) {
+  .pulse-shell { isolation: isolate; }
+  .pulse-rail-art {
+    display: block; grid-area: sidebar; position: relative; z-index: -1;
+    width: clamp(124px, 9.4vw, 140px); height: 100%; min-height: 0;
+    pointer-events: none; background: url('../assets/pulse-rail.svg') left top / 100% 100% no-repeat;
+  }
+  .pulse-shell > .sidebar {
+    position: relative; border-right: 0; background: transparent;
+    backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none;
+  }
+  .pulse-shell .sidebar .nav-item.active {
+    background: linear-gradient(145deg,#ff8979,#ff6b64 70%);
+    box-shadow: inset 0 1px 0 #ffffff70, 0 6px 24px #ff6b6433;
+  }
+}
+
+/* Final optical pass: keep the rhythm, soften line density and framing. */
+.echoes-song { text-shadow: 0 2px 18px #0005; }
+.echoes-home .echoes-transport { display: grid; grid-template-columns: 36px 44px 64px 44px 36px; justify-content: start; column-gap: clamp(8px,1.4vw,24px); }
+.echoes-home .echoes-transport > :first-child { margin-right: 4px; }
+.echoes-song > p:not(.echoes-empty-hint) { letter-spacing: .12em; color: #bcb2c8; }
+.echoes-dock { background: radial-gradient(ellipse at 8% 0%,#b39ac01a,transparent 48%),linear-gradient(135deg,#211e26e8,#111015f2); }
+.cover-fallback { background: #1c1723 center / 55% 55% no-repeat; }
+.echoes-tile > .cover-fallback { position: static; padding: 0; background-color: #1c1723; background-size: 55% 55%; background-repeat: no-repeat; background-position: center; }
+.echoes-album > .cover-fallback { background-size: 28% 28%; }
+@media(max-width:720px) { .echoes-home .echoes-transport { justify-content: center; } }
+
+/* Optical refinement against the Pulse reference. */
+.echoes-dock-tabs { border-bottom-color: transparent; padding-bottom: 10px; }
+.echoes-dock .queue-compact .track-title { font-weight: 450; }
+.echoes-dock .queue-compact .track-artist { color: #aaa2b1; }
+.echoes-dock .queue-compact .track-current { background: linear-gradient(115deg,#d9c4ff19,#ffffff07); }
+.echoes-dock::before { border-color: #c4a2ff30; box-shadow: -14px -12px 38px #a66bff0a; }
+.echoes-home .echoes-album { border-radius: 32px; box-shadow: 0 20px 65px #0008, 0 0 30px #d9c4ff0b; }
+.echoes-tile > svg { box-sizing: content-box; width: 16px; height: 16px; padding: 10px; border-radius: 50%; background: #110e18b3; backdrop-filter: blur(8px); }
+.echoes-tile > span:not(.cover-fallback) { opacity: 0; transition: opacity 160ms ease; padding-right: 48px; }
+.echoes-tile:hover > span:not(.cover-fallback), .echoes-tile:focus-visible > span:not(.cover-fallback) { opacity: 1; }
+.app:has(.echoes-home) .player-title { font-size: 15px; font-weight: 500; }
+.app:has(.echoes-home) .player-artist { font-size: 13px; }
+.app:has(.echoes-home) > .player-bar { background: radial-gradient(ellipse at 24% 100%,#b26bff0b,transparent 55%),#131116f2; }
+@media (hover: none) { .echoes-tile > span:not(.cover-fallback) { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .echoes-tile > span:not(.cover-fallback) { transition: none; } }
+
+@media (min-width:721px) {
+  .app:has(.echoes-home) .echoes-seek-curve { height: 36px; }
+  .app:has(.echoes-home) input[type='range'].volume {
+    background: linear-gradient(#e4dced,#e4dced) left center / var(--volume-pct,100%) 4px no-repeat, linear-gradient(#ffffff24,#ffffff24) center / 100% 4px no-repeat;
+  }
+  .app:has(.echoes-home) input[type='range'].volume::-webkit-slider-thumb { background: #e4dced; }
+}
+
+/* The artwork is a window background, not a picture inside the padded main.
+   Only the wordmark stays anchored to the editorial content composition. */
+.pulse-shell { position: relative; isolation: isolate; }
+.pulse-backdrop {
+  position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  overflow: clip;
+  background: radial-gradient(ellipse at 17% 38%,#ff6b6418,transparent 50%), radial-gradient(ellipse at 88% 18%,#a66bff24,transparent 62%), radial-gradient(ellipse at 40% 100%,#a66bff12,transparent 60%);
+}
+.pulse-backdrop .echoes-art-waves {
+  inset: 0; background-position: center top; background-size: 100% 72%;
+  mask-image: radial-gradient(ellipse 26% 24% at 53% 44%,#0002 0%,#0007 55%,#000 100%);
+}
+.pulse-backdrop-lower {
+  position: absolute; inset: 32% 0 0; pointer-events: none;
+  background: url('../assets/pulse-ribbon.svg') left bottom / 135% 100% no-repeat;
+  transform: scaleX(-1); opacity: .24;
+  mask-image: linear-gradient(transparent,#000 38%,#000 85%,transparent);
+}
+@media (max-width: 720px), (max-width: 1000px) and (max-height: 600px) and (pointer: coarse) {
+  .pulse-backdrop .echoes-art-waves { background-size: 160% 60%; }
+  .pulse-backdrop-lower { opacity: .12; }
+}
+
+/* Continue the rail surface behind the player's rounded upper-left corner. */
+@media (min-width: 721px) {
+  .pulse-shell .pulse-rail-art { height: calc(100% + 40px); margin-bottom: -40px; }
+}
+
+/* Match the first column to the height-limited artwork instead of leaving an empty fractional column. */
+@media (min-width: 1200px) {
+  .pulse-shell .echoes-home .echoes-feature {
+    grid-template-columns: minmax(0,min(48%,calc(100cqh - var(--composition-header) - var(--composition-shelf) - clamp(16px,2vh,28px) - var(--composition-gap)))) minmax(0,1fr);
+    column-gap: clamp(20px,2vw,32px);
+  }
+  .pulse-shell .echoes-home .echoes-album { width: 100%; }
+}

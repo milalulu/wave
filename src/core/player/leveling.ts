@@ -17,6 +17,35 @@ export interface LevelingOptions {
   silenceDb: number;
 }
 
+export type NormalizationMode = "adaptive" | "track" | "album";
+
+export function measurePcmPower(audio: AudioBuffer): { power: number; seconds: number } | null {
+  const channels = Array.from({ length: audio.numberOfChannels }, (_, index) => audio.getChannelData(index));
+  const stride = Math.max(1, Math.floor(audio.sampleRate / 8000));
+  const windowSize = Math.max(1, Math.round(audio.sampleRate * 0.4));
+  const blocks: { power: number; samples: number }[] = [];
+  for (let start = 0; start < audio.length; start += windowSize) {
+    let energy = 0;
+    let samples = 0;
+    for (const channel of channels) {
+      for (let i = start; i < Math.min(start + windowSize, audio.length); i += stride) {
+        energy += channel[i] ** 2;
+        samples++;
+      }
+    }
+    if (samples && energy / samples > 1e-7) blocks.push({ power: energy / samples, samples });
+  }
+  const total = blocks.reduce((sum, block) => sum + block.samples, 0);
+  if (!total) return null;
+  const threshold = blocks.reduce((sum, block) => sum + block.power * block.samples, 0) / total * 0.1;
+  const loud = blocks.filter((block) => block.power >= threshold);
+  const audibleSamples = loud.reduce((sum, block) => sum + block.samples, 0);
+  return {
+    power: loud.reduce((sum, block) => sum + block.power * block.samples, 0) / audibleSamples,
+    seconds: audibleSamples * stride / (channels.length * audio.sampleRate),
+  };
+}
+
 export const DEFAULT_LEVELING_OPTIONS: LevelingOptions = {
   targetDb: -14,
   maxGainDb: 12,

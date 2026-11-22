@@ -89,7 +89,7 @@ class DataTests(unittest.TestCase):
             rows = {"train.jsonl": json.dumps(example()) + "\n", "dev.jsonl": json.dumps(example()) + "\n",
                     "index.jsonl": '{"id":"a","split":"train"}\n{"id":"b","split":"dev"}\n', "traces.jsonl": "{}\n"}
             manifest = {"kind": "training-development", "sourceSha256": "fixture", "files": {name: digest(body.encode()) for name, body in rows.items()}}
-            for name, body in rows.items(): (root / name).write_text(body)
+            for name, body in rows.items(): (root / name).write_bytes(body.encode())
             (root / "manifest.json").write_text(json.dumps(manifest))
             with patch("data.PINNED_DATA", root / "manifest.json"):
                 result, _ = load_dataset(root)

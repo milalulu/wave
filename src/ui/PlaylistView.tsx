@@ -8,12 +8,15 @@ import { TrackRow } from "./TrackRow";
 import { VirtualList } from "./VirtualList";
 import { Cover } from "./Cover";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { PlaylistLinkImport } from "./PlaylistLinkImport";
+import { OfflineCollectionStatus } from "./OfflineCollectionStatus";
 import { PlayIcon, TrashIcon, DownloadIcon, UploadIcon, ShuffleIcon, ShareIcon, GridIcon, ListIcon } from "./icons";
 import { tileStyle } from "./tileHue";
 import { buildM3U, parseM3U } from "../core/library/m3u";
 import { distinctCovers, groupPlaylistsByFolder } from "../core/library/playlistGroups";
 import { shuffleArray } from "../core/util/shuffle";
 import type { Playlist, Track } from "../core/types";
+import { makePlaylistImportReport, type PlaylistImportReport } from "../core/import/playlistLink";
 
 function parseJSON(text: string): Track[] | null {
   try {
@@ -27,7 +30,7 @@ function parseJSON(text: string): Track[] | null {
 }
 
 export function PlaylistView() {
-  const { t, tf } = useI18n();
+  const { t, tf, locale } = useI18n();
   const playlists = useApp((s) => s.playlists);
   const selectedPlaylistId = useApp((s) => s.selectedPlaylistId);
   const setSelectedPlaylist = useApp((s) => s.setSelectedPlaylist);
@@ -36,14 +39,13 @@ export function PlaylistView() {
   const dedupePlaylist = useApp((s) => s.dedupePlaylist);
   const reorderPlaylist = useApp((s) => s.reorderPlaylist);
   const play = useApp((s) => s.play);
+  const downloadTracks = useApp((s) => s.downloadTracks);
   const notify = useApp((s) => s.notify);
   const currentId = useApp((s) => s.snapshot.current?.id ?? null);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [importReport, setImportReport] = useState<PlaylistImportReport | null>(null);
   const [newName, setNewName] = useState("");
-  const [showLink, setShowLink] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkLoading, setLinkLoading] = useState(false);
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -55,11 +57,8 @@ export function PlaylistView() {
   const [shareLoading, setShareLoading] = useState(false);
   const createModalRef = useRef<HTMLDivElement>(null);
   const shareModalRef = useRef<HTMLDivElement>(null);
-  const linkModalRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(createModalRef, showCreate, () => setShowCreate(false));
   usePopoverDismiss(shareModalRef, showShare, () => setShowShare(false));
-  usePopoverDismiss(linkModalRef, showLink, () => setShowLink(false));
-  const importPlaylistFromLink = useApp((s) => s.importPlaylistFromLink);
   const sharePlaylist = useApp((s) => s.sharePlaylist);
   const unsharePlaylist = useApp((s) => s.unsharePlaylist);
   const playlistShares = useApp((s) => s.playlistShares);
@@ -114,28 +113,13 @@ export function PlaylistView() {
         notify(t("toasts").importEmpty);
         return;
       }
-      const base = file.split("/").pop() ?? "imported";
+      const base = file.split(/[\\/]/).pop() ?? "imported";
       const name = base.replace(/\.(m3u8?|json)$/i, "");
-      await createPlaylist(name, tracks);
-      notify(tf("toasts").importSuccess(tracks.length));
+      const report = makePlaylistImportReport(name, tracks, useApp.getState().services?.recordings);
+      if (!report.tracks.length) notify(t("toasts").importEmpty);
+      else setImportReport(report);
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleLinkImport = async () => {
-    const url = linkUrl.trim();
-    if (!url || linkLoading) return;
-    setLinkLoading(true);
-    try {
-      const count = await importPlaylistFromLink(url);
-      setLinkUrl("");
-      setShowLink(false);
-      notify(tf("toasts").importSuccess(count));
-    } catch (e) {
-      notify(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLinkLoading(false);
     }
   };
 
@@ -248,9 +232,7 @@ export function PlaylistView() {
           <button className="btn" onClick={() => void handleImport()}>
             <UploadIcon size={18} /> {t("playlist").import}
           </button>
-          <button className="btn" onClick={() => setShowLink(true)}>
-            <UploadIcon size={18} /> {t("playlist").importLink}
-          </button>
+          <PlaylistLinkImport />
         </div>
       </header>
 
@@ -268,25 +250,6 @@ export function PlaylistView() {
             <div className="modal-actions">
               <button className="btn" onClick={handleCreate}>{t("playlist").create}</button>
               <button className="btn secondary" onClick={() => setShowCreate(false)}>{t("common").cancel}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showLink && (
-        <div className="modal-overlay" onClick={() => setShowLink(false)}>
-          <div className="modal" ref={linkModalRef} onClick={(e) => e.stopPropagation()}>
-            <h3>{t("playlist").importLink}</h3>
-            <input
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder={t("playlist").linkPlaceholder}
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && void handleLinkImport()}
-            />
-            <div className="modal-actions">
-              <button className="btn" disabled={linkLoading} onClick={() => void handleLinkImport()}>{t("playlist").import}</button>
-              <button className="btn secondary" onClick={() => setShowLink(false)}>{t("common").cancel}</button>
             </div>
           </div>
         </div>
@@ -367,8 +330,12 @@ export function PlaylistView() {
           <section className="playlist-detail">
             <header className="detail-header">
               {selected.coverUrl && <Cover className="detail-cover" src={selected.coverUrl} alt="" />}
-              <h2>{selected.name}</h2>
+              <div className="detail-info"><h2>{selected.name}</h2><OfflineCollectionStatus tracks={selectedTracks} /></div>
               <div className="detail-actions">
+                <button type="button" className="btn" disabled={!selectedTracks.length} onClick={async () => {
+                  const count = await downloadTracks(selectedTracks);
+                  if (count) notify(locale === "ru" ? `В очередь загрузок: ${count}` : `Queued downloads: ${count}`);
+                }}><DownloadIcon size={16} /> {locale === "ru" ? "Скачать плейлист" : "Download playlist"}</button>
                 <button className="btn btn-primary" onClick={() => play(selectedTracks)} disabled={selectedTracks.length === 0}>
                   <PlayIcon size={18} /> {t("playlist").play}
                 </button>
@@ -527,6 +494,22 @@ export function PlaylistView() {
           </div>
         </div>
       )}
+      {importReport && <ConfirmDialog
+        message={locale === "ru"
+          ? `«${importReport.name}» · к переносу ${importReport.tracks.length} · недоступно ${importReport.unavailable} · повторов ${importReport.repeats}`
+          : `“${importReport.name}” · ready ${importReport.tracks.length} · unavailable ${importReport.unavailable} · repeats ${importReport.repeats}`}
+        confirmLabel={t("playlist").import}
+        onCancel={() => setImportReport(null)}
+        onConfirm={() => {
+          const report = importReport;
+          setImportReport(null);
+          void createPlaylist(report.name, report.tracks).then((playlist) => {
+            if (!playlist) throw new Error(t("common").unknown);
+            setSelectedPlaylist(playlist.id);
+            notify(tf("toasts").importSuccess(report.tracks.length));
+          }).catch((error: unknown) => notify(error instanceof Error ? error.message : String(error)));
+        }}
+      />}
       {confirmDelete && (
         <ConfirmDialog
           message={confirmDelete.name ? `${t("common").delete} "${confirmDelete.name}"?` : t("common").delete + "?"}

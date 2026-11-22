@@ -5,6 +5,8 @@ import { useApp } from "./app/stores";
 import { Sidebar } from "./ui/Sidebar";
 import { PlayerBar } from "./ui/PlayerBar";
 import { Toasts } from "./ui/Toasts";
+import { AppShell } from "./ui/AppShell";
+import { LoadingState } from "./ui/LoadingState";
 import { useEdgeSwipeBack } from "./ui/gestures";
 import {
   BottomNav,
@@ -17,7 +19,7 @@ import type { ViewKey } from "./ui/Sidebar";
 const AgentView = __WAVE_DESKTOP_AGENT__
   ? lazy(() => import("./ui/AgentView").then((m) => ({ default: m.AgentView }))) : null;
 
-const HomeView = lazy(() => import("./ui/HomeView").then((m) => ({ default: m.HomeView })));
+const HomeView = lazy(() => import("./ui/EchoesHome").then((m) => ({ default: m.EchoesHome })));
 const NowPlayingView = lazy(() =>
   import("./ui/NowPlayingView").then((m) => ({ default: m.NowPlayingView })),
 );
@@ -61,6 +63,7 @@ function App() {
   const goBack = useApp((s) => s.goBack);
   const onboardingCompleted = useApp((s) => s.onboardingCompleted);
   const [query, setQuery] = useState("");
+  const [lyricsRequest, setLyricsRequest] = useState(0);
   const [focusToken, setFocusToken] = useState(0);
   const contentRef = useRef<HTMLElement>(null);
   const scrollMemory = useRef(new Map<string, number>());
@@ -208,11 +211,11 @@ function App() {
   }
 
   const renderView = () => (
-    <Suspense fallback={<div className="splash">Wave</div>}>
+    <Suspense fallback={<LoadingState />}>
       {view === "home" && <HomeView onNavigate={setView} />}
-      {view === "nowPlaying" && <NowPlayingView onNavigate={handleNowPlayingNavigate} />}
+      {view === "nowPlaying" && <NowPlayingView onNavigate={handleNowPlayingNavigate} lyricsRequest={lyricsRequest} />}
       {view === "search" && <SearchView query={query} onQuery={setQuery} focusToken={focusToken} />}
-      {view === "library" && <LibraryView />}
+      {view === "library" && <LibraryView onNavigate={setView} />}
       {view === "queue" && <QueueView />}
       {view === "wave" && <WaveView />}
       {view === "album" && <AlbumDetailView />}
@@ -226,24 +229,29 @@ function App() {
     </Suspense>
   );
 
-  const contentClass = `content ${view === "nowPlaying" ? "content-nowplaying" : ""}`;
-
   return (
-    <div className="app">
-      <Sidebar view={view} onView={setView} />
-      <main ref={contentRef} className={contentClass}>{renderView()}</main>
-      <PlayerBar
+    <AppShell view={view} contentRef={contentRef}
+      navigation={<Sidebar view={view} onView={setView} />}
+      player={<PlayerBar
         onOpenQueue={() => setView("queue")}
         onOpenPlayer={() => setView("nowPlaying")}
-      />
+        onOpenLyrics={() => {
+          const state = useApp.getState();
+          if (!state.lyricsOpen) state.toggleLyrics();
+          setView("nowPlaying");
+          setLyricsRequest((request) => request + 1);
+        }}
+      />}
+      mobile={<>
       <MobileTopBar view={view} canGoBack={navStack.length > 1} onBack={goBack} />
       <MobilePlayerBar
         onOpenQueue={() => setView("queue")}
         onOpenPlayer={() => setView("nowPlaying")}
       />
       <BottomNav view={view} onView={setView} />
-      <Toasts />
-    </div>
+      </>}
+      notices={<Toasts />}
+    >{renderView()}</AppShell>
   );
 }
 

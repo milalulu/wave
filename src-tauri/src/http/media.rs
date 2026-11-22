@@ -57,16 +57,10 @@ pub fn start() -> Result<(), String> {
     Ok(())
 }
 
-const MEDIA_HOST_ALLOWLIST: [&str; 10] = [
+const MEDIA_HOST_ALLOWLIST: &[&str] = &[
     ".googlevideo.com",
     ".sndcdn.com",
     ".media-streaming.soundcloud.cloud",
-    ".itunes.apple.com",
-    ".dzcdn.net",
-    ".userapi.com",
-    ".vk.me",
-    ".vk.com",
-    ".last.fm",
     ".freetls.fastly.net",
 ];
 

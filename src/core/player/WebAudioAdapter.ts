@@ -2,18 +2,30 @@ import { fetchMediaBlob, MEDIA_MEMORY_TIMEOUT_MS } from "./mediaMemoryFallback";
 import { isLocalMediaUri } from "../util/localMedia";
 import type { PlayerState } from "../types";
 import type { AudioAdapter } from "./PlayerAdapter";
-import { DEFAULT_LEVELING_OPTIONS, Leveler, rmsOfSamples, rmsToDb } from "./leveling";
+import type Hls from "hls.js";
+import type { LoaderCallbacks, LoaderConfiguration, LoaderContext } from "hls.js";
+import { DEFAULT_LEVELING_OPTIONS, Leveler } from "./leveling";
+import { AudioProcessing, GAIN_TAU } from "./audioProcessing";
+import { normalizeEqualizer, sanitizeAudioValue } from "./equalizerPresets";
 
-export const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+export { EQ_FREQUENCIES } from "./equalizerPresets";
 
 export const CROSSFADE_MS = 300;
 
-export const GAIN_TAU = 0.05;
+export { GAIN_TAU } from "./audioProcessing";
 
 export const PROXY_BASE = "http://127.0.0.1:8299";
 
+function isBufferedAlbumSource(uri: string): boolean {
+  return isLocalMediaUri(uri) || uri.startsWith("blob:");
+}
+
 export function isProxiedAudioUrl(src: string | null | undefined): boolean {
   return Boolean(src && src.startsWith(PROXY_BASE));
+}
+
+function isHlsUrl(src: string | null): boolean {
+  return src !== null && /\.m3u8(?:[?#]|$)/i.test(src);
 }
 
 export const MEDIA_ELEMENT_PROBE_MS = 1500;
@@ -23,6 +35,8 @@ export const MEDIA_ELEMENT_READY_PROBE_MS = 8000;
 export const BUFFER_TIME_UPDATE_MS = 250;
 
 export const BUFFER_CACHE_MAX = 4;
+const BUFFER_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+const pcmBytes = (audio: AudioBuffer): number => audio.length * audio.numberOfChannels * Float32Array.BYTES_PER_ELEMENT;
 
 export const LEVEL_TICK_MS = 120;
 
@@ -44,40 +58,41 @@ export class WebAudioAdapter implements AudioAdapter {
   private activeIdx = 0;
   private ctx: AudioContext | null = null;
   private fadeGains: GainNode[] = [];
-  private filters: BiquadFilterNode[] = [];
-  private analyser: AnalyserNode | null = null;
+  private processing: AudioProcessing | null = null;
   private graphDisabled = false;
+  private bypassedStream: string | null = null;
+  private directRecovery: Promise<void> | null = null;
 
   
-  private bassBoost: BiquadFilterNode | null = null;
-  private reverbGain: GainNode | null = null;
-  private dryGain: GainNode | null = null;
-  private stereoPan: StereoPannerNode | null = null;
   private bassBoostGain = 0;
   private reverbMix = 0;
   private stereoWidth = 0;
+  private spatialOrbit = 0;
 
-  // Выравнивание громкости: узел после анализатора (анализатор видит сырой
-  // сигнал), адаптация — по таймеру отдельно от визуализатора.
-  private levelGain: GainNode | null = null;
-  private bufLevelGain: GainNode | null = null;
   private leveler = new Leveler();
   private levelingEnabled = false;
+  private measuredGain = 1;
+  private levelTargetDb = DEFAULT_LEVELING_OPTIONS.targetDb;
   private levelTimer: ReturnType<typeof globalThis.setInterval> | undefined;
   private levelSmoothDb = -Infinity;
 
   private gains: number[] = [];
 
   private pendingUri: string | null = null;
+  private hls: Hls | null = null;
+  private hlsLoad: AbortController | null = null;
   private preloadedUri: string | null = null;
   private pendingSeek: number | null = null;
   private fading = false;
   private fadeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   private masterVolume = 1;
+  private processingPaused = false;
   private playbackRate = 1;
 
   
   private mode: ElementMode = "element";
+  private albumMode = false;
+  private albumBuffer = false;
   private probed = false;
   private elementProxyRetried = false;
   private probeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -85,6 +100,7 @@ export class WebAudioAdapter implements AudioAdapter {
   private pendingElementSrc: string | null = null;
   
   private playRequested = false;
+  private fadeRevision = 0;
   private elementPlayPending = false;
   private memoryRecovery: Promise<void> | null = null;
   private memoryController: AbortController | null = null;
@@ -93,9 +109,7 @@ export class WebAudioAdapter implements AudioAdapter {
   
   private bufCtx: AudioContext | null = null;
   private bufSrcGains: (GainNode | null)[] = [null, null];
-  private bufFilters: BiquadFilterNode[] = [];
-  private bufAnalyser: AnalyserNode | null = null;
-  private bufGain: GainNode | null = null;
+  private bufferProcessing: AudioProcessing | null = null;
   private buf: AudioBuffer | null = null;
   private bufUri: string | null = null;
   private bufDecoding: Promise<void> | null = null;
@@ -103,10 +117,6 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufNext: AudioBuffer | null = null;
 
   
-  private bufBassBoost: BiquadFilterNode | null = null;
-  private bufReverbGain: GainNode | null = null;
-  private bufDryGain: GainNode | null = null;
-  private bufStereoPan: StereoPannerNode | null = null;
   private bufNextUri: string | null = null;
   private bufSource: AudioBufferSourceNode | null = null;
   private bufSourceGainIdx = 0;
@@ -114,7 +124,6 @@ export class WebAudioAdapter implements AudioAdapter {
   private bufSourceCtxStart = 0;
   private bufPosition = 0;
   private bufPlaying = false;
-  private bufVolume = 1;
   private bufRate = 1;
   private bufPendingSeek: number | null = null;
   private timeTimer: ReturnType<typeof globalThis.setInterval> | undefined;
@@ -170,7 +179,7 @@ export class WebAudioAdapter implements AudioAdapter {
       if (isActive()) this.stateCb?.("playing");
     };
     el.onpause = (): void => {
-      if (isActive()) this.stateCb?.("paused");
+      if (isActive() && el.paused) this.stateCb?.("paused");
     };
     el.onwaiting = (): void => {
       if (isActive()) this.stateCb?.("loading");
@@ -198,17 +207,34 @@ export class WebAudioAdapter implements AudioAdapter {
       
       
       
-      if (isActive() && !this.graphDisabled && this.ctx && el.crossOrigin) {
+      if (isActive() && !this.hls && !isProxiedAudioUrl(this.pendingElementSrc)
+          && !this.graphDisabled && this.ctx && el.crossOrigin) {
         const src = el.currentSrc || el.src;
+        const position = this.pendingSeek ?? el.currentTime;
+        const shouldResume = this.playRequested;
+        this.bypassedStream = this.pendingElementSrc;
+        this.cancelFade();
         this.teardownGraph();
         this.graphDisabled = true;
+        for (const previous of this.elements) if (previous) {
+          previous.onpause = null;
+          previous.pause();
+        }
         this.elements = [null, null];
         this.ensureElements();
         const next = this.activeElement();
         next.crossOrigin = null;
         if (src) {
+          this.pendingSeek = position;
           next.src = src;
           next.load();
+          if (shouldResume) {
+            const recovery = next.play();
+            this.directRecovery = recovery;
+            void recovery.catch((error: unknown) => {
+              if (!this.elementPlayPending && this.playRequested && this.directRecovery === recovery) this.errorCb?.(String(error));
+            });
+          }
         }
         return;
       }
@@ -330,40 +356,20 @@ export class WebAudioAdapter implements AudioAdapter {
     }
     try {
       const ctx = new Ctor();
+      this.ctx = ctx;
       const src0 = ctx.createMediaElementSource(this.elements[0]!);
       const src1 = ctx.createMediaElementSource(this.elements[1]!);
       const g0 = ctx.createGain();
       const g1 = ctx.createGain();
-      g0.gain.value = 1;
-      g1.gain.value = 0;
-      this.filters = EQ_FREQUENCIES.map((freq, i) => {
-        const filter = ctx.createBiquadFilter();
-        filter.type =
-          i === 0 ? "lowshelf" : i === EQ_FREQUENCIES.length - 1 ? "highshelf" : "peaking";
-        filter.frequency.value = freq;
-        filter.Q.value = 1;
-        filter.gain.value = 0;
-        return filter;
-      });
-      this.analyser = ctx.createAnalyser();
-      this.analyser.fftSize = 256;
+      g0.gain.value = this.activeIdx === 0 ? 1 : 0;
+      g1.gain.value = this.activeIdx === 1 ? 1 : 0;
+      this.processing = new AudioProcessing(ctx, this.processingSettings());
       src0.connect(g0);
       src1.connect(g1);
-      g0.connect(this.filters[0]);
-      g1.connect(this.filters[0]);
-      let node: AudioNode = this.filters[0];
-      for (let i = 1; i < this.filters.length; i++) {
-        node.connect(this.filters[i]);
-        node = this.filters[i];
-      }
-      const fx = this.insertEffectNodes(ctx, node as BiquadFilterNode, this.analyser);
-      this.bassBoost = fx.bassBoost;
-      this.reverbGain = fx.reverbGain;
-      this.dryGain = fx.dryGain;
-      this.stereoPan = fx.stereoPan;
+      g0.connect(this.processing.input);
+      g1.connect(this.processing.input);
       this.fadeGains = [g0, g1];
-      this.ctx = ctx;
-      this.applyGains();
+      for (const el of this.elements) if (el) el.volume = 1;
     } catch {
       this.teardownGraph();
       this.graphDisabled = true;
@@ -379,64 +385,24 @@ export class WebAudioAdapter implements AudioAdapter {
     this.stopLevelTimer();
     this.ctx = null;
     this.fadeGains = [];
-    this.filters = [];
-    this.analyser = null;
-    this.levelGain = null;
-    this.bassBoost = null;
-    this.reverbGain = null;
-    this.dryGain = null;
-    this.stereoPan = null;
+    this.processing = null;
   }
 
-  private static generateImpulse(ctx: AudioContext, duration = 2, decay = 2): AudioBuffer {
-    const rate = ctx.sampleRate;
-    const length = rate * duration;
-    const buffer = ctx.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = buffer.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-      }
-    }
-    return buffer;
+  private processingSettings() {
+    return {
+      gains: this.gains, bass: this.bassBoostGain, reverb: this.reverbMix,
+      width: this.stereoWidth, orbit: this.spatialOrbit, volume: this.processingPaused ? 0 : this.masterVolume,
+    };
   }
 
-  private insertEffectNodes(
-    ctx: AudioContext,
-    lastFilter: BiquadFilterNode,
-    analyser: AnalyserNode,
-  ): { bassBoost: BiquadFilterNode; reverb: ConvolverNode; reverbGain: GainNode; dryGain: GainNode; stereoPan: StereoPannerNode } {
-    const bb = ctx.createBiquadFilter();
-    bb.type = "lowshelf";
-    bb.frequency.value = 150;
-    bb.gain.value = this.bassBoostGain;
+  private get activeProcessing(): AudioProcessing | null {
+    return this.mode === "buffer" ? this.bufferProcessing : this.processing;
+  }
 
-    const conv = ctx.createConvolver();
-    conv.buffer = WebAudioAdapter.generateImpulse(ctx);
-
-    const revGain = ctx.createGain();
-    revGain.gain.value = this.reverbMix;
-
-    const dryGain = ctx.createGain();
-    dryGain.gain.value = 1 - this.reverbMix * 0.5;
-
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = this.stereoWidth;
-
-    lastFilter.connect(bb);
-    bb.connect(dryGain);
-    bb.connect(conv);
-    conv.connect(revGain);
-    dryGain.connect(pan);
-    revGain.connect(pan);
-    pan.connect(analyser);
-    const level = ctx.createGain();
-    level.gain.value = 1;
-    analyser.connect(level);
-    level.connect(ctx.destination);
-    this.levelGain = level;
-
-    return { bassBoost: bb, reverb: conv, reverbGain: revGain, dryGain, stereoPan: pan };
+  private updateProcessing(): void {
+    const settings = this.processingSettings();
+    this.processing?.update(settings);
+    this.bufferProcessing?.update(settings);
   }
 
   private resumeCtx(): void {
@@ -445,16 +411,6 @@ export class WebAudioAdapter implements AudioAdapter {
     }
   }
 
-  private applyGains(): void {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    this.filters.forEach((filter, i) => {
-      const g = Math.min(Math.max(this.gains[i] ?? 0, -12), 12);
-      filter.gain.setTargetAtTime(g, t, GAIN_TAU);
-    });
-  }
-
-  
   private rebalanceGains(): void {
     if (!this.ctx || this.fadeGains.length !== 2) return;
     const t = this.ctx.currentTime;
@@ -463,6 +419,8 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private cancelFade(): void {
+    this.fadeRevision += 1;
+    this.inactiveElement()?.pause();
     if (this.fadeTimer !== undefined) {
       globalThis.clearTimeout(this.fadeTimer);
       this.fadeTimer = undefined;
@@ -495,11 +453,12 @@ export class WebAudioAdapter implements AudioAdapter {
     const next = this.inactiveElement();
     if (!next || !this.ctx || !prev) throw new Error("crossfade unavailable");
     this.cancelFade();
+    const revision = this.fadeRevision;
     if (next.currentSrc !== uri) {
       next.src = uri;
       next.load();
     }
-    next.volume = this.masterVolume;
+    next.volume = this.processing ? 1 : this.masterVolume;
     next.playbackRate = this.playbackRate;
     const prevGain = this.fadeGains[this.activeIdx];
     const nextGain = this.fadeGains[1 - this.activeIdx];
@@ -526,7 +485,8 @@ export class WebAudioAdapter implements AudioAdapter {
       this.finishFade();
       throw err;
     }
-    if (this.crossfadeMs !== 0) {
+    if (revision !== this.fadeRevision || !this.playRequested) return;
+    if (this.crossfadeMs !== 0 && this.fading) {
       this.fadeTimer = globalThis.setTimeout(() => this.finishFade(), this.crossfadeMs + 60);
     }
   }
@@ -535,22 +495,53 @@ export class WebAudioAdapter implements AudioAdapter {
 
   async load(src: string): Promise<void> {
     this.cancelMemoryRecovery(true);
-    this.leveler.reset();
-    this.levelSmoothDb = -Infinity;
+    this.directRecovery = null;
     this.clearBufChain();
-    if (isProxiedAudioUrl(src)) {
+    this.pendingUri = null;
+    const hlsSource = isHlsUrl(src);
+    this.releaseHls();
+    if (this.bypassedStream !== null && this.bypassedStream !== src) {
+      this.cancelFade();
+      for (const element of this.elements) element?.pause();
+      this.elements = [null, null];
+      this.graphDisabled = false;
+      this.bypassedStream = null;
+    }
+    const bufferAlbum = this.albumMode && isBufferedAlbumSource(src);
+    if (bufferAlbum && this.mode === "element") {
+      this.switchToBufferMode();
+      this.albumBuffer = this.bufCtx !== null;
+    }
+    if (hlsSource || isProxiedAudioUrl(src) || (!bufferAlbum && (this.albumMode || this.albumBuffer))) {
       this.switchToElementMode();
+      this.albumBuffer = false;
     }
     if (this.mode === "buffer") {
-      await this.bufLoad(src);
-      return;
+      try {
+        await this.bufLoad(src);
+        return;
+      } catch (error) {
+        if (!bufferAlbum) throw error;
+        this.switchToElementMode();
+        this.albumBuffer = false;
+      }
     }
+    if (this.levelingEnabled) this.resetLevelingGain();
     this.playRequested = false;
     this.pendingElementSrc = src;
     this.ensureGraph();
     this.cancelFade();
     const active = this.activeElement();
     this.pendingSeek = null;
+    if (hlsSource) {
+      active.pause();
+      active.removeAttribute("src");
+      active.load();
+      this.preloadedUri = null;
+      this.rebalanceGains();
+      await this.loadHls(src, active);
+      return;
+    }
     const playing = !active.paused && !active.ended;
     if (playing && this.ctx) {
       this.pendingUri = src;
@@ -574,7 +565,9 @@ export class WebAudioAdapter implements AudioAdapter {
 
   
   preload(src: string): void {
+    if (isHlsUrl(src)) return;
     if (this.mode === "buffer") {
+      if (this.albumMode && !isBufferedAlbumSource(src)) return;
       // Преддекодируем следующий трек заранее: без этого gapless-чейн
       // не получит готовый буфер к концу текущего.
       this.bufPreload(src);
@@ -588,58 +581,154 @@ export class WebAudioAdapter implements AudioAdapter {
     if (!next.paused) return;
     if (this.preloadedUri === src) return;
     this.preloadedUri = src;
-    next.volume = this.masterVolume;
+    next.volume = this.processing ? 1 : this.masterVolume;
     next.playbackRate = this.playbackRate;
     next.src = src;
     next.load();
   }
 
+  setAlbumMode(enabled: boolean): void {
+    const previous = this.albumMode;
+    this.albumMode = enabled;
+    if (previous && !enabled) this.cancelPreload();
+  }
+
+  cancelPreload(): void {
+    this.clearBufChain();
+    this.bufNext = null;
+    this.bufNextUri = null;
+  }
+
+  private releaseHls(): void {
+    this.hlsLoad?.abort();
+    this.hlsLoad = null;
+    this.hls?.destroy();
+    this.hls = null;
+  }
+
+  private async loadHls(src: string, element: HTMLAudioElement): Promise<void> {
+    const controller = new AbortController();
+    this.hlsLoad = controller;
+    try {
+      const { default: Hls } = await import("hls.js");
+      controller.signal.throwIfAborted();
+      if (!Hls.isSupported()) {
+        if (!element.canPlayType("application/vnd.apple.mpegurl")) throw new Error("HLS playback is unavailable");
+        element.src = src;
+        element.load();
+        return;
+      }
+      // Keep the CDN URL as the base for relative segment URIs while the
+      // native media route makes the actual requests with the app's networking.
+      const BaseLoader = Hls.DefaultConfig.loader;
+      class MediaLoader extends BaseLoader {
+        override load(context: LoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks<LoaderContext>): void {
+          const original = context.url;
+          super.load({ ...context, url: `${PROXY_BASE}/audio?url=${encodeURIComponent(original)}` }, config, {
+            ...callbacks,
+            onSuccess: (response, stats, _context, details) => {
+              callbacks.onSuccess({ ...response, url: original }, stats, context, details);
+            },
+            onError: (error, _context, details, stats) => callbacks.onError(error, context, details, stats),
+            onTimeout: (stats, _context, details) => callbacks.onTimeout(stats, context, details),
+            onAbort: (stats, _context, details) => callbacks.onAbort?.(stats, context, details),
+            onProgress: callbacks.onProgress &&
+              ((stats, _context, data, details) => callbacks.onProgress?.(stats, context, data, details)),
+          });
+        }
+      }
+      const hls = new Hls({ enableWorker: false, maxBufferLength: 30, loader: MediaLoader });
+      this.hls = hls;
+      await new Promise<void>((resolve, reject) => {
+        let started = false;
+        const timer = globalThis.setTimeout(() => fail(new Error("HLS manifest timed out")), 8000);
+        const abort = () => fail(controller.signal.reason);
+        controller.signal.addEventListener("abort", abort, { once: true });
+        const cleanup = () => {
+          globalThis.clearTimeout(timer);
+          controller.signal.removeEventListener("abort", abort);
+        };
+        const fail = (error: unknown) => {
+          cleanup();
+          reject(error);
+        };
+        hls.once(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
+        hls.once(Hls.Events.MANIFEST_PARSED, () => {
+          started = true;
+          cleanup();
+          resolve();
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal || controller.signal.aborted) return;
+          const code = data.response?.code;
+          const message = `HLS stream error: ${data.details}${code ? ` (HTTP ${code})` : ""}`;
+          cleanup();
+          if (started) this.errorCb?.(message);
+          else reject(new Error(message));
+        });
+        hls.attachMedia(element);
+      });
+    } catch (error) {
+      if (this.hlsLoad === controller) this.releaseHls();
+      throw error;
+    }
+  }
+
   
   setEqualizer(gains: number[]): void {
-    this.gains = [...gains];
-    if (this.mode === "buffer") {
-      this.applyBufGains();
-    } else {
-      this.applyGains();
-    }
+    this.gains = normalizeEqualizer(gains);
+    this.updateProcessing();
   }
 
   setBassBoost(db: number): void {
-    this.bassBoostGain = Math.min(Math.max(db, 0), 15);
-    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
-    if (this.bassBoost) this.bassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
-    if (this.bufBassBoost) this.bufBassBoost.gain.setTargetAtTime(this.bassBoostGain, t, GAIN_TAU);
+    this.bassBoostGain = sanitizeAudioValue(db, 0, 15);
+    this.updateProcessing();
   }
 
   setReverb(mix: number): void {
-    this.reverbMix = Math.min(Math.max(mix, 0), 1);
-    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
-    if (this.reverbGain) this.reverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
-    if (this.dryGain) this.dryGain.gain.setTargetAtTime(1 - this.reverbMix * 0.5, t, GAIN_TAU);
-    if (this.bufReverbGain) this.bufReverbGain.gain.setTargetAtTime(this.reverbMix, t, GAIN_TAU);
-    if (this.bufDryGain) this.bufDryGain.gain.setTargetAtTime(1 - this.reverbMix * 0.5, t, GAIN_TAU);
+    this.reverbMix = sanitizeAudioValue(mix, 0, 1);
+    this.updateProcessing();
   }
 
-  setStereoWidth(pan: number): void {
-    this.stereoWidth = Math.min(Math.max(pan, -1), 1);
-    const t = this.ctx?.currentTime ?? this.bufCtx?.currentTime ?? 0;
-    if (this.stereoPan) this.stereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
-    if (this.bufStereoPan) this.bufStereoPan.pan.setTargetAtTime(this.stereoWidth, t, GAIN_TAU);
+  setStereoWidth(width: number): void {
+    this.stereoWidth = sanitizeAudioValue(width, -1, 1);
+    this.updateProcessing();
+  }
+
+  setSpatialOrbit(amount: number): void {
+    this.spatialOrbit = sanitizeAudioValue(amount, 0, 1);
+    this.updateProcessing();
   }
 
   setLeveling(enabled: boolean, targetDb: number): void {
+    const target = sanitizeAudioValue(targetDb, -30, -1, DEFAULT_LEVELING_OPTIONS.targetDb);
+    if (enabled === this.levelingEnabled && target === this.levelTargetDb) return;
     this.levelingEnabled = enabled;
-    this.leveler = new Leveler({ ...DEFAULT_LEVELING_OPTIONS, targetDb });
+    this.levelTargetDb = target;
+    this.leveler = new Leveler({ ...DEFAULT_LEVELING_OPTIONS, targetDb: target });
     this.levelSmoothDb = -Infinity;
     if (!enabled) {
       this.stopLevelTimer();
-      const t = this.ctx?.currentTime ?? 0;
-      if (this.levelGain && this.ctx) this.levelGain.gain.setTargetAtTime(1, t, GAIN_TAU);
-      const bt = this.bufCtx?.currentTime ?? 0;
-      if (this.bufLevelGain && this.bufCtx) this.bufLevelGain.gain.setTargetAtTime(1, bt, GAIN_TAU);
+      this.resetLevelingGain();
     } else if (this.playRequested || this.bufPlaying) {
       this.startLevelTimer();
     }
+  }
+
+  private resetLevelingGain(): void {
+    this.leveler.reset();
+    this.levelSmoothDb = -Infinity;
+    this.applyMeasuredGain();
+  }
+
+  setMeasuredGain(gain: number): void {
+    this.measuredGain = gain;
+    if (!this.levelingEnabled) this.applyMeasuredGain();
+  }
+
+  private applyMeasuredGain(): void {
+    if (this.processing && this.ctx) this.processing.level.gain.setTargetAtTime(this.measuredGain, this.ctx.currentTime, .16);
+    if (this.bufferProcessing && this.bufCtx) this.bufferProcessing.level.gain.setTargetAtTime(this.measuredGain, this.bufCtx.currentTime, .16);
   }
 
   private startLevelTimer(): void {
@@ -657,28 +746,27 @@ export class WebAudioAdapter implements AudioAdapter {
   private tickLeveling(): void {
     if (!this.levelingEnabled) return;
     const inBuffer = this.mode === "buffer";
-    const analyser = inBuffer ? this.bufAnalyser : this.analyser;
+    const processing = this.activeProcessing;
     const ctx = inBuffer ? this.bufCtx : this.ctx;
-    const node = inBuffer ? this.bufLevelGain : this.levelGain;
-    if (!analyser || !ctx || !node) return;
+    if (!processing || !ctx || ctx.state !== "running") return;
     if (inBuffer ? !this.bufPlaying : !this.playRequested) return;
     try {
-      const data = new Float32Array(analyser.fftSize);
-      analyser.getFloatTimeDomainData(data);
-      const db = rmsToDb(rmsOfSamples(data));
-      // Сглаживаем окном ~0.4с, чтобы не качаться внутри бита.
+      const db = processing.inputLevelDb();
+      if (db <= DEFAULT_LEVELING_OPTIONS.silenceDb || !Number.isFinite(db)) return;
       const dt = LEVEL_TICK_MS / 1000;
       this.levelSmoothDb = Number.isFinite(this.levelSmoothDb)
         ? this.levelSmoothDb + (db - this.levelSmoothDb) * Math.min(1, dt / 0.4)
         : db;
       const gain = this.leveler.step(this.levelSmoothDb, dt);
-      node.gain.setTargetAtTime(gain, ctx.currentTime, 0.1);
+      processing.level.gain.setTargetAtTime(gain, ctx.currentTime, 0.1);
     } catch {}
   }
 
   async play(): Promise<void> {
     this.playRequested = true;
-    if (this.levelingEnabled) this.startLevelTimer();
+    this.processingPaused = false;
+    this.activeProcessing?.setVolume(this.masterVolume);
+    if (this.levelingEnabled && this.activeProcessing) this.startLevelTimer();
     if (this.mode === "buffer") {
       await this.bufPlay();
       return;
@@ -690,7 +778,9 @@ export class WebAudioAdapter implements AudioAdapter {
     try {
       if (pending !== null && this.ctx) await this.startCrossfade(pending);
       else await this.activeElement().play();
+      if (this.directRecovery) await this.directRecovery;
     } catch (error) {
+      if (this.directRecovery) return this.directRecovery;
       if (!this.playRequested || !this.isMediaCacheFailure(this.activeElement())) throw error;
       await this.recoverMediaCache(this.activeElement());
     } finally {
@@ -700,6 +790,8 @@ export class WebAudioAdapter implements AudioAdapter {
 
   pause(): void {
     this.playRequested = false;
+    this.processingPaused = true;
+    this.activeProcessing?.setVolume(0);
     this.cancelMemoryRecovery(false);
     this.stopLevelTimer();
     if (this.mode === "buffer") {
@@ -707,7 +799,7 @@ export class WebAudioAdapter implements AudioAdapter {
       return;
     }
     this.finishFade();
-    this.activeElement().pause();
+    for (const el of this.elements) el?.pause();
   }
 
   seek(seconds: number): void {
@@ -721,24 +813,25 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   setVolume(volume: number): void {
-    this.masterVolume = Math.min(Math.max(volume, 0), 1);
-    if (this.mode === "buffer") {
-      this.bufVolume = this.masterVolume;
-      if (this.bufGain && this.bufCtx) {
-        this.bufGain.gain.setTargetAtTime(this.bufVolume, this.bufCtx.currentTime, GAIN_TAU);
-      }
-      return;
-    }
-    for (const el of this.elements) {
-      if (el) el.volume = this.masterVolume;
-    }
+    this.masterVolume = sanitizeAudioValue(volume, 0, 1, 1);
+    const output = this.processingPaused ? 0 : this.masterVolume;
+    this.processing?.setVolume(output);
+    this.bufferProcessing?.setVolume(output);
+    if (!this.processing) for (const el of this.elements) if (el) el.volume = this.masterVolume;
   }
 
   setPlaybackRate(rate: number): void {
     this.playbackRate = Math.min(Math.max(rate, 0.5), 2);
     if (this.mode === "buffer") {
+      // Anchor elapsed time using the old rate before changing the clock slope.
+      const position = this.bufGetPosition();
+      this.bufPosition = position;
+      this.bufBaseOffset = position;
+      if (this.bufCtx) this.bufSourceCtxStart = Math.max(this.bufCtx.currentTime, this.bufSourceCtxStart);
       this.bufRate = this.playbackRate;
       if (this.bufSource) this.bufSource.playbackRate.value = this.bufRate;
+      this.armBufChain();
+      this.emitTime();
       return;
     }
     for (const el of this.elements) {
@@ -759,25 +852,20 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   
-  getSpectrum(data: Uint8Array): void {
-    if (this.mode === "buffer") {
-      if (this.bufAnalyser && this.bufCtx) {
-        this.bufAnalyser.getByteFrequencyData(data);
-      } else {
-        data.fill(0);
-      }
-      return;
-    }
-    if (this.analyser && this.ctx) {
-      this.analyser.getByteFrequencyData(data);
-    } else {
-      data.fill(0);
-    }
+  getLimiterReduction(): number | undefined {
+    return this.activeProcessing?.limiter?.reduction;
   }
 
-  
+  getAudioProcessingState(): "active" | "standby" | "direct" {
+    if (this.activeProcessing) return "active";
+    return this.graphDisabled ? "direct" : "standby";
+  }
 
-  
+  getSpectrum(data: Uint8Array): void {
+    const analyser = this.activeProcessing?.spectrum;
+    if (analyser) analyser.getByteFrequencyData(data);
+    else data.fill(0);
+  }
 
   private ensureBufferCtx(): boolean {
     if (this.bufCtx) return true;
@@ -789,108 +877,31 @@ export class WebAudioAdapter implements AudioAdapter {
       const g1 = ctx.createGain();
       g0.gain.value = 1;
       g1.gain.value = 0;
-      this.bufFilters = EQ_FREQUENCIES.map((freq, i) => {
-        const filter = ctx.createBiquadFilter();
-        filter.type =
-          i === 0 ? "lowshelf" : i === EQ_FREQUENCIES.length - 1 ? "highshelf" : "peaking";
-        filter.frequency.value = freq;
-        filter.Q.value = 1;
-        filter.gain.value = 0;
-        return filter;
-      });
-      this.bufAnalyser = ctx.createAnalyser();
-      this.bufAnalyser.fftSize = 256;
-      g0.connect(this.bufFilters[0]);
-      g1.connect(this.bufFilters[0]);
-      let node: AudioNode = this.bufFilters[0];
-      for (let i = 1; i < this.bufFilters.length; i++) {
-        node.connect(this.bufFilters[i]);
-        node = this.bufFilters[i];
-      }
-
-      this.bufBassBoost = ctx.createBiquadFilter();
-      this.bufBassBoost.type = "lowshelf";
-      this.bufBassBoost.frequency.value = 150;
-      this.bufBassBoost.gain.value = this.bassBoostGain;
-
-      const bufReverb = ctx.createConvolver();
-      bufReverb.buffer = WebAudioAdapter.generateImpulse(ctx);
-
-      this.bufReverbGain = ctx.createGain();
-      this.bufReverbGain.gain.value = this.reverbMix;
-
-      this.bufDryGain = ctx.createGain();
-      this.bufDryGain.gain.value = 1 - this.reverbMix * 0.5;
-
-      this.bufStereoPan = ctx.createStereoPanner();
-      this.bufStereoPan.pan.value = this.stereoWidth;
-
-      node.connect(this.bufBassBoost);
-      this.bufBassBoost.connect(this.bufDryGain);
-      this.bufBassBoost.connect(bufReverb);
-      bufReverb.connect(this.bufReverbGain);
-      this.bufDryGain.connect(this.bufStereoPan);
-      this.bufReverbGain.connect(this.bufStereoPan);
-      this.bufStereoPan.connect(this.bufAnalyser);
-
-      const master = ctx.createGain();
-      master.gain.value = this.bufVolume;
-      const bufLevel = ctx.createGain();
-      bufLevel.gain.value = 1;
-      this.bufAnalyser.connect(bufLevel);
-      bufLevel.connect(master);
-      master.connect(ctx.destination);
-      this.bufLevelGain = bufLevel;
       this.bufCtx = ctx;
+      this.bufferProcessing = new AudioProcessing(ctx, this.processingSettings());
+      g0.connect(this.bufferProcessing.input);
+      g1.connect(this.bufferProcessing.input);
       this.bufSrcGains = [g0, g1];
-      this.bufGain = master;
-      this.applyBufGains();
       return true;
     } catch {
-      this.bufCtx = null;
-      this.bufGain = null;
-      this.bufSrcGains = [null, null];
-      this.bufFilters = [];
-      this.bufAnalyser = null;
-      this.bufBassBoost = null;
-      this.bufReverbGain = null;
-      this.bufDryGain = null;
-      this.bufStereoPan = null;
+      this.teardownBufferCtx();
       return false;
     }
   }
 
   private teardownBufferCtx(): void {
-    if (this.bufCtx) {
-      void this.bufCtx.close().catch(() => undefined);
-    }
+    if (this.bufCtx) void this.bufCtx.close().catch(() => undefined);
     this.clearBufChain();
     this.stopLevelTimer();
     this.bufCtx = null;
-    this.bufGain = null;
-    this.bufLevelGain = null;
+    this.bufferProcessing = null;
     this.bufSrcGains = [null, null];
-    this.bufFilters = [];
-    this.bufAnalyser = null;
-    this.bufBassBoost = null;
-    this.bufReverbGain = null;
-    this.bufDryGain = null;
-    this.bufStereoPan = null;
   }
 
   private resumeBufCtx(): void {
     if (this.bufCtx?.state === "suspended") {
       void this.bufCtx.resume().catch(() => undefined);
     }
-  }
-
-  private applyBufGains(): void {
-    if (!this.bufCtx) return;
-    const t = this.bufCtx.currentTime;
-    this.bufFilters.forEach((filter, i) => {
-      const g = Math.min(Math.max(this.gains[i] ?? 0, -12), 12);
-      filter.gain.setTargetAtTime(g, t, GAIN_TAU);
-    });
   }
 
   private emitState(state: PlayerState): void {
@@ -901,7 +912,8 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private switchToBufferMode(): void {
     if (this.mode === "buffer") return;
-    if (isProxiedAudioUrl(this.pendingElementSrc)) return;
+    if (!this.albumMode && isProxiedAudioUrl(this.pendingElementSrc)) return;
+    this.bufRate = this.playbackRate;
     if (!this.ensureBufferCtx()) return;
     this.mode = "buffer";
     this.cancelFade();
@@ -950,7 +962,7 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private runProbe(readyCheck: boolean): void {
-    if (this.mode !== "element") return;
+    if (this.mode !== "element" || isHlsUrl(this.pendingElementSrc)) return;
     const el = this.elements[this.activeIdx];
     if (!el || el.error) return;
     const stuck = readyCheck ? el.readyState === 0 : el.currentSrc === "";
@@ -998,6 +1010,15 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private async bufFetchBytes(src: string): Promise<ArrayBuffer> {
+    if (this.albumMode && isBufferedAlbumSource(src)) {
+      const controller = new AbortController();
+      const timer = globalThis.setTimeout(() => controller.abort(), MEDIA_MEMORY_TIMEOUT_MS);
+      try {
+        return await (await fetchMediaBlob(src, controller.signal)).arrayBuffer();
+      } finally {
+        globalThis.clearTimeout(timer);
+      }
+    }
     const host = this.hostOf(src);
     if (this.proxiedHosts.has(host)) return this.bufFetchViaProxy(src);
     try {
@@ -1026,12 +1047,15 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private cacheBuf(src: string, audio: AudioBuffer): void {
-    if (this.bufferCache.has(src)) this.bufferCache.delete(src);
+    this.bufferCache.delete(src);
+    if (pcmBytes(audio) > BUFFER_CACHE_MAX_BYTES) return;
     this.bufferCache.set(src, audio);
-    while (this.bufferCache.size > BUFFER_CACHE_MAX) {
-      const oldest = this.bufferCache.keys().next().value;
-      if (oldest === undefined) break;
+    let bytes = 0;
+    for (const buffer of this.bufferCache.values()) bytes += pcmBytes(buffer);
+    for (const [oldest, buffer] of this.bufferCache) {
+      if (bytes <= BUFFER_CACHE_MAX_BYTES && this.bufferCache.size <= BUFFER_CACHE_MAX) break;
       this.bufferCache.delete(oldest);
+      bytes -= pcmBytes(buffer);
     }
   }
 
@@ -1041,13 +1065,13 @@ export class WebAudioAdapter implements AudioAdapter {
   }
 
   private async bufLoad(src: string): Promise<void> {
-    this.leveler.reset();
-    this.levelSmoothDb = -Infinity;
     this.clearBufChain();
+    if (this.bufNextUri !== src) this.cancelPreload();
     if (this.bufUri === src && this.bufDecoding) {
       await this.bufDecoding;
       return;
     }
+    if (this.levelingEnabled) this.resetLevelingGain();
     if (this.bufUri === src && this.bufPlaying && this.bufSource && this.buf) {
       // Gapless-чейн уже играет этот трек — подхватываем без рестарта.
       this.bufPendingSeek = null;
@@ -1109,6 +1133,8 @@ export class WebAudioAdapter implements AudioAdapter {
 
   private bufPreload(src: string): void {
     if (this.bufNextUri === src) return;
+    this.clearBufChain();
+    this.bufNext = null;
     const cached = this.cachedBuf(src);
     if (cached) {
       this.bufNextUri = src;
@@ -1120,12 +1146,11 @@ export class WebAudioAdapter implements AudioAdapter {
     this.bufFetchBytes(src)
       .then((bytes) => this.bufDecode(bytes))
       .then((audio) => {
-        if (this.bufNextUri === src) {
-          this.bufNext = audio;
-          this.cacheBuf(src, audio);
-          // Догрузился уже во время игры — взводим gapless-чейн сразу.
-          this.armBufChain();
-        }
+        if (this.bufNextUri !== src || pcmBytes(audio) > BUFFER_CACHE_MAX_BYTES) return;
+        this.bufNext = audio;
+        this.cacheBuf(src, audio);
+        // Догрузился уже во время игры — взводим gapless-чейн сразу.
+        this.armBufChain();
       })
       .catch(() => {
         if (this.bufNextUri === src) {
@@ -1193,6 +1218,7 @@ export class WebAudioAdapter implements AudioAdapter {
     this.bufBaseOffset = this.bufPosition;
     this.bufSourceCtxStart = t;
     this.bufPlaying = true;
+    if (this.levelingEnabled) this.startLevelTimer();
     if (cf && oldGainIdx >= 0) {
       const oldGain = this.bufSrcGains[oldGainIdx];
       if (oldGain) {
@@ -1265,7 +1291,7 @@ export class WebAudioAdapter implements AudioAdapter {
     const oldGain = this.bufSrcGains[oldGainIdx];
     if (oldGain) {
       oldGain.gain.cancelScheduledValues(t);
-      oldGain.gain.setValueAtTime(0, t);
+      oldGain.gain.setValueAtTime(0, when);
     }
     src.onended = (): void => {
       if (this.bufSource !== src) return;
@@ -1279,7 +1305,12 @@ export class WebAudioAdapter implements AudioAdapter {
     };
     src.start(when, 0);
     if (oldSource) {
-      oldSource.onended = null;
+      oldSource.onended = (): void => {
+        oldSource.onended = null;
+        // The next source is already scheduled; let the engine adopt it at
+        // the boundary and advance its queue without interrupting playback.
+        if (this.bufSource === src && this.bufPlaying) this.endedCb?.();
+      };
       try {
         oldSource.stop(when);
       } catch {}
@@ -1396,6 +1427,7 @@ export class WebAudioAdapter implements AudioAdapter {
     this.playRequested = false;
     this.cancelMemoryRecovery(true);
     this.cancelFade();
+    this.releaseHls();
     if (this.probeTimer !== undefined) {
       globalThis.clearTimeout(this.probeTimer);
       this.probeTimer = undefined;

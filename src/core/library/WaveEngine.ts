@@ -1,8 +1,12 @@
+import { sameSongFamily, uniqueRecommendations } from "../recordings/matching";
 import type { HistoryEntry, Track } from "../types";
 import type { Storage } from "../database/Storage";
 import type { MusicProvider } from "../providers/MusicProvider";
 import { expandSearchQueries, getSpotifyGenres, getMoodProfile, normalizeGenre, detectMoods } from "../recommendations/moodTaxonomy";
 import { buildListeningProfile, timeAwareSearchTerms, getCurrentTimeContext, timeAdjustedMoodDistribution, type ListeningProfile, type TimeContext } from "../recommendations/listeningProfile";
+import { rankCandidates } from "../recommendations/rankCandidates";
+import type { RecommendationOptions } from "../recommendations/rankCandidates";
+import { withDeadline } from "../util/deadline";
 
 function detectTrackMoodScore(track: Track, moodDistribution: Record<string, number>): number {
   const moods = detectMoods(
@@ -154,7 +158,7 @@ export class SmartWaveSource implements WaveSource {
     const maxArtistCount = Math.max(1, ...ctx.artistCounts.values());
     const topArtists = new Map<string, number>();
     for (const [artist, count] of ctx.artistCounts) {
-      topArtists.set(artist, 1 + Math.log2(count) / Math.log2(maxArtistCount));
+      topArtists.set(artist, 1 + Math.log2(count) / Math.log2(Math.max(2, maxArtistCount)));
     }
 
     for (const track of ctx.likedTracks) {
@@ -281,6 +285,7 @@ import { scoreTransition } from "./transitionScoring";
 
 export class WaveEngine {
   private recentIds = new Set<string>();
+  private recentRecommendations: Track[] = [];
   private readonly recentCap = 100;
   private cachedProfile: ListeningProfile | null = null;
   private profileCacheTime = 0;
@@ -288,6 +293,7 @@ export class WaveEngine {
   private rollingContext = new RollingContext();
   
   private blockFilter: (track: Track) => boolean = () => true;
+  private feedback: () => RecommendationOptions["feedback"] = () => undefined;
   private historyDecayDays: number = 7;
   private discoveryRate: number = 30;
   private preferredLanguages: string[] = [];
@@ -320,9 +326,14 @@ export class WaveEngine {
     this.blockFilter = fn;
   }
 
+  setFeedbackSource(source: () => RecommendationOptions["feedback"]): void {
+    this.feedback = source;
+  }
+
   
   markPlayed(track: Track): void {
     this.recentIds.add(track.id);
+    this.recentRecommendations = [...this.recentRecommendations.filter((previous) => !sameSongFamily(previous, track)), track].slice(-this.recentCap);
     this.rollingContext.addPlayed(track);
     this.trimRecent();
   }
@@ -353,10 +364,18 @@ export class WaveEngine {
     return this.cachedProfile;
   }
 
-  async generateWave(limit = 20): Promise<Track[]> {
-    const likedTracks = await this.storage.getLikedTracks();
-    const history = await this.storage.getHistory(200);
+  async generateWave(limit = 20, excluded: readonly Track[] = [], seed?: Track): Promise<Track[]> {
+    const [likedTracks, history] = await Promise.all([this.storage.getLikedTracks(), this.storage.getHistory(200)]);
     const profile = await this.getProfile(likedTracks, history);
+    const referenceTracks = uniqueRecommendations([...history.slice(0, 18).map(({ track }) => track), ...likedTracks.slice(0, 18)]).slice(0, 24);
+    const historyTracks = history.map(({ track }) => track);
+    const feedback = this.feedback();
+    const avoid = [...excluded, ...this.recentRecommendations, ...historyTracks.slice(0, 20), ...(feedback?.less ?? [])];
+    const playable = (track: Track) => this.blockFilter(track) && !track.meta?.noPlay && !track.meta?.preview && !!track.uri;
+    const options = { strict: true, excluded: seed ? [seed, ...avoid] : avoid, taste: referenceTracks, feedback, annotate: Boolean(feedback) };
+    const pool = [...likedTracks, ...historyTracks].filter(playable);
+    const familiar = seed ? rankCandidates(seed, pool, limit, options) : [];
+    if (seed && familiar.length >= limit) return this.remember(familiar);
 
     const libraryGenres = new Map<string, number>();
     const artistCounts = new Map<string, number>();
@@ -379,28 +398,32 @@ export class WaveEngine {
       }
     }
 
-    const candidates = await this.fetchCandidatesMood(profile, libraryGenres, artistCounts, limit, history, getCurrentTimeContext());
-
     const timeCtx = getCurrentTimeContext();
+    const candidates = (await this.fetchCandidatesMood(profile, artistCounts, timeCtx, seed)).filter(playable);
+    if (seed) return this.remember(rankCandidates(seed, [...familiar, ...candidates], limit, options));
     const moodDistribution = timeAdjustedMoodDistribution(profile.moodDistribution, timeCtx);
+    const reference = referenceTracks[0] ?? feedback?.more[0];
+    const discovery = reference
+      ? rankCandidates(reference, candidates, limit * 4, options)
+      : uniqueRecommendations(candidates, avoid);
 
-     const tracks = this.source.generate(limit, {
-      likedTracks,
-      history,
+    const eligible = (track: Track) => !avoid.some((previous) => sameSongFamily(previous, track));
+    const tracks = this.source.generate(limit, {
+      likedTracks: likedTracks.filter(eligible),
+      history: history.filter((entry) => eligible(entry.track)),
       libraryGenres,
       artistCounts,
       moodDistribution,
-      candidates,
+      candidates: discovery,
       recentIds: this.recentIds,
       profile,
       historyDecayDays: this.historyDecayDays,
       discoveryRate: this.discoveryRate,
       preferredLanguages: this.preferredLanguages,
     });
-    const filtered = tracks.filter(this.blockFilter);
+    const filtered = uniqueRecommendations(tracks.filter(this.blockFilter), avoid);
 
-    const seed = this.rollingContext.getSeed();
-    const lastPlayed = this.rollingContext.getWindow().slice(-1)[0] ?? seed;
+    const lastPlayed = this.rollingContext.getWindow().slice(-1)[0] ?? this.rollingContext.getSeed();
     if (lastPlayed) {
       for (let i = 0; i < filtered.length; i++) {
         const prev = i === 0 ? lastPlayed : filtered[i - 1];
@@ -411,11 +434,18 @@ export class WaveEngine {
         }
       }
     }
-    for (const t of filtered) {
+    const explained = feedback ? filtered.map((track) => track.meta?.recommendationReason ? track
+      : { ...track, meta: { ...track.meta, recommendationReason: "library" } }) : filtered;
+    return this.remember(explained);
+  }
+
+  private remember(tracks: Track[]): Track[] {
+    for (const t of tracks) {
       this.recentIds.add(t.id);
     }
     this.trimRecent();
-    return filtered;
+    this.recentRecommendations = [...this.recentRecommendations, ...tracks].slice(-this.recentCap);
+    return tracks;
   }
 
   private trimRecent(): void {
@@ -431,11 +461,9 @@ export class WaveEngine {
 
   private async fetchCandidatesMood(
     profile: ListeningProfile,
-    _libraryGenres: Map<string, number>,
     artistCounts: Map<string, number>,
-    limit: number,
-    _history: HistoryEntry[],
     timeCtx: TimeContext,
+    seed?: Track,
   ): Promise<Track[]> {
     const out: Track[] = [];
     const seen = new Set<string>();
@@ -444,7 +472,7 @@ export class WaveEngine {
     );
 
     const collect = async (query: string) => {
-      const results = await Promise.allSettled(playableProviders.map((p) => p.search(query)));
+      const results = await Promise.allSettled(playableProviders.map((p) => withDeadline(p.search(query), 8_000)));
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
         for (const t of r.value.tracks) {
@@ -458,6 +486,13 @@ export class WaveEngine {
     const moodQueries = expandSearchQueries(profile.topMoods, profile.topGenres.slice(0, 3));
     const profileTerms = timeAwareSearchTerms(profile, timeCtx, this.preferredLanguages);
     const allQueries = [...new Set([...moodQueries, ...profileTerms])].slice(0, 15);
+
+    if (seed) {
+      const queries = [...new Set([seed.artist, seed.genre, ...profile.topGenres, ...profile.topArtists.slice(0, 2).map(({ artist }) => artist)])]
+        .filter((query): query is string => Boolean(query)).slice(0, 4);
+      await Promise.all(queries.map(collect));
+      return out;
+    }
 
     for (let i = 0; i < allQueries.length; i += 4) {
       const batch = allQueries.slice(i, i + 4);
@@ -489,7 +524,7 @@ export class WaveEngine {
     const topTracks = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
     await Promise.all(topTracks.map(([artist]) => this.collectSimilarMood(artist, "", moodOptions, out, seen)));
 
-    return out.slice(0, limit * 3);
+    return out;
   }
 
   private async collectSimilarMood(

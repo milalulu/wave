@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs>
+<linearGradient id="base" x2="1" y2="1"><stop stop-color="#140e22"/><stop offset=".45" stop-color="#5c3d89"/><stop offset=".7" stop-color="#ff8f8b"/><stop offset="1" stop-color="#1c122b"/></linearGradient>
+<linearGradient id="silk" x2="1" y2=".5"><stop stop-color="#1a1128"/><stop offset=".2" stop-color="#b792fb"/><stop offset=".35" stop-color="#3a2458"/><stop offset=".52" stop-color="#fca6bb"/><stop offset=".63" stop-color="#ff766e"/><stop offset=".8" stop-color="#50306f"/><stop offset="1" stop-color="#120c20"/></linearGradient>
+<linearGradient id="shine" x2="1" y2="1"><stop stop-color="#d5c2ff"/><stop offset=".4" stop-color="#754fa0"/><stop offset=".65" stop-color="#ff958a"/><stop offset="1" stop-color="#21132e"/></linearGradient>
+</defs>
+<path fill="url(#base)" d="M0 0h600v600H0z"/>
+<path fill="url(#silk)" d="M-100-80C640-30 0 230 440 280S690 570 200 720L-100 600C630 310-220 270-100-80Z"/>
+<path fill="url(#shine)" d="M140-40C660 150-240 330 270 490S730 580 600 690C740 440-110 550 190 290S440 90 140-40Z"/>
+<path fill="none" stroke="#efc5ff" stroke-opacity=".65" stroke-width="3" d="M-20 150C530 30 500 270 190 330S160 530 620 430"/>
+<path fill="none" stroke="#ff9b99" stroke-opacity=".8" stroke-width="2" d="M80-20C580 100-90 350 280 485S590 510 630 550"/>
+</svg>

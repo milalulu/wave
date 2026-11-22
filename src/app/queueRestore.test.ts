@@ -39,3 +39,9 @@ describe("queue restore", () => {
     expect(loadRestore()).toBeNull();
   });
 });
+
+it("preserves each original artwork URL across a restart", () => {
+  const queue = tracks(2).map((track, i) => ({ ...track, coverUrl: `https://example.test/album-${i}.jpg` }));
+  saveRestore(queue, 0, 12);
+  expect(loadRestore()?.queue).toEqual(queue);
+});

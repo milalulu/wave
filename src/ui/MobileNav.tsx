@@ -1,6 +1,7 @@
 import { CastButton } from "./CastButton";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
+import { trackCover } from "../core/cover/trackCover";
 import { Cover } from "./Cover";
 import { ProgressBar } from "./ProgressBar";
 import {
@@ -89,7 +90,7 @@ export function MobileTopBar({ view, canGoBack, onBack }: MobileTopBarProps) {
   return (
     <header className="mobile-topbar">
       {canGoBack && (
-        <button className="icon-btn" onClick={onBack}>
+        <button className="icon-btn" onClick={onBack} aria-label={locale === "ru" ? "Назад" : "Back"}>
           <BackIcon size={22} />
         </button>
       )}
@@ -156,11 +157,7 @@ export function MobilePlayerBar({ onOpenPlayer, onOpenQueue }: MobilePlayerBarPr
         disabled={!track}
         aria-label={t("nav").nowPlaying}
       >
-        {track?.coverUrl ? (
-          <Cover className="mini-cover" src={track.coverUrl} alt="" />
-        ) : (
-          <div className="mini-cover mini-cover-empty" />
-        )}
+        <Cover className="mini-cover" src={track ? trackCover(track) : undefined} alt="" />
         <span className="mini-info">
           <span className="mini-title">{track?.title ?? t("common").unknown}</span>
           <span className="mini-artist">{track?.artist ?? ""}</span>
@@ -177,9 +174,9 @@ export function MobilePlayerBar({ onOpenPlayer, onOpenQueue }: MobilePlayerBarPr
       </button>
       <button
         className="mini-btn"
-        disabled={!track}
+        disabled={!track || buffering}
         onClick={() => void togglePlay()}
-        aria-label={snapshot.state === "playing" ? t("player").pause : t("player").play}
+        aria-label={buffering ? t("common").loading : snapshot.state === "playing" ? t("player").pause : t("player").play}
       >
         {buffering ? (
           <SpinnerIcon size={22} />

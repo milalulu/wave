@@ -22,3 +22,10 @@
 .agent-compose textarea { resize: vertical; min-height: 80px; }
 .agent-view button:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 600px) { .agent-view { padding: 16px; } .agent-heading { flex-wrap: wrap; } .agent-message-user { margin-left: 16px; } }
+.pulse-shell .agent-view { padding: 0; max-width: 1100px; }
+.pulse-shell .agent-settings { padding: 24px; }
+.pulse-shell .agent-compose textarea { border-radius: 18px; padding: 16px; }
+.pulse-shell .agent-heading { flex-wrap: wrap; }
+.pulse-shell .agent-message { overflow-wrap: anywhere; }
+.pulse-shell :is(.agent-settings,.agent-message) { border: 1px solid var(--screen-edge); border-radius: 22px; background: var(--screen-surface); }
+.pulse-shell:not([data-view='home']) .agent-heading h1 { font-size: clamp(28px,3vw,46px); font-weight: 400; letter-spacing: -.04em; margin: 0; }

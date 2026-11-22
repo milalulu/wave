@@ -44,9 +44,8 @@ class FakeBiquad {
 
 class FakeGain {
   gain = new FakeParam(1);
-  connect(): void {
-    
-  }
+  destinations: unknown[] = [];
+  connect(destination: unknown): void { this.destinations.push(destination); }
 }
 
 class FakeAnalyser {
@@ -69,12 +68,6 @@ class FakeConvolver {
   }
 }
 
-class FakeStereoPanner {
-  pan = new FakeParam(0);
-  connect(): void {
-    
-  }
-}
 
 class FakeAudioContext {
   static instances: FakeAudioContext[] = [];
@@ -123,8 +116,13 @@ class FakeAudioContext {
     return new FakeConvolver();
   }
 
-  createStereoPanner(): FakeStereoPanner {
-    return new FakeStereoPanner();
+
+  createChannelSplitter(): { connect: () => void } {
+    return { connect: () => undefined };
+  }
+
+  createChannelMerger(): { connect: () => void } {
+    return { connect: () => undefined };
   }
 
   createBuffer(_channels: number, _length: number, _sampleRate: number): FakeDecodedBuffer {
@@ -156,6 +154,8 @@ class FakeAudioContext {
 
 class FakeDecodedBuffer {
   duration = 120;
+  length = 48000;
+  numberOfChannels = 2;
   private channels: Float32Array[] = [new Float32Array(0), new Float32Array(0)];
   getChannelData(ch: number): Float32Array {
     return this.channels[ch] ?? new Float32Array(0);
@@ -277,6 +277,58 @@ afterEach(() => {
 });
 
 describe("WebAudioAdapter", () => {
+  it("restores the signal graph and saved equalizer after a previous stream needed direct playback", async () => {
+    const adapter = new WebAudioAdapter();
+    adapter.setEqualizer([7]);
+    adapter.setVolume(0.38);
+    await adapter.load("https://example.test/first.mp3");
+    const first = FakeAudioElement.instances[0];
+    expect(first.volume).toBe(1);
+    await adapter.play();
+    first.onerror?.();
+    expect(first.paused).toBe(true);
+    const direct = FakeAudioElement.instances[2];
+    expect(direct.playCalls).toBe(1);
+    expect(direct.volume).toBeCloseTo(0.38);
+    expect(adapter.getAudioProcessingState()).toBe("direct");
+    const spectrum = new Uint8Array(16);
+    adapter.getSpectrum(spectrum);
+    expect(spectrum[0]).toBe(0);
+    await adapter.load("http://127.0.0.1:8299/audio?url=next");
+    expect(adapter.getAudioProcessingState()).toBe("active");
+    adapter.getSpectrum(spectrum);
+    expect(spectrum[0]).toBe(42);
+    expect(lastCtx().biquads[0].gain.value).toBe(7);
+    adapter.destroy();
+  });
+  it("reserves output headroom for boosts and reports limiter reduction", async () => {
+    const limiter = {
+      threshold: new FakeParam(0), knee: new FakeParam(0), ratio: new FakeParam(1),
+      attack: new FakeParam(0), release: new FakeParam(0), reduction: -2.5,
+      connect: vi.fn(),
+    };
+    class ProtectedContext extends FakeAudioContext {
+      createGain() { return Object.assign(super.createGain(), { context: this }); }
+      createDynamicsCompressor() { return limiter; }
+    }
+    Object.assign(window, { AudioContext: ProtectedContext });
+    const adapter = new WebAudioAdapter();
+    await adapter.load("track.mp3");
+    const context = lastCtx();
+    const headroom = context.gains.find((node) => node.destinations.includes(limiter))!;
+    const master = context.gains[context.gains.length - 1];
+    expect(limiter.connect).toHaveBeenCalledWith(master);
+    expect(master.destinations).toContain(context.destination);
+    adapter.setEqualizer([6, -4]);
+    adapter.setBassBoost(4);
+    expect(headroom.gain.value).toBeCloseTo(10 ** (-10 / 20));
+    expect(adapter.getLimiterReduction()).toBe(-2.5);
+    adapter.setEqualizer([]);
+    adapter.setBassBoost(0);
+    expect(headroom.gain.value).toBe(1);
+    adapter.destroy();
+  });
+
   it("limits full-buffer fallback to WebKit, excluding Chromium and Firefox", () => {
     expect(isWebKitEngine("Mozilla AppleWebKit/605.1 Safari/605.1")).toBe(true);
     expect(isWebKitEngine("Mozilla AppleWebKit/537.36 Chrome/130 Safari/537.36")).toBe(false);
@@ -290,7 +342,7 @@ describe("WebAudioAdapter", () => {
     expect(ctx.elementSources.length).toBe(2);
     expect(ctx.sourcesPaused).toEqual([true, true]);
     expect(ctx.biquads.length).toBe(EQ_FREQUENCIES.length + 1);
-    expect(ctx.gains.length).toBe(5); // g0/g1 кроссфейда + reverb + dry + leveling
+    expect(ctx.gains.slice(0, 2).map((node) => node.gain.value)).toEqual([1, 0]);
     expect(ctx.analyser).toBeDefined();
     adapter.destroy();
   });
@@ -302,8 +354,7 @@ describe("WebAudioAdapter", () => {
     await adapter.play();
     vi.advanceTimersByTime(LEVEL_TICK_MS * 5);
     const ctx = lastCtx();
-    // Последний созданный gain — узел левелинга (после g0/g1, reverb, dry).
-    const level = ctx.gains[ctx.gains.length - 1];
+    const level = ctx.gains.find((node) => node.destinations.includes(ctx.biquads[0]))!;
     // Фейк отдаёт RMS 0.5 (−6 дБ) при цели −14: gain должен уйти вниз от 1.
     expect(level.gain.ramps.length).toBeGreaterThan(0);
     expect(level.gain.value).toBeLessThan(1);
@@ -318,7 +369,7 @@ describe("WebAudioAdapter", () => {
     vi.advanceTimersByTime(LEVEL_TICK_MS * 5);
     adapter.setLeveling(false, -14);
     const ctx = lastCtx();
-    const level = ctx.gains[ctx.gains.length - 1];
+    const level = ctx.gains.find((node) => node.destinations.includes(ctx.biquads[0]))!;
     expect(level.gain.ramps).toContain(1);
     adapter.destroy();
   });
@@ -346,10 +397,12 @@ describe("WebAudioAdapter", () => {
     const gains = new Array(EQ_FREQUENCIES.length).fill(0) as number[];
     gains[0] = 99;
     gains[1] = -99;
+    gains[2] = NaN;
     adapter.setEqualizer(gains);
     const ctx = lastCtx();
     expect(ctx.biquads[0].gain.value).toBe(12);
     expect(ctx.biquads[1].gain.value).toBe(-12);
+    expect(ctx.biquads[2].gain.value).toBe(0);
     adapter.destroy();
   });
 
@@ -372,6 +425,24 @@ describe("WebAudioAdapter", () => {
     adapter.destroy();
   });
 
+  it("pause during an unresolved crossfade stops both sources and cannot arm a late fade", async () => {
+    const adapter = new WebAudioAdapter();
+    await adapter.load("first.mp3"); await adapter.play();
+    let resolvePlay!: () => void;
+    const second = instances()[1];
+    const originalPlay = second.play.bind(second);
+    vi.spyOn(second, "play").mockImplementationOnce(() => {
+      void originalPlay();
+      return new Promise<void>((resolve) => { resolvePlay = resolve; });
+    });
+    await adapter.load("second.mp3");
+    const pending = adapter.play();
+    adapter.pause();
+    resolvePlay(); await pending;
+    vi.advanceTimersByTime(CROSSFADE_MS + 100);
+    expect(instances().every((el) => el.paused)).toBe(true);
+    adapter.destroy();
+  });
   it("кроссфейд 0 делает мгновенный hard swap без таймера", async () => {
     const adapter = new WebAudioAdapter();
     adapter.setCrossfadeMs(0);
@@ -563,6 +634,20 @@ describe("WebAudioAdapter", () => {
 });
 
 describe("WebAudioAdapter: буферный фолбэк (сломанный <audio>)", () => {
+  it("evicts least recently used PCM by bytes and skips oversized entries", () => {
+    const adapter = new WebAudioAdapter();
+    const pcm = (mib: number) => ({ length: mib * 1024 * 1024 / 8, numberOfChannels: 2 }) as AudioBuffer;
+    const first = pcm(24);
+    adapter["cacheBuf"]("first", first);
+    adapter["cacheBuf"]("second", pcm(24));
+    expect(adapter["cachedBuf"]("first")).toBe(first);
+    adapter["cacheBuf"]("third", pcm(24));
+    expect(adapter["cachedBuf"]("second")).toBeUndefined();
+    adapter["cacheBuf"]("oversized", pcm(65));
+    expect(adapter["cachedBuf"]("oversized")).toBeUndefined();
+    expect(adapter["cachedBuf"]("first")).toBe(first);
+    adapter.destroy();
+  });
   beforeEach(() => vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 AppleWebKit/605.1 Safari/605.1"));
   afterEach(() => vi.restoreAllMocks());
   const media = (bytes = 16): Response =>
@@ -622,6 +707,38 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     expect(ctx.bufferSources.length).toBe(sourcesAfterPause + 1);
     expect(ctx.bufferSources[sourcesAfterPause].offset).toBeCloseTo(5);
     expect(adapter.getPosition()).toBeCloseTo(5);
+    adapter.destroy();
+  });
+
+  it("fallback preserves mute and playback speed chosen before loading", async () => {
+    stubFetch(); FakeAudioElement.broken = true;
+    const adapter = new WebAudioAdapter();
+    adapter.setVolume(0); adapter.setPlaybackRate(1.5);
+    await adapter.load("a.mp3"); await adapter.play();
+    await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
+    const ctx = lastCtx();
+    expect(ctx.gains.find(g => g.destinations.includes(ctx.destination))?.gain.value).toBe(0);
+    expect(ctx.bufferSources[0].playbackRate.value).toBe(1.5);
+    adapter.destroy();
+  });
+
+  it("changing buffer playback rate does not jump the position", async () => {
+    stubFetch(); FakeAudioElement.broken = true;
+    const adapter = new WebAudioAdapter();
+    await adapter.load("a.mp3"); await adapter.play();
+    await vi.advanceTimersByTimeAsync(MEDIA_ELEMENT_PROBE_MS + 100);
+    const ctx = lastCtx(); ctx.currentTime = 20;
+    expect(adapter.getPosition()).toBeCloseTo(20);
+    adapter.setPlaybackRate(2);
+    expect(adapter.getPosition()).toBeCloseTo(20);
+    ctx.currentTime = 25;
+    expect(adapter.getPosition()).toBeCloseTo(30);
+    adapter.setPlaybackRate(.5);
+    expect(adapter.getPosition()).toBeCloseTo(30);
+    ctx.currentTime = 29;
+    expect(adapter.getPosition()).toBeCloseTo(32);
+    adapter.pause(); await adapter.play();
+    expect(adapter.getPosition()).toBeCloseTo(32);
     adapter.destroy();
   });
 
@@ -737,6 +854,8 @@ describe("WebAudioAdapter: буферный фолбэк (сломанный <au
     const ctx = lastCtx();
     expect(ctx.bufferSources.length).toBe(2);
     // Движок доходит до ended позже и грузит тот же URI: рестарта нет.
+    ctx.bufferSources[0].onended?.();
+    expect(ended).toHaveBeenCalledTimes(1);
     await adapter.load("b.mp3");
     await adapter.play();
     expect(ctx.bufferSources.length).toBe(2);

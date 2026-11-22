@@ -1,16 +1,18 @@
 import { playbackSource } from "../core/types";
+import { uniqueRecommendations } from "../core/recordings/matching";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { RepeatMode, Track } from "../core/types";
-import { radioTracks, searchAll, type AppServices } from "./compose";
+import { radioTracks, reconfigureServices, searchAll, type AppServices } from "./compose";
 import { findTrackVariants } from "./trackVariants";
+import { resolveDownloadMedia } from "./downloadsSlice";
 import {
-  activeProviders,
   getBlockedArtists,
   getBlockedProviders,
   getBlockedTrackIds,
   getPreferredProviders,
   KNOWN_PROVIDERS,
+  isStreamingProvider,
   setBlockedProviders,
   setPreferredProviders,
   toggleBlockedArtist,
@@ -118,8 +120,8 @@ export class ApiBridge {
         return this.variantsList();
       case "sources.list":
         return {
-          blocked: getBlockedProviders(),
-          preferred: getPreferredProviders(),
+          blocked: getBlockedProviders().filter(isStreamingProvider),
+          preferred: getPreferredProviders().filter(isStreamingProvider),
           known: KNOWN_PROVIDERS,
         };
       case "sources.set":
@@ -220,18 +222,15 @@ export class ApiBridge {
 
   private async sourcesSet(payload: Record<string, unknown>): Promise<unknown> {
     if (Array.isArray(payload.blocked)) {
-      setBlockedProviders(payload.blocked.filter((x): x is string => typeof x === "string"));
+      setBlockedProviders(payload.blocked.filter((x) => typeof x === "string" && isStreamingProvider(x)));
     }
     if (Array.isArray(payload.preferred)) {
-      setPreferredProviders(payload.preferred.filter((x): x is string => typeof x === "string"));
+      setPreferredProviders(payload.preferred.filter((x) => typeof x === "string" && isStreamingProvider(x)));
     }
-    const providers = this.services.providers;
-    const next = activeProviders(providers);
-    providers.length = 0;
-    providers.push(...next);
+    await reconfigureServices(this.services);
     return {
-      blocked: getBlockedProviders(),
-      preferred: getPreferredProviders(),
+      blocked: getBlockedProviders().filter(isStreamingProvider),
+      preferred: getPreferredProviders().filter(isStreamingProvider),
     };
   }
 
@@ -262,7 +261,9 @@ export class ApiBridge {
   private async similar(payload: Record<string, unknown>): Promise<unknown> {
     const seed = (payload.track as unknown as Track) ?? this.services.engine.snapshot.current;
     if (!seed) throw new Error("no track for similar");
-    const tracks = await radioTracks(this.services, seed);
+    const tracks = uniqueRecommendations(
+      await radioTracks(this.services, seed, this.services.engine.snapshot.queue), this.services.engine.snapshot.queue,
+    );
     for (const t of tracks) this.services.engine.addToQueue(t);
     return { added: tracks.length, seedId: seed.id };
   }
@@ -290,11 +291,9 @@ export class ApiBridge {
     const dir = typeof payload.dir === "string" ? payload.dir : "";
     if (!dir) throw new Error("dir required");
     const source = playbackSource(this.services.recordings?.resolve(track) ?? track);
-    const ext = source.meta?.audioUrl?.toString().includes(".m4a") ? "m4a" : "mp3";
+    const { url, ext } = await resolveDownloadMedia(source, this.services.providers);
     const safe = (s: string) => s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80).trim() || "track";
     const filename = `${safe(track.artist ?? "")} - ${safe(track.title ?? "")}.${ext}`;
-    const url = source.meta?.url ?? source.meta?.audioUrl?.toString() ?? source.uri ?? "";
-    if (!url) throw new Error("no source url");
     await invoke("yt_download", { url, outputPath: `${dir}/${filename}` });
     return { ok: true, file: `${dir}/${filename}`, trackId: track.id };
   }

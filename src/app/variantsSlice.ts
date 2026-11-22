@@ -35,6 +35,11 @@ export const createVariantsSlice: StateCreator<AppState, [], [], VariantsSlice> 
         }
         const variants = [...new Map([...initial, ...found].map((v) => [v.track.id, v])).values()];
         set({ variants, variantsLoading: false });
+        if (services.recordings) {
+          for (const variant of found) {
+            void services.recordings.associate(track, variant.track).catch(() => {});
+          }
+        }
       } catch {
         if (request === generation) set({ variantsLoading: false });
       }

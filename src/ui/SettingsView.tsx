@@ -30,17 +30,17 @@ import {
 } from "../app/platformSettings";
 import { providerLabel } from "./providers";
 import { DiagnosticsView } from "./DiagnosticsView";
+import { EqualizerControls } from "./EqualizerControls";
+import { stereoSideGain } from "../core/player/audioProcessing";
+import { loadOfflineCacheMode, saveOfflineCacheMode } from "../app/offlineCache";
+import type { NormalizationMode } from "../core/player/leveling";
+import { AudioProfiles } from "./AudioProfiles";
+import { PlaybackHandoff } from "./PlaybackHandoff";
+import { OfflineCacheControls } from "./OfflineCacheControls";
 
 interface AppConfigResult {
   ytdlpPath?: string | null;
   ytdlpCookies?: string | null;
-  spotifyClientId?: string | null;
-  spotifyClientSecret?: string | null;
-  vkToken?: string | null;
-  lastfmApiKey?: string | null;
-  lastfmApiSecret?: string | null;
-  lastfmSessionKey?: string | null;
-  lastfmScrobbleEnabled?: boolean;
   proxyUrl?: string | null;
   proxyMode?: string | null;
 }
@@ -65,12 +65,6 @@ interface PluginInfo {
 const ENV_KEYS = [
   "WAVE_YTDLP_PATH",
   "WAVE_YTDLP_COOKIES",
-  "WAVE_SPOTIFY_CLIENT_ID",
-  "WAVE_SPOTIFY_CLIENT_SECRET",
-  "WAVE_VK_TOKEN",
-  "WAVE_LASTFM_API_KEY",
-  "WAVE_LASTFM_API_SECRET",
-  "WAVE_LASTFM_SESSION_KEY",
   "WAVE_API_TOKEN",
   "WAVE_PROXY_URL",
   "WAVE_PROXY_MODE",
@@ -80,13 +74,6 @@ function fromRust(cfg: AppConfigResult): Record<string, string> {
   const map: Record<string, string> = {
     WAVE_YTDLP_PATH: cfg.ytdlpPath ?? "",
     WAVE_YTDLP_COOKIES: cfg.ytdlpCookies ?? "",
-    WAVE_SPOTIFY_CLIENT_ID: cfg.spotifyClientId ?? "",
-    WAVE_SPOTIFY_CLIENT_SECRET: cfg.spotifyClientSecret ?? "",
-    WAVE_VK_TOKEN: cfg.vkToken ?? "",
-    WAVE_LASTFM_API_KEY: cfg.lastfmApiKey ?? "",
-    WAVE_LASTFM_API_SECRET: cfg.lastfmApiSecret ?? "",
-    WAVE_LASTFM_SESSION_KEY: cfg.lastfmSessionKey ?? "",
-    WAVE_LASTFM_SCROBBLE_ENABLED: cfg.lastfmScrobbleEnabled ? "1" : "0",
     WAVE_PROXY_URL: cfg.proxyUrl ?? "",
     WAVE_PROXY_MODE: (cfg.proxyMode ?? "").toLowerCase() || "off",
   };
@@ -105,6 +92,7 @@ function SettingsCard({ title, desc, children, wide }: { title: string; desc?: s
 
 export function SettingsView() {
   const { t, locale, setLocale } = useI18n();
+  const [section, setSection] = useState<"appearance" | "playback" | "recommendations" | "sources" | "account">("appearance");
   const { user, loading: authLoading, configured: authConfigured, signOut, signInOAuth, signIn, signUp } = useAuth();
   const services = useApp((s) => s.services);
   const notify = useApp((s) => s.notify);
@@ -114,6 +102,7 @@ export function SettingsView() {
   const setAutoContinue = useApp((s) => s.setAutoContinue);
   const offlineMode = useApp((s) => s.offlineMode);
   const setOfflineMode = useApp((s) => s.setOfflineMode);
+  const [offlineCacheMode, setOfflineCacheMode] = useState(loadOfflineCacheMode);
   const excludePreviews = useApp((s) => s.excludePreviews);
   const setExcludePreviews = useApp((s) => s.setExcludePreviews);
   const theme = useApp((s) => s.theme);
@@ -126,6 +115,7 @@ export function SettingsView() {
   const setCrossfadeMs = useApp((s) => s.setCrossfadeMs);
   const levelingEnabled = useApp((s) => s.levelingEnabled);
   const levelingTargetDb = useApp((s) => s.levelingTargetDb);
+  const levelingMode = useApp((s) => s.levelingMode);
   const setLeveling = useApp((s) => s.setLeveling);
   const alarm = useApp((s) => s.alarm);
   const setAlarm = useApp((s) => s.setAlarm);
@@ -142,6 +132,8 @@ export function SettingsView() {
   const setReverb = useApp((s) => s.setReverb);
   const stereoWidth = useApp((s) => s.stereoWidth);
   const setStereoWidth = useApp((s) => s.setStereoWidth);
+  const spatialOrbit = useApp((s) => s.spatialOrbit);
+  const setSpatialOrbit = useApp((s) => s.setSpatialOrbit);
   const [config, setConfig] = useState<Record<string, string>>({});
   const savedConfigRef = useRef<Record<string, string>>({});
   const [localDir, setLocalDir] = useState("");
@@ -153,7 +145,7 @@ export function SettingsView() {
   const [preferred, setPreferred] = useState<string[]>(() => {
     const saved = getPreferredProviders();
     const all = KNOWN_PROVIDERS.map((p) => p);
-    const merged = [...saved, ...all.filter((id) => !saved.includes(id))];
+    const merged = [...saved.filter((id) => all.some((known) => known === id)), ...all.filter((id) => !saved.includes(id))];
     return merged;
   });
   const clearCaches = useApp((s) => s.clearCaches);
@@ -199,6 +191,9 @@ export function SettingsView() {
   const [emailForm, setEmailForm] = useState({ email: "", password: "" });
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(loadAccentColor);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [discordClientId, setDiscordClientId] = useState(() => localStorage.getItem("wave-discord-client-id") ?? "");
@@ -272,17 +267,38 @@ export function SettingsView() {
     e.preventDefault();
     setEmailAuthLoading(true);
     setEmailAuthError(null);
+    setAccountNotice(null);
     try {
+      const email = emailForm.email.trim();
       if (emailAuthMode === "signin") {
-        await signIn(emailForm.email, emailForm.password);
+        await signIn(email, emailForm.password);
       } else {
-        await signUp(emailForm.email, emailForm.password);
+        const { confirmationRequired } = await signUp(email, emailForm.password);
+        if (confirmationRequired) {
+          setAccountNotice(locale === "ru" ? "Подтверди почту по ссылке в письме, затем войди в Wave." : "Confirm your email using the link in the message, then sign in to Wave.");
+        }
       }
+      setEmailForm({ email, password: "" });
       setShowEmailAuth(false);
     } catch (err) {
       setEmailAuthError(err instanceof Error ? err.message : String(err));
     } finally {
       setEmailAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+      setShowEmailAuth(false);
+      setEmailForm({ email: "", password: "" });
+      setAccountNotice(null);
+    } catch (err) {
+      setSignOutError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -352,8 +368,6 @@ export function SettingsView() {
       const v = (config[key] ?? "").trim();
       if (v) payload[key] = v;
     }
-    payload["WAVE_LASTFM_SCROBBLE_ENABLED"] =
-      config["WAVE_LASTFM_SCROBBLE_ENABLED"] === "1" ? "1" : "0";
     setBlockedProviders(blocked);
     setPreferredProviders(preferred);
     if (discordClientId.trim()) {
@@ -379,9 +393,6 @@ export function SettingsView() {
     try {
       const providers = services.providers.filter((p) => {
         if (key === "WAVE_YTDLP_PATH") return p.id === "youtube";
-        if (key === "WAVE_SPOTIFY_CLIENT_ID") return p.id === "spotify";
-        if (key === "WAVE_VK_TOKEN") return p.id === "vk";
-        if (key === "WAVE_LASTFM_API_KEY") return p.id === "lastfm";
         return false;
       });
       if (providers.length === 0) {
@@ -457,12 +468,6 @@ export function SettingsView() {
   const envKeys = [
     { key: "WAVE_YTDLP_PATH", label: "yt-dlp path", placeholder: "yt-dlp (or full path)", type: "text", test: true, detect: true },
     { key: "WAVE_YTDLP_COOKIES", label: "yt-dlp cookies", placeholder: "C:/path/to/cookies.txt or browser:chrome", type: "text" },
-    { key: "WAVE_SPOTIFY_CLIENT_ID", label: "Spotify Client ID", placeholder: "...", type: "text", test: true },
-    { key: "WAVE_SPOTIFY_CLIENT_SECRET", label: "Spotify Client Secret", placeholder: "...", type: "password", test: false },
-    { key: "WAVE_VK_TOKEN", label: "VK Token (user, scope=audio)", placeholder: "...", type: "password", test: true },
-    { key: "WAVE_LASTFM_API_KEY", label: "Last.fm API Key", placeholder: "...", type: "text", test: true },
-    { key: "WAVE_LASTFM_API_SECRET", label: "Last.fm API Secret", placeholder: "...", type: "password", test: false },
-    { key: "WAVE_LASTFM_SESSION_KEY", label: "Last.fm Session Key", placeholder: "...", type: "password", test: false },
     { key: "WAVE_API_TOKEN", label: "HTTP API Token (empty = auto)", placeholder: "auto-generated", type: "password", test: false },
   ];
 
@@ -487,28 +492,6 @@ export function SettingsView() {
           </div>
           {tab === "main" && (
             <>
-              <div className="settings-seg" role="group" aria-label={t("settings").language}>
-                <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} title={t("settings").language}>
-                  English
-                </button>
-                <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} title={t("settings").language}>
-                  Русский
-                </button>
-              </div>
-              <div className="settings-seg" role="group" aria-label={t("settings").theme}>
-                <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
-                  {t("settings").themeLight}
-                </button>
-                <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
-                  {t("settings").themeDark}
-                </button>
-                <button className={theme === "amoled" ? "active" : ""} onClick={() => setTheme("amoled")}>
-                  {t("settings").themeAmoled}
-                </button>
-                <button className={theme === "system" ? "active" : ""} onClick={() => setTheme("system")}>
-                  {t("settings").themeSystem}
-                </button>
-              </div>
               <button className={`btn btn-primary ${JSON.stringify(config) !== JSON.stringify(savedConfigRef.current) ? "dirty" : ""}`} onClick={saveConfig}>
                 <SaveIcon size={16} /> {t("settings").save}
                 {JSON.stringify(config) !== JSON.stringify(savedConfigRef.current) && <span className="dirty-dot" />}
@@ -524,8 +507,23 @@ export function SettingsView() {
       {tab === "diagnostics" ? (
         <DiagnosticsView />
       ) : (
+      <div className="settings-body">
+      <div className="settings-section-nav" role="group" aria-label={t("settings").title}>
+        {([
+          ["appearance", t("settings").sectionAppearance],
+          ["playback", t("settings").sectionPlayback],
+          ["recommendations", t("settings").sectionRecommendations],
+          ["sources", t("settings").sectionSources],
+          ["account", t("settings").sectionAccount],
+        ] as const).map(([id, label]) => (
+          <button key={id} type="button" className="btn" aria-pressed={section === id} onClick={() => setSection(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
       <div ref={containerRef} className="settings-cards" data-cols={containerWidth > 720 ? "2" : "1"}>
-        <h3 className="settings-section-title">{t("settings").sectionSources}</h3>
+        <section className="settings-group" hidden={section !== "sources"} aria-labelledby="settings-sources">
+        <h2 id="settings-sources" className="settings-section-title">{t("settings").sectionSources}</h2>
         <SettingsCard title={t("settings").apiKeys} desc={t("settings").apiKeysDesc} wide>
           <div className="settings-grid">
             {envKeys.filter(({ key }) => !key.startsWith("WAVE_PROXY")).map(({ key, label, placeholder, type, test, detect }) => (
@@ -570,24 +568,6 @@ export function SettingsView() {
                 {testResults[key] && <span className={`test-result ${testResults[key].startsWith("✓") ? "ok" : "err"}`}>{testResults[key]}</span>}
               </div>
             ))}
-            <div className={`scrobble-status ${services?.scrobbler ? "ok" : ""}`}>
-              {services?.scrobbler
-                ? t("settings").lastfmStatusEnabled
-                : t("settings").lastfmStatusDisabled}
-            </div>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={config["WAVE_LASTFM_SCROBBLE_ENABLED"] === "1"}
-                onChange={(e) =>
-                  setConfig((c) => ({
-                    ...c,
-                    WAVE_LASTFM_SCROBBLE_ENABLED: e.target.checked ? "1" : "0",
-                  }))
-                }
-              />
-              <span>{t("settings").lastfmScrobbleToggle}</span>
-            </label>
           </div>
         </SettingsCard>
 
@@ -702,7 +682,36 @@ export function SettingsView() {
           )}
         </SettingsCard>
 
-        <h3 className="settings-section-title">{t("settings").sectionAppearance}</h3>
+        </section>
+        <section className="settings-group" hidden={section !== "appearance"} aria-labelledby="settings-appearance">
+        <h2 id="settings-appearance" className="settings-section-title">{t("settings").sectionAppearance}</h2>
+        <SettingsCard title={t("settings").theme} wide>
+          <div className="settings-preferences">
+              <div className="settings-seg" role="group" aria-label={t("settings").language}>
+                <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} title={t("settings").language}>
+                  English
+                </button>
+                <button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")} title={t("settings").language}>
+                  Русский
+                </button>
+              </div>
+              <div className="settings-seg" role="group" aria-label={t("settings").theme}>
+                <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>
+                  {t("settings").themeLight}
+                </button>
+                <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>
+                  {t("settings").themeDark}
+                </button>
+                <button className={theme === "amoled" ? "active" : ""} onClick={() => setTheme("amoled")}>
+                  {t("settings").themeAmoled}
+                </button>
+                <button className={theme === "system" ? "active" : ""} onClick={() => setTheme("system")}>
+                  {t("settings").themeSystem}
+                </button>
+              </div>
+          </div>
+        </SettingsCard>
+
         <SettingsCard title={t("settings").behavior}>
           <div className="settings-toggles">
             <label className="toggle-row">
@@ -794,7 +803,9 @@ export function SettingsView() {
           <p className="muted">{t("settings").lyricsAutoscrollDesc}</p>
         </SettingsCard>
 
-        <h3 className="settings-section-title">{t("settings").sectionPlayback}</h3>
+        </section>
+        <section className="settings-group" hidden={section !== "playback"} aria-labelledby="settings-playback">
+        <h2 id="settings-playback" className="settings-section-title">{t("settings").sectionPlayback}</h2>
         <SettingsCard title={t("settings").alarm} desc={t("settings").alarmDesc}>
           <div className="settings-toggles">
             <label className="toggle-row">
@@ -855,6 +866,24 @@ export function SettingsView() {
           </div>
 </SettingsCard>
 
+        <SettingsCard title={locale === "ru" ? "Офлайн-кэш" : "Offline cache"} desc={locale === "ru"
+          ? "До 128 МиБ. Wave сохраняет недавние треки SoundCloud с разрешённым скачиванием. Ручные загрузки хранятся отдельно."
+          : "Up to 128 MiB. Wave saves recently played SoundCloud tracks with downloads enabled. Manual downloads are stored separately."}>
+          <label className="setting-row">
+            <span>{locale === "ru" ? "Сеть для кэширования" : "Cache over"}</span>
+            <select aria-label={locale === "ru" ? "Сеть для кэширования" : "Cache over"} value={offlineCacheMode} onChange={(event) => {
+              const mode = event.target.value as typeof offlineCacheMode;
+              setOfflineCacheMode(mode);
+              saveOfflineCacheMode(mode);
+            }}>
+              <option value="off">{locale === "ru" ? "Выключено" : "Off"}</option>
+              <option value="wifi">{locale === "ru" ? "Только при подтверждённом Wi-Fi" : "Confirmed Wi-Fi only"}</option>
+              <option value="any">{locale === "ru" ? "Любая сеть" : "Any network"}</option>
+            </select>
+          </label>
+          {section === "playback" && <OfflineCacheControls />}
+        </SettingsCard>
+
         <SettingsCard title={t("settings").leveling} desc={t("settings").levelingDesc}>
           <div className="settings-toggles">
             <label className="toggle-row">
@@ -866,14 +895,28 @@ export function SettingsView() {
               <span>{t("settings").leveling}</span>
             </label>
           </div>
+          <label className="setting-row">
+            <span>{locale === "ru" ? "Режим" : "Mode"}</span>
+            <select aria-label={locale === "ru" ? "Режим" : "Mode"} value={levelingMode} disabled={!levelingEnabled} onChange={(event) =>
+              setLeveling(true, levelingTargetDb, event.target.value as NormalizationMode)}>
+              <option value="adaptive">{locale === "ru" ? "Адаптивный" : "Adaptive"}</option>
+              <option value="track">{locale === "ru" ? "По измерению трека" : "Measured track"}</option>
+              <option value="album">{locale === "ru" ? "Одна поправка на альбом" : "Measured album"}</option>
+            </select>
+          </label>
+          {levelingMode !== "adaptive" && <p className="muted">{locale === "ru"
+            ? "Для локальных и скачанных файлов. Альбомный режим требует полной загрузки альбома."
+            : "For local and downloaded files. Album mode requires the full album to be downloaded."}</p>}
           <div className="effect-slider">
             <label>{t("settings").levelingTarget}</label>
             <input
               type="range"
-              min={-24}
-              max={-6}
+              min={-30}
+              max={-1}
               step={1}
               value={levelingTargetDb}
+              aria-label={t("settings").levelingTarget}
+              aria-valuetext={`${levelingTargetDb} dB`}
               disabled={!levelingEnabled}
               onChange={(e) => setLeveling(true, Number(e.target.value))}
             />
@@ -882,6 +925,7 @@ export function SettingsView() {
 </SettingsCard>
 
         <SettingsCard title={t("settings").audioEffects} desc={t("settings").audioEffectsDesc}>
+          {section === "playback" && <AudioProfiles />}
           <div className="effects-sliders">
             <div className="effect-slider">
               <label>{t("settings").bassBoost}</label>
@@ -891,6 +935,8 @@ export function SettingsView() {
                 max={15}
                 step={1}
                 value={bassBoost}
+                aria-label={t("settings").bassBoost}
+                aria-valuetext={`${bassBoost} dB`}
                 onChange={(e) => setBassBoost(Number(e.target.value))}
               />
               <span className="effect-value">{bassBoost} dB</span>
@@ -904,6 +950,8 @@ export function SettingsView() {
                 max={100}
                 step={1}
                 value={Math.round(reverb * 100)}
+                aria-label={t("settings").reverb}
+                aria-valuetext={`${Math.round(reverb * 100)}%`}
                 onChange={(e) => setReverb(Number(e.target.value) / 100)}
               />
               <span className="effect-value">{Math.round(reverb * 100)}%</span>
@@ -917,15 +965,30 @@ export function SettingsView() {
                 max={100}
                 step={1}
                 value={Math.round(stereoWidth * 100)}
+                aria-label={t("settings").stereoWidth}
+                aria-valuetext={`${Math.round(stereoSideGain(stereoWidth) * 100)}%`}
                 onChange={(e) => setStereoWidth(Number(e.target.value) / 100)}
               />
-              <span className="effect-value">{stereoWidth > 0 ? "+" : ""}{Math.round(stereoWidth * 100)}%</span>
+              <span className="effect-value">{Math.round(stereoSideGain(stereoWidth) * 100)}%</span>
             </div>
             <p className="muted">{t("settings").stereoWidthDesc}</p>
+            <div className="effect-slider">
+              <label>{t("settings").spatialOrbit}</label>
+              <input type="range" min={0} max={100} step={1} value={Math.round(spatialOrbit * 100)}
+                aria-label={t("settings").spatialOrbit} aria-valuetext={`${Math.round(spatialOrbit * 100)}%`}
+                onChange={(event) => setSpatialOrbit(Number(event.target.value) / 100)} />
+              <span className="effect-value">{Math.round(spatialOrbit * 100)}%</span>
+            </div>
+            <p className="muted">{t("settings").spatialOrbitDesc}</p>
           </div>
         </SettingsCard>
+        <SettingsCard title={t("player").equalizer}>
+          {section === "playback" && <EqualizerControls />}
+        </SettingsCard>
 
-        <h3 className="settings-section-title">{t("settings").sectionRecommendations}</h3>
+        </section>
+        <section className="settings-group" hidden={section !== "recommendations"} aria-labelledby="settings-recommendations">
+        <h2 id="settings-recommendations" className="settings-section-title">{t("settings").sectionRecommendations}</h2>
         <SettingsCard title={t("settings").recommendations} desc={t("settings").recommendationsDesc}>
           <div className="effect-slider">
             <label>{t("settings").discoveryRate} <span className="muted">({discoveryRate}%)</span></label>
@@ -1031,12 +1094,14 @@ export function SettingsView() {
           </div>
         </SettingsCard>
 
-        <h3 className="settings-section-title">{t("settings").sectionAccount}</h3>
+        </section>
+        <section className="settings-group" hidden={section !== "account"} aria-labelledby="settings-account">
+        <h2 id="settings-account" className="settings-section-title">{t("settings").sectionAccount}</h2>
         <SettingsCard title={t("settings").account} desc={t("settings").accountDesc}>
-          {!authConfigured ? (
+          {authLoading ? (
+            <div className="muted" role="status">{t("settings").loading}</div>
+          ) : !authConfigured ? (
             <p className="muted">{t("settings").accountNotConfigured}</p>
-          ) : authLoading ? (
-            <div className="muted">{t("settings").loading}</div>
           ) : user ? (
             <div className="account-info">
               <div className="account-header">
@@ -1047,15 +1112,17 @@ export function SettingsView() {
                 </div>
               </div>
               <div className="settings-action-row">
-                <button className="btn btn-danger" onClick={async () => { await signOut(); }}>
-                  {t("settings").signOut}
+                <button className="btn btn-danger" disabled={signingOut} onClick={() => void handleSignOut()}>
+                  {signingOut ? t("settings").loading : t("settings").signOut}
                 </button>
               </div>
+              {signOutError && <div className="error-message" role="alert">{signOutError}</div>}
+              {section === "account" && <PlaybackHandoff key={user.id} userId={user.id} />}
             </div>
           ) : showEmailAuth ? (
             <form className="account-login" onSubmit={handleEmailAuth}>
               <p className="muted">{emailAuthMode === "signin" ? t("settings").signIn : t("settings").signUp}</p>
-              {emailAuthError && <div className="error-message">{emailAuthError}</div>}
+              {emailAuthError && <div className="error-message" role="alert">{emailAuthError}</div>}
               <div className="form-group">
                 <label htmlFor="auth-email">{t("settings").email}</label>
                 <input
@@ -1088,6 +1155,7 @@ export function SettingsView() {
                 <button type="button" className="btn btn-secondary" onClick={() => {
                   setShowEmailAuth(false);
                   setEmailAuthError(null);
+                  setEmailForm((previous) => ({ ...previous, password: "" }));
                 }}>
                   {t("settings").back}
                 </button>
@@ -1109,7 +1177,8 @@ export function SettingsView() {
           ) : (
             <div className="account-login">
               <p className="muted">{t("settings").accountNotConnected}</p>
-              {oauthError && <div className="error-message">{oauthError}</div>}
+              {accountNotice && <p role="status">{accountNotice}</p>}
+              {oauthError && <div className="error-message" role="alert">{oauthError}</div>}
               <div className="settings-action-row">
                 <button className="btn" disabled={oauthLoading} onClick={() => handleOAuth("google")}>
                   <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/></svg>
@@ -1343,6 +1412,8 @@ export function SettingsView() {
             ))}
           </div>
         </SettingsCard>
+        </section>
+      </div>
       </div>
       )}
     </div>

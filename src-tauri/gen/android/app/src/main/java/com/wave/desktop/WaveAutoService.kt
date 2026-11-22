@@ -21,6 +21,7 @@ class WaveAutoService : MediaBrowserServiceCompat() {
 
   override fun onCreate() {
     super.onCreate()
+    running = true
     session = MediaSessionCompat(this, "WaveAuto").apply {
       setCallback(AutoCallback())
       setFlags(
@@ -33,6 +34,7 @@ class WaveAutoService : MediaBrowserServiceCompat() {
   }
 
   override fun onDestroy() {
+    running = false
     session?.run {
       isActive = false
       release()
@@ -71,11 +73,7 @@ class WaveAutoService : MediaBrowserServiceCompat() {
   }
 
   private fun sendAction(action: String) {
-    val intent = Intent(this, MainActivity::class.java).apply {
-      putExtra("media_action", action)
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-    }
-    startActivity(intent)
+    MainActivity.pendingMediaActions.add(action)
   }
 
   private inner class AutoCallback : MediaSessionCompat.Callback() {
@@ -119,6 +117,7 @@ class WaveAutoService : MediaBrowserServiceCompat() {
   }
 
   companion object {
+    @Volatile private var running = false
     private const val ROOT_ID = "wave_root"
     private const val ITEM_OPEN = "open"
     private const val EXTRA_PLAYING = "playing"
@@ -135,6 +134,9 @@ class WaveAutoService : MediaBrowserServiceCompat() {
       duration: Long,
       position: Long,
     ) {
+      // A browser client starts this service when Android Auto connects.
+      // Normal playback must not create a second active media session.
+      if (!running) return
       val intent = Intent(context, WaveAutoService::class.java).apply {
         putExtra(EXTRA_PLAYING, playing)
         putExtra(EXTRA_TITLE, title)

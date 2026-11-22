@@ -11,7 +11,7 @@ use tauri::{
 pub struct WaveAndroid(pub PluginHandle<Wry>);
 
 #[tauri::command]
-async fn set_playback(
+pub(crate) async fn set_playback(
     app: tauri::AppHandle,
     playing: bool,
     title: Option<String>,
@@ -45,7 +45,7 @@ async fn set_playback(
 }
 
 #[tauri::command]
-async fn consume_media_action(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub(crate) async fn consume_media_action(app: tauri::AppHandle) -> Result<Option<String>, String> {
     #[cfg(target_os = "android")]
     {
         let state = app.state::<WaveAndroid>();
@@ -64,7 +64,7 @@ async fn consume_media_action(app: tauri::AppHandle) -> Result<Option<String>, S
 }
 
 #[tauri::command]
-async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+pub(crate) async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_os = "android")]
     {
         let state = app.state::<WaveAndroid>();
@@ -80,6 +80,58 @@ async fn pick_local_audio(app: tauri::AppHandle) -> Result<Vec<String>, String> 
         let _ = app;
         Ok(vec![])
     }
+}
+
+async fn mobile_call<T: serde::de::DeserializeOwned>(
+    app: tauri::AppHandle,
+    command: &str,
+    args: serde_json::Value,
+) -> Result<T, String> {
+    #[cfg(target_os = "android")]
+    {
+        app.state::<WaveAndroid>()
+            .0
+            .run_mobile_plugin_async(command, args)
+            .await
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, command, args);
+        Err("This command requires Android".into())
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn share_text(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    mobile_call::<serde_json::Value>(app, "shareText", serde_json::json!({ "text": text })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn schedule_alarm(
+    app: tauri::AppHandle,
+    id: String,
+    at_ms: i64,
+) -> Result<(), String> {
+    mobile_call::<serde_json::Value>(
+        app,
+        "scheduleAlarm",
+        serde_json::json!({ "id": id, "atMs": at_ms }),
+    )
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn cancel_alarm(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    mobile_call::<serde_json::Value>(app, "cancelAlarm", serde_json::json!({ "id": id })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn recognize_speech(app: tauri::AppHandle) -> Result<String, String> {
+    mobile_call(app, "recognizeSpeech", serde_json::json!({})).await
 }
 
 pub fn init() -> TauriPlugin<Wry> {

@@ -3,25 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { RefreshCwIcon, TrashIcon } from "./icons";
-
-interface ToolCheck {
-  path: string | null;
-  ready: boolean;
-}
-
-interface DiagnosticsData {
-  appVersion: string;
-  platform: string;
-  arch: string;
-  android: boolean;
-  appDataDir: string;
-  toolsDir: string;
-  dbPath: string | null;
-  dbSize: number | null;
-  ytdlp: ToolCheck;
-  ffmpeg: ToolCheck;
-  network: boolean;
-}
+import { buildDiagnosticReport, type DiagnosticsData } from "../app/diagnosticReport";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString();
@@ -63,7 +45,7 @@ export function DiagnosticsView() {
       <section className="settings-card settings-card-wide diag-card">
         <h2>{t("settings").diagPlatform}</h2>
         <p className="muted">
-          Wave {data?.appVersion ?? "…"} · {platformLabel} · {data?.arch ?? "…"}
+          Wave {data?.appVersion ?? "…"} · {platformLabel} · {data?.arch ?? "…"}{__WAVE_BUILD_REVISION__ && ` · ${__WAVE_BUILD_REVISION__.slice(0, 9)}`}
         </p>
         <button className="btn" onClick={() => void run()} disabled={busy}>
           <RefreshCwIcon size={16} /> {busy ? "…" : t("settings").diagRefresh}
@@ -138,16 +120,7 @@ export function DiagnosticsView() {
           <button
             className="btn"
             onClick={() => {
-              const report = JSON.stringify(
-                {
-                  app: "wave",
-                  at: new Date().toISOString(),
-                  diagnostics: data,
-                  logs: logs.slice(-200),
-                },
-                null,
-                2,
-              );
+              const report = JSON.stringify(buildDiagnosticReport(data, logs, __WAVE_BUILD_REVISION__), null, 2);
               navigator.clipboard
                 ?.writeText(report)
                 .then(() => notify(t("settings").diagReportCopied))

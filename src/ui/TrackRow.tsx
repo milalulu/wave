@@ -8,6 +8,7 @@ import { useI18n } from "./I18nContext";
 import { Cover } from "./Cover";
 import { TagEditor } from "./TagEditor";
 import { providerLabel } from "./providers";
+import { isStreamingProvider } from "../app/platformSettings";
 import { tileStyle } from "./tileHue";
 import { HeartIcon, MoreIcon, PlayIcon, RadioIcon, DownloadIcon } from "./icons";
 import { isTrackBlocked, isArtistBlocked } from "../app/platformSettings";
@@ -176,9 +177,9 @@ export const TrackRow = memo(function TrackRow({ track, onPlayTrack, index, play
       <div className="track-main">
         <span className="track-title">
           {track.title}
-          <span className={`provider-badge provider-${track.provider}`}>
+          {isStreamingProvider(playbackSource(track).provider) && <span className={`provider-badge provider-${playbackSource(track).provider}`}>
             {providerLabel(playbackSource(track).provider)}
-          </span>
+          </span>}
         </span>
         <span className="track-artist">{track.artist}</span>
       </div>

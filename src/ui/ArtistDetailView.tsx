@@ -10,7 +10,7 @@ import type { Album, Track } from "../core/types";
 import { shuffleArray } from "../core/util/shuffle";
 
 export function ArtistDetailView() {
-  const { t, tf } = useI18n();
+  const { t, tf, locale } = useI18n();
   const artistDetail = useApp((s) => s.artistDetail);
   const play = useApp((s) => s.play);
   const startArtistRadio = useApp((s) => s.startArtistRadio);
@@ -20,20 +20,23 @@ export function ArtistDetailView() {
   const currentId = useApp((s) => s.snapshot.current?.id ?? null);
 
   useEffect(() => {
+    setSimilar([]);
     if (!services || !artistDetail || artistDetail.topTracks.length === 0) return;
+    let active = true;
     const seed = artistDetail.topTracks[0];
     const results = services.providers
       .filter((p) => typeof p.getSimilarTracks === "function")
       .map((p) => p.getSimilarTracks?.(seed.artist ?? "", seed.title ?? "") ?? []);
     Promise.allSettled(results)
       .then((r) => {
+        if (!active) return;
         const out: Track[] = [];
         for (const res of r) {
           if (res.status === "fulfilled") out.push(...res.value);
         }
         setSimilar(out.slice(0, 12));
-      })
-      .catch(() => setSimilar([]));
+      });
+    return () => { active = false; };
   }, [services, artistDetail]);
 
   if (!artistDetail) {
@@ -85,7 +88,7 @@ export function ArtistDetailView() {
 
       {topTracks.length > 0 && (
         <section className="detail-tracks">
-          <h2>{tf("library").topTracks} ({topTracks.length})</h2>
+          <h2>{artist.meta?.recentUploads ? (locale === "ru" ? "Недавние публикации" : "Recent uploads") : tf("library").topTracks} ({topTracks.length})</h2>
           <div className="track-list">
             {topTracks.map((track: Track, i: number) => (
               <TrackRow key={`${track.id}:${i}`} track={track} index={i + 1} nowPlaying={firstTopCurrent === i} />

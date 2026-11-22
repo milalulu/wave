@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PlayerState, Track } from "../types";
 import { MockAudioAdapter } from "./PlayerAdapter";
 import { PLAY_START_TIMEOUT_MS, PlayerEngine, STALL_TIMEOUT_MS } from "./PlayerEngine";
+import { normalizeEqualizer } from "./equalizerPresets";
 
 const tracks: Track[] = [
   { id: "a", provider: "test", uri: "u://a", title: "A" },
@@ -10,6 +11,113 @@ const tracks: Track[] = [
 ];
 
 describe("PlayerEngine", () => {
+  it("resumes at the saved position in album order and stops without recommendations", async () => {
+    const adapter = new MockAudioAdapter();
+    const crossfade = vi.spyOn(adapter, "setCrossfadeMs");
+    const fill = vi.fn(() => tracks);
+    const engine = new PlayerEngine(adapter, { crossfadeMs: 900, onQueueEnd: fill });
+    try {
+      engine.setShuffle(true);
+      await engine.playTracks(tracks, 1, "album", 17);
+      expect(engine.snapshot).toMatchObject({ mode: "album", shuffle: false, queueIndex: 1, position: 17 });
+      expect(crossfade).toHaveBeenLastCalledWith(0);
+      adapter.end();
+      await vi.waitFor(() => expect(engine.snapshot).toMatchObject({ state: "playing", queueIndex: 2 }));
+      adapter.end();
+      await vi.waitFor(() => expect(engine.snapshot.state).toBe("ended"));
+      expect(engine.snapshot.queue).toEqual(tracks);
+      expect(fill).not.toHaveBeenCalled();
+      await engine.playTracks([tracks[0]]);
+      expect(engine.snapshot.mode).toBe("normal");
+      expect(crossfade).toHaveBeenLastCalledWith(900);
+    } finally { engine.destroy(); }
+  });
+
+  it("recovers the same song from a second provider at the interrupted position", async () => {
+    const adapter = new MockAudioAdapter();
+    const original = { ...tracks[0], provider: "youtube" };
+    const alternate = { ...original, playbackSource: { ...original, id: "sc:a", provider: "soundcloud", uri: "u://sc" } };
+    const recovery = vi.fn(async () => alternate);
+    const engine = new PlayerEngine(adapter, { retries: 0, resolveUri: async (track) => track.playbackSource?.uri ?? track.uri,
+      recoverSource: recovery });
+    try {
+      await engine.playTracks([original, tracks[1]], 0, "normal", 44);
+      adapter.fail("network error");
+      await vi.waitFor(() => expect(engine.snapshot).toMatchObject({ current: alternate, state: "playing", position: 44 }));
+      expect(recovery).toHaveBeenCalledTimes(1);
+      expect(engine.snapshot.queueIndex).toBe(0);
+    } finally { engine.destroy(); }
+  });
+
+  it("keeps measured album gain constant across tracks and obeys the effects bypass", async () => {
+    const gain = vi.fn();
+    const adapter = Object.assign(new MockAudioAdapter(), { setMeasuredGain: gain });
+    const measureLoudness = vi.fn(async () => -20);
+    const engine = new PlayerEngine(adapter, { measureLoudness });
+    try {
+      engine.setLeveling(true, -14, "album");
+      await engine.playTracks(tracks, 0, "album");
+      await vi.waitFor(() => expect(gain).toHaveBeenLastCalledWith(10 ** (6 / 20)));
+      await engine.next();
+      expect(gain).toHaveBeenLastCalledWith(10 ** (6 / 20));
+      expect(measureLoudness).toHaveBeenCalledTimes(1);
+      engine.setEffectsBypassed(true);
+      expect(gain).toHaveBeenLastCalledWith(1);
+      engine.setEffectsBypassed(false);
+      expect(gain).toHaveBeenLastCalledWith(10 ** (6 / 20));
+    } finally { engine.destroy(); }
+  });
+
+  it("keeps effects bypassed across track changes and restores edits made in A mode", async () => {
+    const adapter = new MockAudioAdapter();
+    const eq = vi.spyOn(adapter, "setEqualizer");
+    const bass = vi.spyOn(adapter, "setBassBoost");
+    const reverb = vi.spyOn(adapter, "setReverb");
+    const stereo = vi.spyOn(adapter, "setStereoWidth");
+    const leveling = vi.spyOn(adapter, "setLeveling");
+    const orbit = vi.spyOn(adapter, "setSpatialOrbit");
+    const engine = new PlayerEngine(adapter);
+    engine.setEqualizer([3]);
+    engine.setBassBoost(6);
+    engine.setReverb(0.2);
+    engine.setStereoWidth(0.3);
+    engine.setLeveling(true, -16);
+    engine.setSpatialOrbit(0.45);
+    engine.setEffectsBypassed(true);
+    engine.setEqualizer([4]);
+    await engine.playTrack(tracks[0]);
+    expect(eq).toHaveBeenLastCalledWith([]);
+    expect(bass).toHaveBeenLastCalledWith(0);
+    expect(reverb).toHaveBeenLastCalledWith(0);
+    expect(stereo).toHaveBeenLastCalledWith(0);
+    expect(leveling).toHaveBeenLastCalledWith(false, -16);
+    expect(orbit).toHaveBeenLastCalledWith(0);
+    expect(engine.snapshot.equalizer).toEqual(normalizeEqualizer([4]));
+    engine.setEffectsBypassed(false);
+    expect(eq).toHaveBeenLastCalledWith(normalizeEqualizer([4]));
+    expect(bass).toHaveBeenLastCalledWith(6);
+    expect(reverb).toHaveBeenLastCalledWith(0.2);
+    expect(stereo).toHaveBeenLastCalledWith(0.3);
+    expect(leveling).toHaveBeenLastCalledWith(true, -16);
+    expect(orbit).toHaveBeenLastCalledWith(0.45);
+    engine.destroy();
+  });
+
+  it("stops after five consecutive failed tracks instead of exhausting the queue", async () => {
+    const adapter = new MockAudioAdapter();
+    const resolve = vi.fn(async (track: Track) => { if (track.id === "0") return track.uri; throw new Error("dead stream"); });
+    const engine = new PlayerEngine(adapter, { retries: 0, resolveUri: resolve });
+    const errors: string[] = [];
+    engine.on("error", (message) => errors.push(message));
+    await engine.playTracks(Array.from({ length: 20 }, (_, i) => ({ ...tracks[0], id: String(i) })));
+    adapter.end();
+    await vi.waitFor(() => expect(errors).toContain("too many failed tracks in a row, stopping"));
+    // Resolver also receives speculative preloads; only four failures may
+    // advance the queue before the fifth stops playback.
+    expect(errors.filter((message) => message === "dead stream")).toHaveLength(4);
+    expect(resolve.mock.calls.length).toBeLessThan(20);
+    engine.destroy();
+  });
   it("records one successful play across pause, resume and source replacement", async () => {
     const adapter = new MockAudioAdapter();
     const engine = new PlayerEngine(adapter);
@@ -317,14 +425,19 @@ describe("PlayerEngine", () => {
   it("autoplays more tracks when queue ends", async () => {
     const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
     const adapter = new MockAudioAdapter();
-    const more = [tracks[1], tracks[2]];
+    const [start, next, last] = tracks.map((track) => ({ ...track, artist: "Example Artist" }));
+    const more = [
+      { ...start, id: "reupload", title: `${start.title} (Sped Up)` },
+      next, { ...next, id: "version", title: `${next.title} (Remix)` }, last,
+    ];
     const engine = new PlayerEngine(adapter, {
       onQueueEnd: async () => more,
     });
-    await engine.playTracks([tracks[0]]);
+    await engine.playTracks([start]);
     adapter.end();
     await flush();
     expect(engine.snapshot.current?.id).toBe("b");
+    expect(engine.snapshot.queue.map(({ id }) => id)).toEqual(["a", "b", "c"]);
     adapter.end();
     await flush();
     expect(engine.snapshot.current?.id).toBe("c");
@@ -537,7 +650,7 @@ describe("PlayerEngine resolveUri", () => {
       const started = engine.playTracks(tracks);
       await vi.advanceTimersByTimeAsync(PLAY_START_TIMEOUT_MS + 1);
       await started;
-      expect(engine.snapshot.state).toBe("loading");
+      expect(engine.snapshot.state).toBe("paused");
       engine.addToQueue({ id: "d", provider: "test", uri: "u://d", title: "D" }, true);
       expect(engine.snapshot.current?.id).toBe("d");
       expect(engine.snapshot.queue).toHaveLength(4);

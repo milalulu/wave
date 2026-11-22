@@ -69,7 +69,8 @@ function loadFilter(): string[] | null {
 
 export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
   const { t } = useI18n();
-  const providers = useApp((s) => s.services?.providers ?? []);
+  const availableProviders = useApp((s) => s.services?.providers);
+  const providers = useMemo(() => availableProviders ?? [], [availableProviders]);
   const excludePreviews = useApp((s) => s.excludePreviews);
   const setExcludePreviews = useApp((s) => s.setExcludePreviews);
   const [input, setInput] = useState(query);
@@ -169,7 +170,9 @@ export function SearchView({ query, onQuery, focusToken }: SearchViewProps) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    searchAll(enabledProviders, query)
+    const recordings = useApp.getState().services?.recordings;
+    const search = recordings ? searchAll(enabledProviders, query, recordings) : searchAll(enabledProviders, query);
+    search
       .then((r) => {
         if (cancelled) return;
         setCachedResults(cacheKey, r);

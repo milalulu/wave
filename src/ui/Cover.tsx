@@ -1,49 +1,43 @@
-import { memo, useEffect, useState } from "react";
-import { cacheCover, getCachedCover } from "../core/cover/CoverCache";
+import { memo, useState } from "react";
+import { cacheCover, getCachedCover, invalidateCover } from "../core/cover/CoverCache";
+
+import unavailableCover from "../assets/cover-unavailable.svg";
 
 interface CoverProps {
   src?: string;
   className?: string;
   alt?: string;
+  priority?: boolean;
 }
 
-export const Cover = memo(function Cover({ src, className, alt }: CoverProps) {
-  const [resolved, setResolved] = useState<string | null>(null);
+export const Cover = memo(function Cover(props: CoverProps) {
+  return <CoverImage key={props.src ?? "missing"} {...props} />;
+});
 
-  useEffect(() => {
-    if (!src) {
-      setResolved(null);
-      return;
-    }
-    const cached = getCachedCover(src);
-    if (cached) {
-      setResolved(cached);
-      return;
-    }
-    setResolved(src);
-    let cancelled = false;
-    void cacheCover(src).then((data) => {
-      if (!cancelled && data) setResolved(data);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
+function CoverImage({ src, className, alt, priority = false }: CoverProps) {
+  const [resolved, setResolved] = useState<string | null>(() => src ? getCachedCover(src) ?? src : null);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  if (!resolved) return null;
+  if (!resolved || failed === resolved) return <span style={{ backgroundImage: `url("${unavailableCover}")` }} className={`cover-fallback ${className ?? ""}`} role={alt ? "img" : undefined} aria-label={alt || undefined} aria-hidden={alt ? undefined : true} />;
   return (
     <img
       src={resolved}
       alt={alt ?? ""}
       className={className}
-      loading="lazy"
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
       draggable={false}
+      onLoad={() => {
+        if (src && resolved === src && /^https?:\/\//i.test(src)) void cacheCover(src);
+      }}
       onError={() => {
-        if (src) {
-          const stale = getCachedCover(src);
-          if (stale && stale !== resolved) setResolved(stale);
+        if (src && resolved !== src) {
+          invalidateCover(src);
+          setResolved(src);
+          return;
         }
+        setFailed(resolved);
       }}
     />
   );
-});
+}

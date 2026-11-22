@@ -1,4 +1,4 @@
-import { EQ_FREQUENCIES } from "../core/player/equalizerPresets";
+import { normalizeEqualizer } from "../core/player/equalizerPresets";
 
 const KEY = "wave:equalizer";
 
@@ -6,15 +6,8 @@ export function loadSavedEqualizer(): number[] {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
-    const data = JSON.parse(raw) as number[];
-    if (
-      !Array.isArray(data) ||
-      data.length !== EQ_FREQUENCIES.length ||
-      data.some((g) => typeof g !== "number" || !Number.isFinite(g))
-    ) {
-      return [];
-    }
-    return data;
+    const data: unknown = JSON.parse(raw);
+    return Array.isArray(data) && data.length ? normalizeEqualizer(data) : [];
   } catch {
     return [];
   }
@@ -22,7 +15,7 @@ export function loadSavedEqualizer(): number[] {
 
 export function saveEqualizer(gains: number[]): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(gains));
+    localStorage.setItem(KEY, JSON.stringify(normalizeEqualizer(gains)));
   } catch {
     
   }

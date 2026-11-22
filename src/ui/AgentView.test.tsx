@@ -65,3 +65,17 @@ describe("desktop agent chat UI", () => {
     await waitFor(() => expect(resetAgentChat).toHaveBeenCalledWith(expect.objectContaining({ local: expect.objectContaining({ jsonMode: true, structuredOutput: true }) })));
   });
 });
+
+it("keeps setup visible on an empty conversation and scrolls for new messages", async () => {
+  const original = HTMLElement.prototype.scrollIntoView;
+  const scroll = vi.fn();
+  HTMLElement.prototype.scrollIntoView = scroll;
+  try {
+    mount();
+    expect(scroll).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole("textbox", {name:"What should Wave do?"}), {target:{value:"Hello"}});
+    fireEvent.click(screen.getByRole("button", {name:"Send"}));
+    await screen.findByText("Hello from model");
+    expect(scroll).toHaveBeenCalled();
+  } finally { HTMLElement.prototype.scrollIntoView = original; }
+});

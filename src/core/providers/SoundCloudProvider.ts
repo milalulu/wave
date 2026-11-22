@@ -9,6 +9,10 @@ export interface ScSearchResult {
   uploader?: string;
   duration?: number;
   thumbnail?: string;
+  genre?: string | null;
+  tagList?: string | null;
+  creditedArtist?: string | null;
+  downloadable?: boolean;
 }
 
 export interface ScUserResult {
@@ -44,6 +48,16 @@ function trackUrl(id: string): string {
   return `https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A${id}`;
 }
 
+function trackMetadata(entry: ScSearchResult, relatedTo?: string, relatedRank?: number) {
+  const tags = Array.from((entry.tagList ?? "").matchAll(/"([^"]+)"|([^\s"]+)/gu), (match) => match[1] ?? match[2]).slice(0, 24);
+  return {
+    genre: entry.genre?.trim() || undefined,
+    meta: { scId: entry.id, scUrl: trackUrl(entry.id), tags, creditedArtist: entry.creditedArtist?.trim() || undefined,
+      ...(entry.downloadable === true ? { downloadable: true } : {}),
+      ...(relatedTo ? { relatedTo, relatedRank } : {}) },
+  };
+}
+
 export class SoundCloudProvider implements MusicProvider {
   readonly id = "soundcloud";
   readonly name = "SoundCloud";
@@ -76,7 +90,7 @@ export class SoundCloudProvider implements MusicProvider {
       artist: e.uploader,
       coverUrl: cover(e.thumbnail),
       duration: e.duration ? Math.round(e.duration) : undefined,
-      meta: { scId: e.id, scUrl: trackUrl(e.id) },
+      ...trackMetadata(e),
     }));
 
     const seen = new Set<string>();
@@ -149,7 +163,7 @@ export class SoundCloudProvider implements MusicProvider {
       try {
         const related = await invoke<ScSearchResult[]>("sc_related_tracks", { trackId: String(scId), limit: 15 });
         if (related.length > 0) {
-          const tracks = this.entriesToTracks(related);
+          const tracks = this.entriesToTracks(related, seed?.id);
           this.relatedCache.set(String(scId), { tracks, at: Date.now() });
           return tracks;
         }
@@ -174,7 +188,7 @@ export class SoundCloudProvider implements MusicProvider {
     }
   }
 
-  private entriesToTracks(entries: ScSearchResult[]): Track[] {
+  private entriesToTracks(entries: ScSearchResult[], relatedTo?: string): Track[] {
     return entries
       .filter((e) => {
         const title = (e.title ?? "").toLowerCase();
@@ -182,8 +196,8 @@ export class SoundCloudProvider implements MusicProvider {
         if (e.duration && e.duration < 30) return false;
         return true;
       })
-      .slice(0, 10)
-      .map((e) => ({
+      .slice(0, 15)
+      .map((e, relatedRank) => ({
         id: `soundcloud:track:${e.id}`,
         provider: this.id,
         uri: `soundcloud:track:${e.id}`,
@@ -191,7 +205,7 @@ export class SoundCloudProvider implements MusicProvider {
         artist: e.uploader,
         coverUrl: cover(e.thumbnail),
         duration: e.duration ? Math.round(e.duration) : undefined,
-        meta: { scId: e.id, scUrl: trackUrl(e.id) },
+        ...trackMetadata(e, relatedTo, relatedRank),
       }));
   }
 
@@ -262,10 +276,26 @@ export class SoundCloudProvider implements MusicProvider {
     };
   }
 
+  async importPublicLikes(profile: string): Promise<{ name: string; tracks: Track[] }> {
+    const result = await invoke<{ name: string; tracks: ScSearchResult[] }>("sc_import_likes", { profile });
+    const tracks = result.tracks.map((entry) => ({
+      id: `soundcloud:track:${entry.id}`,
+      provider: this.id,
+      uri: `soundcloud:track:${entry.id}`,
+      title: entry.title,
+      artist: entry.uploader,
+      duration: entry.duration,
+      coverUrl: cover(entry.thumbnail),
+      ...trackMetadata(entry),
+    }));
+    if (!tracks.length) throw new Error("SoundCloud: no accessible liked tracks");
+    return { name: result.name, tracks };
+  }
+
   /**
    * Импорт по ссылке soundcloud.com/...: трек или сет через sc_resolve_url.
    */
-  async importFromUrl(pageUrl: string): Promise<{ name: string; tracks: Track[] }> {
+  async importFromUrl(pageUrl: string): Promise<{ name: string; tracks: Track[]; unavailable?: number }> {
     const obj = await invoke<{ kind?: string; title?: string; tracks?: ScResolvedTrack[] } & ScResolvedTrack>(
       "sc_resolve_url",
       { pageUrl },
@@ -276,7 +306,8 @@ export class SoundCloudProvider implements MusicProvider {
         .map((t) => this.rawToTrack(t))
         .filter((t): t is Track => t !== null);
       if (tracks.length === 0) throw new Error("soundcloud: empty set");
-      return { name: obj.title ?? "SoundCloud set", tracks };
+      const unavailable = (obj.tracks?.length ?? 0) - tracks.length;
+      return { name: obj.title ?? "SoundCloud set", tracks, ...(unavailable > 0 ? { unavailable } : {}) };
     }
     if (obj.kind === "track") {
       const track = this.rawToTrack(obj);
@@ -301,7 +332,7 @@ export class SoundCloudProvider implements MusicProvider {
         artist: e.uploader,
         coverUrl: cover(e.thumbnail),
         duration: e.duration ? Math.round(e.duration) : undefined,
-        meta: { scId: e.id, scUrl: trackUrl(e.id) },
+        ...trackMetadata(e),
       }));
 
     const coverUrl = tracks[0]?.coverUrl;
