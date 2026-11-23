@@ -1,0 +1,42 @@
+name: Linux HLS preview packages
+
+on:
+  push:
+    branches: [codex/linux-hls-packaging]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native build and media dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libxdo-dev libssl-dev
+          sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Build unsigned Linux preview packages
+        run: pnpm tauri build --bundles deb,rpm,appimage --config '{"version":"1.0.0-rc.3.hls.1","bundle":{"createUpdaterArtifacts":false}}'
+      - name: Inspect packages and install RPM on Fedora
+        run: bash scripts/check-linux-media-packages.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Wave Linux HLS 1.0.0-rc.3.hls.1
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
