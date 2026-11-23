@@ -8,6 +8,7 @@ import { dbToGain, DEFAULT_LEVELING_OPTIONS, desiredGainDb, type NormalizationMo
 import { Queue } from "../queue/Queue";
 import { validateStreamUrl } from "../util/validateUrl";
 import { uniqueRecommendations } from "../recordings/matching";
+import { HLS_PLAYBACK_UNAVAILABLE } from "./hlsPlayback";
 
 export interface PlayerEvents {
   startup: StartupTiming;
@@ -777,6 +778,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
 
     const isMediaError = message.startsWith("audio error code");
     const isStreamError = /network error|audio decode error|stream stalled|HLS stream error|stream URL returned|\b403\b/i.test(message);
+    const hlsUnavailable = message === HLS_PLAYBACK_UNAVAILABLE;
     if (this.resolveUri && this.hasSource && this.playRecorded && (isMediaError || isStreamError)) {
       this.interruptedPosition ??= this.adapter.getPosition() || this.lastPlayingPosition;
       this.hasSource = false;
@@ -788,7 +790,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
       }
     }
 
-    if (this.resolveUri && this.retries < this.maxRetries) {
+    if (!hlsUnavailable && this.resolveUri && this.retries < this.maxRetries) {
       this.retries += 1;
       void this.startTrack(++this.playSeq);
       return;
@@ -826,7 +828,7 @@ export class PlayerEngine extends EventEmitter<PlayerEvents> {
     this.consecutiveFails += 1;
     if (this.consecutiveFails >= PlayerEngine.MAX_CONSECUTIVE_FAILS) {
       this.clearStallTimer();
-      this.emit("error", "too many failed tracks in a row, stopping");
+      this.emit("error", hlsUnavailable ? message : "too many failed tracks in a row, stopping");
       this.consecutiveFails = 0;
       this.stopAtEnd();
       return;

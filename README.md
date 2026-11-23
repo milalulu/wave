@@ -93,6 +93,20 @@
 
 <p align="center"><sub>Автообновления встроены (Tauri updater). <a href="https://github.com/milalulu/wave/releases">Все релизы &rarr;</a></sub></p>
 
+### Воспроизведение потоков на Linux
+
+При установке RPM через `dnf install ./Wave-*.rpm` или DEB через `apt install ./Wave_*.deb` пакетный менеджер установит плагины GStreamer вместе с Wave. AppImage содержит плагины внутри.
+
+### Ошибка HLS playback is unavailable на старых сборках Fedora
+
+На Fedora Workstation установите плагины воспроизведения из репозиториев Fedora.
+
+```sh
+sudo dnf install gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1-plugin-libav
+```
+
+Полностью закройте Wave, включая значок в трее. Для установленных RPM старых версий запустите `WEBKIT_GST_ENABLE_HLS_SUPPORT=1 wave`. Для AppImage укажите путь к файлу вместо `wave`. Переменная включает [встроенный HLS в WebKitGTK](https://webkitgtk.org/2023/02/02/webkitgtk2.38.4-released.html) для этого запуска.
+
 ---
 
 ## Что нового в 0.6.0

@@ -66,6 +66,9 @@ export interface Translations {
     sourceRemembered: string;
     sourcePreferenceHint: string;
     currentSource: string;
+    hlsUnavailable: string;
+    hlsUnavailableWindows: string;
+    hlsUnavailableLinux: string;
     similar: string;
     sleepTimerExpired: string;
     sleepTimerAfterTrack: string;
@@ -608,6 +611,9 @@ export const translations: Record<Locale, Translations> = {
       sourceRemembered: "Source saved for this recording",
       sourcePreferenceHint: "Your choice is saved for this recording on this device.",
       currentSource: "Current source",
+      hlsUnavailable: "This device can't play HLS audio. Try another source for this track.",
+      hlsUnavailableWindows: "This device can't play HLS audio. Try another source or check WebView2 and the Windows media components.",
+      hlsUnavailableLinux: "HLS audio is unavailable. Try another source or check the GStreamer plugins for WebKitGTK.",
       variantsEmpty: "No variants on other platforms",
       similar: "Similar",
       sleepTimerExpired: "Sleep timer: paused",
@@ -1165,6 +1171,9 @@ export const translations: Record<Locale, Translations> = {
       sourceRemembered: "Источник сохранён для этой записи",
       sourcePreferenceHint: "Выбор сохраняется для этой записи на этом устройстве.",
       currentSource: "Текущий источник",
+      hlsUnavailable: "На этом устройстве HLS-аудио недоступно. Попробуйте другой источник трека.",
+      hlsUnavailableWindows: "На этом ПК HLS-аудио недоступно. Попробуйте другой источник или проверьте WebView2 и медиакомпоненты Windows.",
+      hlsUnavailableLinux: "HLS-аудио недоступно. Попробуйте другой источник или проверьте плагины GStreamer для WebKitGTK.",
       variantsEmpty: "На других площадках не найдено",
       similar: "Похожие",
       sleepTimerExpired: "Таймер сна: пауза",

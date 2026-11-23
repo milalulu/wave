@@ -4,6 +4,7 @@ import { useApp } from "../app/stores";
 import { useI18n } from "./I18nContext";
 import { RefreshCwIcon, TrashIcon } from "./icons";
 import { buildDiagnosticReport, type DiagnosticsData } from "../app/diagnosticReport";
+import { getHlsPlaybackMode, type HlsPlaybackMode } from "../core/player/hlsPlayback";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString();
@@ -21,15 +22,20 @@ export function DiagnosticsView() {
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [hlsPlayback, setHlsPlayback] = useState<HlsPlaybackMode | null>(null);
 
   const run = async (): Promise<void> => {
     setBusy(true);
     setError("");
+    const hlsCheck = import("hls.js")
+      .then(({ default: Hls }) => getHlsPlaybackMode(Hls, new Audio()))
+      .catch(() => null);
     try {
       setData(await invoke<DiagnosticsData>("diagnostics"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setHlsPlayback(await hlsCheck);
       setBusy(false);
     }
   };
@@ -47,6 +53,12 @@ export function DiagnosticsView() {
         <p className="muted">
           Wave {data?.appVersion ?? "…"} · {platformLabel} · {data?.arch ?? "…"}{__WAVE_BUILD_REVISION__ && ` · ${__WAVE_BUILD_REVISION__.slice(0, 9)}`}
         </p>
+        <div className="diag-row">
+          <span className="diag-key">HLS</span>
+          <span className="diag-val">
+            {hlsPlayback ? <Status ok={hlsPlayback !== "unavailable"} /> : "—"}
+          </span>
+        </div>
         <button className="btn" onClick={() => void run()} disabled={busy}>
           <RefreshCwIcon size={16} /> {busy ? "…" : t("settings").diagRefresh}
         </button>
@@ -120,7 +132,7 @@ export function DiagnosticsView() {
           <button
             className="btn"
             onClick={() => {
-              const report = JSON.stringify(buildDiagnosticReport(data, logs, __WAVE_BUILD_REVISION__), null, 2);
+              const report = JSON.stringify(buildDiagnosticReport(data, logs, __WAVE_BUILD_REVISION__, hlsPlayback), null, 2);
               navigator.clipboard
                 ?.writeText(report)
                 .then(() => notify(t("settings").diagReportCopied))

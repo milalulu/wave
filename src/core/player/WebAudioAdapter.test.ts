@@ -10,6 +10,7 @@ import {
   isWebKitEngine,
 } from "./WebAudioAdapter";
 import type { PlayerState } from "../types";
+import { HLS_PLAYBACK_UNAVAILABLE } from "./hlsPlayback";
 
 class FakeParam {
   value: number;
@@ -213,6 +214,8 @@ class FakeAudioElement {
     FakeAudioElement.instances.push(this);
   }
 
+  canPlayType(): CanPlayTypeResult { return ""; }
+
   load(): void {
     this.loadCount += 1;
     
@@ -277,6 +280,29 @@ afterEach(() => {
 });
 
 describe("WebAudioAdapter", () => {
+  it("reports HLS incompatibility before attaching an unsupported stream", async () => {
+    const adapter = new WebAudioAdapter();
+    try {
+      await expect(adapter.load("https://example.test/song.m3u8")).rejects.toThrow(HLS_PLAYBACK_UNAVAILABLE);
+      expect(instances().every(({ src }) => src === "")).toBe(true);
+    } finally { adapter.destroy(); }
+  });
+
+  it("uses native HLS when MediaSource is unavailable and the media element supports HLS", async () => {
+    const adapter = new WebAudioAdapter();
+    const canPlayType = vi.spyOn(FakeAudioElement.prototype, "canPlayType").mockReturnValue("maybe");
+    try {
+      const url = "https://example.test/song.m3u8";
+      await adapter.load(url);
+      await adapter.play();
+      expect(canPlayType).toHaveBeenCalledWith("application/vnd.apple.mpegurl");
+      expect(instances()).toContainEqual(expect.objectContaining({ src: url, paused: false }));
+    } finally {
+      adapter.destroy();
+      canPlayType.mockRestore();
+    }
+  });
+
   it("restores the signal graph and saved equalizer after a previous stream needed direct playback", async () => {
     const adapter = new WebAudioAdapter();
     adapter.setEqualizer([7]);

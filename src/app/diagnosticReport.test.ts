@@ -11,8 +11,9 @@ it("copies a build revision and structured timings without local paths or signed
     { time: 1, message: "Playback youtube: playing, 250ms (resolve=200ms play=50ms)" },
     { time: 2, message: "Plugin bridge: https://example.org/sound?token=Secret" },
     { time: 3, message: "Playback local: playing, 250ms (resolve=200ms /home/private)" },
-  ], "abcdef123");
+  ], "abcdef123", "unavailable");
   expect(report.revision).toBe("abcdef123");
+  expect(report.hlsPlayback).toBe("unavailable");
   expect(report.playbackTimings).toHaveLength(1);
   expect(JSON.stringify(report)).not.toMatch(/Private|Secret|private|example\.org/);
 });

@@ -78,6 +78,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libxdo-dev libssl-dev
+          sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -114,6 +115,10 @@ jobs:
           # Манифест автообновлений (latest.json) генерируем только при заданном ключе подписи.
           uploadUpdaterJson: ${{ env.TAURI_SIGNING_PRIVATE_KEY != '' }}
           args: ${{ runner.os == 'Windows' && contains(github.ref_name, '-') && '--bundles nsis' || '' }}
+
+      - name: Verify Linux media packaging
+        if: runner.os == 'Linux'
+        run: bash scripts/check-linux-media-packages.sh
 
       - name: Verify Windows installation and upgrade
         if: runner.os == 'Windows'

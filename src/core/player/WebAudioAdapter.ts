@@ -7,6 +7,7 @@ import type { LoaderCallbacks, LoaderConfiguration, LoaderContext } from "hls.js
 import { DEFAULT_LEVELING_OPTIONS, Leveler } from "./leveling";
 import { AudioProcessing, GAIN_TAU } from "./audioProcessing";
 import { normalizeEqualizer, sanitizeAudioValue } from "./equalizerPresets";
+import { getHlsPlaybackMode, HLS_PLAYBACK_UNAVAILABLE } from "./hlsPlayback";
 
 export { EQ_FREQUENCIES } from "./equalizerPresets";
 
@@ -612,8 +613,9 @@ export class WebAudioAdapter implements AudioAdapter {
     try {
       const { default: Hls } = await import("hls.js");
       controller.signal.throwIfAborted();
-      if (!Hls.isSupported()) {
-        if (!element.canPlayType("application/vnd.apple.mpegurl")) throw new Error("HLS playback is unavailable");
+      const mode = getHlsPlaybackMode(Hls, element);
+      if (mode === "unavailable") throw new Error(HLS_PLAYBACK_UNAVAILABLE);
+      if (mode === "native") {
         element.src = src;
         element.load();
         return;

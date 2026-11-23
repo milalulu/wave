@@ -3,6 +3,7 @@ import type { PlayerState, Track } from "../types";
 import { MockAudioAdapter } from "./PlayerAdapter";
 import { PLAY_START_TIMEOUT_MS, PlayerEngine, STALL_TIMEOUT_MS } from "./PlayerEngine";
 import { normalizeEqualizer } from "./equalizerPresets";
+import { HLS_PLAYBACK_UNAVAILABLE } from "./hlsPlayback";
 
 const tracks: Track[] = [
   { id: "a", provider: "test", uri: "u://a", title: "A" },
@@ -46,6 +47,26 @@ describe("PlayerEngine", () => {
       await vi.waitFor(() => expect(engine.snapshot).toMatchObject({ current: alternate, state: "playing", position: 44 }));
       expect(recovery).toHaveBeenCalledTimes(1);
       expect(engine.snapshot.queueIndex).toBe(0);
+    } finally { engine.destroy(); }
+  });
+
+  it("immediately tries the same recording on a different platform when HLS is unavailable", async () => {
+    const adapter = new MockAudioAdapter();
+    const original = { ...tracks[0], provider: "soundcloud", uri: "u://song.m3u8" };
+    const alternate = { ...original, playbackSource: { ...original, id: "yt:a", provider: "youtube", uri: "u://song.webm" } };
+    const load = vi.spyOn(adapter, "load").mockRejectedValueOnce(new Error(HLS_PLAYBACK_UNAVAILABLE));
+    const recoverSource = vi.fn(async () => alternate);
+    const resolveUri = vi.fn(async (track: Track) => track.playbackSource?.uri ?? track.uri);
+    const error = vi.fn();
+    const engine = new PlayerEngine(adapter, { resolveUri, recoverSource, retries: 2 });
+    engine.on("error", error);
+    try {
+      await engine.playTracks([original], 0, "normal", 15);
+      await vi.waitFor(() => expect(engine.snapshot).toMatchObject({ current: alternate, state: "playing", position: 15 }));
+      expect(resolveUri.mock.calls).toEqual([[original], [alternate]]);
+      expect(load.mock.calls.map(([uri]) => uri)).toEqual([original.uri, alternate.playbackSource.uri]);
+      expect(recoverSource).toHaveBeenCalledExactlyOnceWith(original);
+      expect(error).not.toHaveBeenCalled();
     } finally { engine.destroy(); }
   });
 

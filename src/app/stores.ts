@@ -58,6 +58,7 @@ import {
 } from "./platformSettings";
 import { providerLabel } from "../ui/providers";
 import { t } from "../core/i18n";
+import { HLS_PLAYBACK_UNAVAILABLE } from "../core/player/hlsPlayback";
 import {
   accentFromImage,
   applyAccent,
@@ -1232,7 +1233,17 @@ async function doInit(
   services.engine.on("equalizer", bind);
   services.engine.on("shuffle", bind);
   services.engine.on("repeat", bind);
-  services.engine.on("error", (message) => get().notify(message));
+  services.engine.on("error", (message) => {
+    if (message === HLS_PLAYBACK_UNAVAILABLE) {
+      const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+      const player = t("player");
+      const hint = /Windows NT/i.test(ua) ? player.hlsUnavailableWindows
+        : !IS_ANDROID && /Linux/i.test(ua) ? player.hlsUnavailableLinux : player.hlsUnavailable;
+      get().notify(hint);
+      return;
+    }
+    get().notify(message);
+  });
   services.engine.on("startup", ({ provider, outcome, totalMs, phases }) => {
     const stages = Object.entries(phases).map(([name, ms]) => `${name}=${Math.round(ms)}ms`).join(" ");
     get().pushLog(`Playback ${provider}: ${outcome}, ${Math.round(totalMs)}ms (${stages})`);
